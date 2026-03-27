@@ -1,4 +1,4 @@
 # 忽略其他文件
 *
 !.gitignore
-!.workbuddy/skills/geo-search/**
+!geo-search/**
