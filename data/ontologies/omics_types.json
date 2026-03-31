@@ -1,0 +1,652 @@
+{
+  "version": "1.1",
+  "description": "Omics type standard vocabulary with aliases and search terms",
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_updated": "2026-03-30",
+    "curator": "SRA_search Team",
+    "source_databases": [
+      {"name": "NCBI", "url": "https://www.ncbi.nlm.nih.gov/"},
+      {"name": "ISO", "url": "https://www.iso.org/"}
+    ],
+    "license": "CC BY 4.0"
+  },
+  "omics_types": {
+    "Whole Genome Sequencing": {
+      "canonical": "Whole Genome Sequencing",
+      "aliases": ["WGS", "Whole Genome Seq", "Complete genome sequencing", "Full genome sequencing", "Genome sequencing"],
+      "keywords": ["whole genome", "genome sequencing", "WGS", "full genome"],
+      "search_terms": ["whole genome sequencing", "WGS", "genome sequencing", "complete genome"],
+      "data_type": "sequence",
+      "category": "genomics"
+    },
+    "Whole Exome Sequencing": {
+      "canonical": "Whole Exome Sequencing",
+      "aliases": ["WES", "Exome sequencing", "Exome Seq", "Whole exome sequencing"],
+      "keywords": ["whole exome", "exome sequencing", "WES", "exome"],
+      "search_terms": ["whole exome sequencing", "WES", "exome sequencing", "exome"],
+      "data_type": "sequence",
+      "category": "genomics"
+    },
+    "RNA-Seq": {
+      "canonical": "RNA-Seq",
+      "aliases": ["RNA sequencing", "Transcriptome sequencing", "mRNA-Seq", "RNA Seq", "Total RNA sequencing"],
+      "keywords": ["RNA-Seq", "RNA sequencing", "transcriptome", "mRNA sequencing"],
+      "search_terms": ["RNA-Seq", "RNA sequencing", "transcriptome sequencing", "mRNA-Seq"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "Single-Cell RNA-Seq": {
+      "canonical": "Single-Cell RNA-Seq",
+      "aliases": [
+        "scRNA-Seq", "scRNA-seq", "scRNA", "Single cell RNA sequencing",
+        "Single-cell transcriptome", "Single-cell RNA", "Drop-seq", "10x Genomics",
+        "single-cell", "single cell", "single cell sequencing", "single-cell sequencing",
+        "snRNA-Seq", "snRNAseq", "single nucleus RNA-Seq",
+        "Smart-seq", "SmartSeq2", "CEL-Seq", "Drop-seq", "inDrop", "microwell-seq",
+        "10x", "10X Chromium", "Single Cell ATAC"
+      ],
+      "keywords": ["single cell", "scRNA", "single-cell RNA", "single cell sequencing", "single-cell"],
+      "search_terms": [
+        "single-cell RNA-Seq", "scRNA-Seq", "scRNAseq", "single cell transcriptome",
+        "single cell sequencing", "single-cell sequencing", "single-cell",
+        "snRNA-Seq", "single nucleus", "smart-seq", "10x genomics",
+        "single cell RNA sequencing", "single-cell RNA sequencing"
+      ],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "Spatial Transcriptomics": {
+      "canonical": "Spatial Transcriptomics",
+      "aliases": ["Spatial RNA", "Spatial transcriptomics", "Spatial gene expression", "Spatialomics", "Visium"],
+      "keywords": ["spatial", "spatial transcriptomics", "spatial RNA", "spatial gene expression"],
+      "search_terms": ["spatial transcriptomics", "spatial RNA", "spatial gene expression", "spatial transcriptomics sequencing"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "ATAC-Seq": {
+      "canonical": "ATAC-Seq",
+      "aliases": ["Assay for Transposase-Accessible Chromatin sequencing", "Chromatin accessibility", "Open chromatin"],
+      "keywords": ["ATAC-Seq", "chromatin accessibility", "open chromatin", "transposase"],
+      "search_terms": ["ATAC-Seq", "chromatin accessibility", "open chromatin sequencing", "ATAC"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "ChIP-Seq": {
+      "canonical": "ChIP-Seq",
+      "aliases": ["Chromatin Immunoprecipitation sequencing", "ChIP sequencing", "Histone ChIP", "TF ChIP"],
+      "keywords": ["ChIP-Seq", "ChIP sequencing", "chromatin immunoprecipitation", "histone"],
+      "search_terms": ["ChIP-Seq", "chromatin immunoprecipitation sequencing", "histone modification", "TF binding"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "Hi-C": {
+      "canonical": "Hi-C",
+      "aliases": ["Chromosome conformation capture", "3D genome", "Genome architecture", "Chromatin interaction"],
+      "keywords": ["Hi-C", "chromosome conformation capture", "3D genome", "chromatin interaction"],
+      "search_terms": ["Hi-C", "chromosome conformation capture", "3D genome", "chromatin interaction mapping"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "CUT&RUN": {
+      "canonical": "CUT&RUN",
+      "aliases": ["Cleavage Under Targets and Release Using Nuclease", "CUT&RUN sequencing"],
+      "keywords": ["CUT&RUN", "cleavage under targets", "targeted epigenomics"],
+      "search_terms": ["CUT&RUN", "targeted chromatin profiling", "epigenomic sequencing"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "BS-Seq": {
+      "canonical": "BS-Seq",
+      "aliases": ["Bisulfite sequencing", "Methylation sequencing", "Whole genome bisulfite", "WGBS"],
+      "keywords": ["bisulfite sequencing", "BS-Seq", "DNA methylation", "methylome"],
+      "search_terms": ["bisulfite sequencing", "BS-Seq", "DNA methylation sequencing", "WGBS"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "MeRIP-Seq": {
+      "canonical": "MeRIP-Seq",
+      "aliases": ["m6A sequencing", "Methylated RNA immunoprecipitation", "m6A-Seq", "RNA methylation"],
+      "keywords": ["MeRIP-Seq", "m6A", "RNA methylation", "m6A sequencing"],
+      "search_terms": ["MeRIP-Seq", "m6A sequencing", "RNA methylation profiling", "m6A-Seq"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "Proteomics": {
+      "canonical": "Proteomics",
+      "aliases": ["Mass spectrometry proteomics", "LC-MS/MS", "Shotgun proteomics", "Protein sequencing"],
+      "keywords": ["proteomics", "mass spectrometry", "LC-MS", "protein"],
+      "search_terms": ["proteomics", "mass spectrometry proteomics", "protein profiling", "LC-MS/MS"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "Phosphoproteomics": {
+      "canonical": "Phosphoproteomics",
+      "aliases": ["Phosphorylation proteomics", "Phospho-MS", "Phosphorylation profiling"],
+      "keywords": ["phosphoproteomics", "phosphorylation", "phospho"],
+      "search_terms": ["phosphoproteomics", "phosphorylation proteomics", "kinase", "phospho-MS"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "Metabolomics": {
+      "canonical": "Metabolomics",
+      "aliases": ["Metabolite profiling", "LC-MS metabolomics", "GC-MS metabolomics", "Metabolite analysis"],
+      "keywords": ["metabolomics", "metabolite", "LC-MS", "GC-MS"],
+      "search_terms": ["metabolomics", "metabolite profiling", "metabolite analysis", "metabolome"],
+      "data_type": "small_molecule",
+      "category": "metabolomics"
+    },
+    "Lipidomics": {
+      "canonical": "Lipidomics",
+      "aliases": ["Lipid profiling", "Lipid analysis", "Lipid mass spectrometry"],
+      "keywords": ["lipidomics", "lipid", "lipid profiling"],
+      "search_terms": ["lipidomics", "lipid profiling", "lipid analysis", "lipidome"],
+      "data_type": "small_molecule",
+      "category": "metabolomics"
+    },
+    "Glycomics": {
+      "canonical": "Glycomics",
+      "aliases": ["Glycan analysis", "Glycan profiling", "Glycoproteomics"],
+      "keywords": ["glycomics", "glycan", "glycoprotein"],
+      "search_terms": ["glycomics", "glycan analysis", "glycan profiling", "glycome"],
+      "data_type": "small_molecule",
+      "category": "metabolomics"
+    },
+    "Microbiome": {
+      "canonical": "Microbiome",
+      "aliases": ["16S rRNA sequencing", "Metagenomics", "Gut microbiome", "Shotgun metagenomics"],
+      "keywords": ["microbiome", "metagenomics", "16S", "bacterial"],
+      "search_terms": ["microbiome", "metagenomics", "16S rRNA", "gut microbiome"],
+      "data_type": "sequence",
+      "category": "microbiomics"
+    },
+    "Metagenomics": {
+      "canonical": "Metagenomics",
+      "aliases": ["Shotgun metagenomics", "Metagenome sequencing", "Environmental genomics"],
+      "keywords": ["metagenomics", "metagenome", "shotgun"],
+      "search_terms": ["metagenomics", "shotgun metagenomics", "metagenome sequencing"],
+      "data_type": "sequence",
+      "category": "microbiomics"
+    },
+    "Single-Cell ATAC-Seq": {
+      "canonical": "Single-Cell ATAC-Seq",
+      "aliases": ["scATAC-Seq", "Single cell chromatin accessibility", "Single cell epigenomics"],
+      "keywords": ["scATAC", "single cell ATAC", "single cell chromatin"],
+      "search_terms": ["single-cell ATAC-Seq", "scATAC-Seq", "single cell chromatin accessibility"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "CITE-Seq": {
+      "canonical": "CITE-Seq",
+      "aliases": ["Cellular Indexing of Transcriptomes and Epitopes", "Multiplexed single cell"],
+      "keywords": ["CITE-Seq", "cellular indexing", "multiplexed"],
+      "search_terms": ["CITE-Seq", "cellular indexing of transcriptomes and epitopes", "multiplexed single cell"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "Multi-Omics": {
+      "canonical": "Multi-Omics",
+      "aliases": ["Multi-omics", "Integrated omics", "Multi-omics integration", "Panomics"],
+      "keywords": ["multi-omics", "integrated", "multi-modal", "cross-omics"],
+      "search_terms": ["multi-omics", "integrated omics", "multi-omics integration", "panomics"],
+      "data_type": "integrated",
+      "category": "integrative"
+    },
+    "Single-Cell Multi-Omics": {
+      "canonical": "Single-Cell Multi-Omics",
+      "aliases": ["scMulti-Omics", "Single cell multi-omics", "Single cell multimodal"],
+      "keywords": ["single cell multi-omics", "scMulti", "multimodal single cell"],
+      "search_terms": ["single-cell multi-omics", "scMulti-omics", "single cell multimodal"],
+      "data_type": "integrated",
+      "category": "integrative"
+    },
+    "HiChIP": {
+      "canonical": "HiChIP",
+      "aliases": ["HiChIP", "Chromatin interaction profiling"],
+      "keywords": ["HiChIP", "chromatin interaction", "ChIP-loop"],
+      "search_terms": ["HiChIP", "chromatin interaction profiling", "in situ HiChIP"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "SPLINTER": {
+      "canonical": "SPLINTER",
+      "aliases": ["Splice isoform", "Isoform sequencing"],
+      "keywords": ["splicing", "isoform", "SPLINTER"],
+      "search_terms": ["splicing analysis", "isoform detection", "alternative splicing"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "Long-Read RNA-Seq": {
+      "canonical": "Long-Read RNA-Seq",
+      "aliases": ["Oxford Nanopore RNA", "PacBio Iso-Seq", "Third generation sequencing", "TGS RNA"],
+      "keywords": ["nanopore", "pacbio", "long read", "iso-seq"],
+      "search_terms": ["long-read RNA-Seq", "nanopore RNA", "PacBio Iso-Seq", "third generation RNA sequencing"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "Long-Read DNA Sequencing": {
+      "canonical": "Long-Read DNA Sequencing",
+      "aliases": ["Oxford Nanopore", "PacBio HiFi", "HiFi sequencing", "CCS"],
+      "keywords": ["nanopore", "pacbio", "long read", "HiFi"],
+      "search_terms": ["long-read DNA sequencing", "nanopore", "PacBio HiFi", "CCS"],
+      "data_type": "sequence",
+      "category": "genomics"
+    },
+    "Genotyping Array": {
+      "canonical": "Genotyping Array",
+      "aliases": ["SNP array", "Genotyping chip", "DNA microarray", "GWAS array"],
+      "keywords": ["SNP array", "genotyping", "microarray", "GWAS"],
+      "search_terms": ["genotyping array", "SNP array", "DNA microarray", "GWAS"],
+      "data_type": "array",
+      "category": "genomics"
+    },
+    "miRNA-Seq": {
+      "canonical": "miRNA-Seq",
+      "aliases": ["microRNA sequencing", "Small RNA sequencing", "miRNA sequencing"],
+      "keywords": ["miRNA", "microRNA", "small RNA"],
+      "search_terms": ["miRNA-Seq", "microRNA sequencing", "small RNA sequencing"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "snoRNA-Seq": {
+      "canonical": "snoRNA-Seq",
+      "aliases": ["snoRNA sequencing", "Small nucleolar RNA"],
+      "keywords": ["snoRNA", "small nucleolar RNA"],
+      "search_terms": ["snoRNA-Seq", "small nucleolar RNA sequencing"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "Ribo-Seq": {
+      "canonical": "Ribo-Seq",
+      "aliases": ["Riboosome profiling", "RPF sequencing", "Translation profiling"],
+      "keywords": ["ribosome profiling", "Ribo-Seq", "translation"],
+      "search_terms": ["ribosome profiling", "Ribo-Seq", "translation sequencing"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "snRNA-Seq": {
+      "canonical": "snRNA-Seq",
+      "aliases": ["Single nucleus RNA-Seq", "Single nucleus sequencing", "sNucRNA-Seq"],
+      "keywords": ["snRNA", "single nucleus", "nuclear"],
+      "search_terms": ["snRNA-Seq", "single nucleus RNA-Seq", "sNucRNA-Seq"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "Spatial Proteomics": {
+      "canonical": "Spatial Proteomics",
+      "aliases": ["Imaging mass cytometry", "CODEX", "Multiplexed ion beam imaging", "MIBI"],
+      "keywords": ["spatial proteomics", "imaging mass cytometry", "CODEX", "MIBI"],
+      "search_terms": ["spatial proteomics", "imaging mass cytometry", "CODEX", "MIBI"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "Spatial Metabolomics": {
+      "canonical": "Spatial Metabolomics",
+      "aliases": ["MALDI imaging", "Mass spectrometry imaging", "MSI", "Imaging metabolomics"],
+      "keywords": ["spatial metabolomics", "MALDI imaging", "mass spectrometry imaging", "MSI"],
+      "search_terms": ["spatial metabolomics", "MALDI imaging", "mass spectrometry imaging", "MSI"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "Single-Cell Proteomics": {
+      "canonical": "Single-Cell Proteomics",
+      "aliases": ["scProteomics", "Single cell mass spectrometry", "Single cell protein"],
+      "keywords": ["single cell proteomics", "scProteomics", "single cell protein"],
+      "search_terms": ["single-cell proteomics", "scProteomics", "single cell mass spectrometry"],
+      "data_type": "protein",
+      "category": "single_cell"
+    },
+    "Single-Cell Metabolomics": {
+      "canonical": "Single-Cell Metabolomics",
+      "aliases": ["scMetabolomics", "Single cell metabolomics", "Single cell metabolite"],
+      "keywords": ["single cell metabolomics", "scMetabolomics", "single cell metabolite"],
+      "search_terms": ["single-cell metabolomics", "scMetabolomics", "single cell metabolomics"],
+      "data_type": "small_molecule",
+      "category": "single_cell"
+    },
+    "CRISPR Screening": {
+      "canonical": "CRISPR Screening",
+      "aliases": ["CRISPR screen", "Genome-wide CRISPR", "CRISPR knockout screen", "sgRNA screen"],
+      "keywords": ["CRISPR", "genome screen", "CRISPR screening", "functional genomics"],
+      "search_terms": ["CRISPR screening", "genome-wide CRISPR", "CRISPR knockout screen"],
+      "data_type": "sequence",
+      "category": "functional_genomics"
+    },
+    "RNAi Screening": {
+      "canonical": "RNAi Screening",
+      "aliases": ["RNAi screen", "siRNA screen", "shRNA screen", "Gene knockdown screen"],
+      "keywords": ["RNAi", "siRNA", "shRNA", "knockdown screen"],
+      "search_terms": ["RNAi screening", "siRNA screen", "shRNA screen"],
+      "data_type": "sequence",
+      "category": "functional_genomics"
+    },
+    "Perturb-Seq": {
+      "canonical": "Perturb-Seq",
+      "aliases": ["CRISPR Perturb-Seq", "Perturbation sequencing", "Single cell CRISPR screen"],
+      "keywords": ["Perturb-Seq", "CRISPR perturbation", "single cell perturbation"],
+      "search_terms": ["Perturb-Seq", "CRISPR Perturb-Seq", "single cell perturbation sequencing"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "3'-Tag-Seq": {
+      "canonical": "3'-Tag-Seq",
+      "aliases": ["3'Tag-Seq", "3' sequencing", "Digital gene expression"],
+      "keywords": ["3'-Tag-Seq", "3' Tag", "DGE"],
+      "search_terms": ["3'-Tag-Seq", "3' sequencing", "digital gene expression"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "SLAM-Seq": {
+      "canonical": "SLAM-Seq",
+      "aliases": ["SLAM sequencing", "Metabolic labeling sequencing", "Time-resolved RNA sequencing"],
+      "keywords": ["SLAM-Seq", "metabolic labeling", "new RNA synthesis"],
+      "search_terms": ["SLAM-Seq", "metabolic labeling sequencing", "newly synthesized RNA"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "NET-Seq": {
+      "canonical": "NET-Seq",
+      "aliases": ["Native Elongating Transcript sequencing", "NET-sequencing", "Global run-on"],
+      "keywords": ["NET-Seq", "transcription", "elongation"],
+      "search_terms": ["NET-Seq", "native elongating transcript sequencing", "transcription profiling"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "GRO-Seq": {
+      "canonical": "GRO-Seq",
+      "aliases": ["Global Run-On sequencing", "Run-on assay", "Nascent RNA sequencing"],
+      "keywords": ["GRO-Seq", "global run-on", "nascent RNA"],
+      "search_terms": ["GRO-Seq", "global run-on sequencing", "nascent RNA"],
+      "data_type": "sequence",
+      "category": "transcriptomics"
+    },
+    "ChIP-exo": {
+      "canonical": "ChIP-exo",
+      "aliases": ["ChIP-exonuclease", "High-resolution ChIP", "ChIP sequencing exo"],
+      "keywords": ["ChIP-exo", "high resolution ChIP", "protein-DNA binding"],
+      "search_terms": ["ChIP-exo", "high-resolution ChIP sequencing", "protein-DNA interaction"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "CUT&Tag": {
+      "canonical": "CUT&Tag",
+      "aliases": ["Cleavage Under Targets and Tagmentation", "CUT&Tag sequencing"],
+      "keywords": ["CUT&Tag", "tagmentation", "targeted epigenomics"],
+      "search_terms": ["CUT&Tag", "cleavage under targets and tagmentation", "epigenomic profiling"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "FAIRE-Seq": {
+      "canonical": "FAIRE-Seq",
+      "aliases": ["FAIRE sequencing", "Formaldehyde-assisted isolation of regulatory elements"],
+      "keywords": ["FAIRE", "open chromatin", "regulatory elements"],
+      "search_terms": ["FAIRE-Seq", "open chromatin sequencing", "regulatory element mapping"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "DNase-Seq": {
+      "canonical": "DNase-Seq",
+      "aliases": ["DNase I hypersensitivity", "DNase hypersensitivity sequencing", "Open chromatin"],
+      "keywords": ["DNase-Seq", "DNase hypersensitivity", "open chromatin"],
+      "search_terms": ["DNase-Seq", "DNase I hypersensitivity sequencing", "open chromatin mapping"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "MNase-Seq": {
+      "canonical": "MNase-Seq",
+      "aliases": ["Micrococcal nuclease sequencing", "Nucleosome positioning"],
+      "keywords": ["MNase", "nucleosome", "chromatin structure"],
+      "search_terms": ["MNase-Seq", "nucleosome positioning sequencing", "chromatin structure"],
+      "data_type": "sequence",
+      "category": "epigenomics"
+    },
+    "Sci-ATAC-Seq": {
+      "canonical": "Sci-ATAC-Seq",
+      "aliases": ["Single-cell combinatorial indexing ATAC", "sciATAC", "Single cell chromatin accessibility"],
+      "keywords": ["sciATAC", "single cell ATAC", "combinatorial indexing"],
+      "search_terms": ["sci-ATAC-Seq", "single-cell combinatorial indexing ATAC", "single cell chromatin accessibility"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "snATAC-Seq": {
+      "canonical": "snATAC-Seq",
+      "aliases": ["Single nucleus ATAC-Seq", "sNucATAC", "Nucleus chromatin accessibility"],
+      "keywords": ["snATAC", "single nucleus ATAC", "nuclear chromatin"],
+      "search_terms": ["snATAC-Seq", "single nucleus ATAC-Seq", "nucleus chromatin accessibility"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "iscRNA-Seq": {
+      "canonical": "iscRNA-Seq",
+      "aliases": ["Indexed single-cell RNA-Seq", "Split-pool RNA-Seq"],
+      "keywords": ["iscRNA", "indexed scRNA", "split-pool"],
+      "search_terms": ["iscRNA-Seq", "indexed single-cell RNA-Seq", "split-pool RNA sequencing"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "Smart-Seq2": {
+      "canonical": "Smart-Seq2",
+      "aliases": ["Smart-seq2", "Smart sequencing 2", "Full-length transcriptome"],
+      "keywords": ["Smart-Seq2", "smart-seq2", "full-length scRNA"],
+      "search_terms": ["Smart-Seq2", "smart-seq2 full-length transcriptome", "single cell full-length RNA"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "10x Genomics": {
+      "canonical": "10x Genomics",
+      "aliases": ["10x Chromium", "10x single cell", "Chromium single cell"],
+      "keywords": ["10x", "10x Genomics", "chromium", "single cell solution"],
+      "search_terms": ["10x Genomics", "10x Chromium", "single cell solution system"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "BD Rhapsody": {
+      "canonical": "BD Rhapsody",
+      "aliases": ["BD Rhapsody single cell", "BD single cell", "Rhapsody"],
+      "keywords": ["BD Rhapsody", "BD single cell", "Rhapsody"],
+      "search_terms": ["BD Rhapsody", "BD Rhapsody single cell", "BD single cell solution"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "Drop-seq": {
+      "canonical": "Drop-seq",
+      "aliases": ["Droplet single cell RNA-Seq", "Droplet sequencing"],
+      "keywords": ["Drop-seq", "droplet", "microparticle"],
+      "search_terms": ["Drop-seq", "droplet single cell RNA-Seq", "droplet sequencing"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "InDrop": {
+      "canonical": "InDrop",
+      "aliases": ["Indexing droplet", "InDrop sequencing", "Droplet-based scRNA"],
+      "keywords": ["InDrop", "indexing droplet", "droplet"],
+      "search_terms": ["InDrop", "indexing droplet sequencing", "droplet-based scRNA"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "Microwell-Seq": {
+      "canonical": "Microwell-Seq",
+      "aliases": ["Microwell sequencing", "Micro-well single cell"],
+      "keywords": ["microwell", "microwell-seq", "micro-well"],
+      "search_terms": ["Microwell-Seq", "microwell sequencing", "micro-well single cell"],
+      "data_type": "sequence",
+      "category": "single_cell"
+    },
+    "Visium Spatial": {
+      "canonical": "Visium Spatial",
+      "aliases": ["10x Visium", "Spatial gene expression", "Spatial transcriptomics Visium"],
+      "keywords": ["Visium", "spatial", "spatial transcriptomics"],
+      "search_terms": ["10x Visium", "spatial gene expression", "spatial transcriptomics platform"],
+      "data_type": "sequence",
+      "category": "spatial"
+    },
+    "Slide-Seq": {
+      "canonical": "Slide-Seq",
+      "aliases": ["Slide-seqV2", "Spatial transcriptomics slide", "Spatial RNA sequencing"],
+      "keywords": ["Slide-Seq", "spatial transcriptomics", "spatial mapping"],
+      "search_terms": ["Slide-Seq", "spatial transcriptomics slide", "spatial RNA sequencing"],
+      "data_type": "sequence",
+      "category": "spatial"
+    },
+    "Stereo-Seq": {
+      "canonical": "Stereo-Seq",
+      "aliases": ["Spatially resolved transcriptomics", "Spatialomics", "BGI spatial"],
+      "keywords": ["Stereo-Seq", "spatial transcriptomics", "BGI"],
+      "search_terms": ["Stereo-Seq", "spatially resolved transcriptomics", "BGI spatial transcriptomics"],
+      "data_type": "sequence",
+      "category": "spatial"
+    },
+    "CosMx SMI": {
+      "canonical": "CosMx SMI",
+      "aliases": ["CosMx Spatial Molecular Imager", "NanoString spatial", "Molecular imaging"],
+      "keywords": ["CosMx", "spatial molecular", "imaging"],
+      "search_terms": ["CosMx SMI", "spatial molecular imager", "nanoString spatial"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "Xenium": {
+      "canonical": "Xenium",
+      "aliases": ["Xenium in situ", "10x Xenium", "In situ spatial transcriptomics"],
+      "keywords": ["Xenium", "in situ", "spatial transcriptomics"],
+      "search_terms": ["Xenium", "10x Xenium in situ", "in situ spatial transcriptomics"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "MERFISH": {
+      "canonical": "MERFISH",
+      "aliases": ["Multiplexed error-robust FISH", "Single molecule FISH", "smFISH"],
+      "keywords": ["MERFISH", "FISH", "single molecule", "spatial"],
+      "search_terms": ["MERFISH", "multiplexed error-robust FISH", "single molecule spatial imaging"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "seqFISH": {
+      "canonical": "seqFISH",
+      "aliases": ["Sequential FISH", "seqFISH+", "Multiplexed FISH"],
+      "keywords": ["seqFISH", "sequential FISH", "multiplexed"],
+      "search_terms": ["seqFISH", "sequential FISH", "multiplexed spatial imaging"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "smFISH": {
+      "canonical": "smFISH",
+      "aliases": ["Single molecule FISH", "Single molecule RNA FISH"],
+      "keywords": ["smFISH", "single molecule", "RNA FISH"],
+      "search_terms": ["smFISH", "single molecule FISH", "single molecule RNA imaging"],
+      "data_type": "image",
+      "category": "spatial"
+    },
+    "LC-MS": {
+      "canonical": "LC-MS",
+      "aliases": ["Liquid chromatography mass spectrometry", "Mass spectrometry proteomics"],
+      "keywords": ["LC-MS", "liquid chromatography", "mass spec"],
+      "search_terms": ["LC-MS", "liquid chromatography mass spectrometry", "mass spec proteomics"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "LC-MS/MS": {
+      "canonical": "LC-MS/MS",
+      "aliases": ["Tandem mass spectrometry", "Shotgun proteomics LC-MS/MS"],
+      "keywords": ["LC-MS/MS", "tandem MS", "shotgun"],
+      "search_terms": ["LC-MS/MS", "tandem mass spectrometry", "shotgun proteomics"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "TMT-MS": {
+      "canonical": "TMT-MS",
+      "aliases": ["Tandem mass tags", "TMT proteomics", "Multiplexed proteomics"],
+      "keywords": ["TMT", "tandem mass tags", "multiplexed proteomics"],
+      "search_terms": ["TMT-MS", "tandem mass tags proteomics", "multiplexed protein quantification"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "iTRAQ": {
+      "canonical": "iTRAQ",
+      "aliases": ["iTRAQ proteomics", "Isobaric tagging", "Multiplexed quantitation"],
+      "keywords": ["iTRAQ", "isobaric", "multiplexed"],
+      "search_terms": ["iTRAQ", "isobaric tagging proteomics", "multiplexed protein quantitation"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "SWATH-MS": {
+      "canonical": "SWATH-MS",
+      "aliases": ["SWATH", "Data-independent acquisition", "DIA mass spectrometry"],
+      "keywords": ["SWATH", "DIA", "data-independent"],
+      "search_terms": ["SWATH-MS", "data-independent acquisition", "DIA proteomics"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "DIA-MS": {
+      "canonical": "DIA-MS",
+      "aliases": ["Data-independent acquisition", "SWATH-like", "Broadband DIA"],
+      "keywords": ["DIA", "data-independent", "broadband"],
+      "search_terms": ["DIA-MS", "data-independent acquisition mass spectrometry", "broadband proteomics"],
+      "data_type": "protein",
+      "category": "proteomics"
+    },
+    "Surface Plasmon Resonance": {
+      "canonical": "Surface Plasmon Resonance",
+      "aliases": ["SPR", "Biomolecular interaction", "Binding affinity"],
+      "keywords": ["SPR", "surface plasmon resonance", "binding"],
+      "search_terms": ["SPR", "surface plasmon resonance", "biomolecular interaction analysis"],
+      "data_type": "other",
+      "category": "interaction"
+    },
+    "Isothermal Titration Calorimetry": {
+      "canonical": "Isothermal Titration Calorimetry",
+      "aliases": ["ITC", "Thermal shift", "Binding thermodynamics"],
+      "keywords": ["ITC", "isothermal", "calorimetry"],
+      "search_terms": ["ITC", "isothermal titration calorimetry", "binding thermodynamics"],
+      "data_type": "other",
+      "category": "interaction"
+    },
+    "Y2H": {
+      "canonical": "Y2H",
+      "aliases": ["Yeast two hybrid", "Two-hybrid assay", "Protein-protein interaction"],
+      "keywords": ["Y2H", "yeast two hybrid", "PPI"],
+      "search_terms": ["Y2H", "yeast two hybrid", "protein-protein interaction screening"],
+      "data_type": "sequence",
+      "category": "interaction"
+    },
+    "Co-IP": {
+      "canonical": "Co-IP",
+      "aliases": ["Co-immunoprecipitation", "Immunoprecipitation", "Protein complex"],
+      "keywords": ["Co-IP", "co-immunoprecipitation", "IP"],
+      "search_terms": ["Co-IP", "co-immunoprecipitation", "protein complex isolation"],
+      "data_type": "other",
+      "category": "interaction"
+    },
+    "AP-MS": {
+      "canonical": "AP-MS",
+      "aliases": ["Affinity purification MS", "Pull-down MS", "Protein complex MS"],
+      "keywords": ["AP-MS", "affinity purification", "pull-down"],
+      "search_terms": ["AP-MS", "affinity purification mass spectrometry", "protein complex profiling"],
+      "data_type": "protein",
+      "category": "interaction"
+    },
+    "BioID": {
+      "canonical": "BioID",
+      "aliases": ["Proximity-dependent biotin identification", "TurboID", "Proximity labeling"],
+      "keywords": ["BioID", "proximity labeling", "TurboID"],
+      "search_terms": ["BioID", "proximity-dependent biotin identification", "protein proximity mapping"],
+      "data_type": "protein",
+      "category": "interaction"
+    },
+    "ChIA-PET": {
+      "canonical": "ChIA-PET",
+      "aliases": ["Chromatin Interaction Analysis by Paired-End Tag sequencing", "ChIA-PET"],
+      "keywords": ["ChIA-PET", "chromatin interaction", "loop"],
+      "search_terms": ["ChIA-PET", "chromatin interaction analysis", "chromatin looping"],
+      "data_type": "sequence",
+      "category": "3d_genome"
+    },
+    "PLAC-Seq": {
+      "canonical": "PLAC-Seq",
+      "aliases": ["Proximity Ligation-Assisted ChIP-Seq", "Hi-ChIP variant"],
+      "keywords": ["PLAC-Seq", "proximity ligation", "chromatin loop"],
+      "search_terms": ["PLAC-Seq", "proximity ligation-assisted ChIP-Seq", "chromatin interaction"],
+      "data_type": "sequence",
+      "category": "3d_genome"
+    }
+  }
+}

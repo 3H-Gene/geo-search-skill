@@ -1,0 +1,370 @@
+{
+  "version": "1.1",
+  "description": "MeSH term synonyms and hierarchical mapping for search optimization",
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_updated": "2026-03-30",
+    "curator": "SRA_search Team",
+    "source_databases": [
+      {"name": "MeSH", "url": "https://www.nlm.nih.gov/mesh/"},
+      {"name": "UMLS", "url": "https://uts.nlm.nih.gov/uts/"}
+    ],
+    "license": "CC BY 4.0"
+  },
+  "mesh_synonyms": {
+    "Neoplasms": {
+      "canonical": "Neoplasms",
+      "mesh_id": "D009369",
+      "synonyms": ["Tumor", "Tumour", "Cancer", "Malignancy", "Malignant neoplasm", "Benign tumor", "Neoplastic"],
+      "search_terms": ["neoplasm", "tumor", "cancer", "malignancy", "neoplastic disease"]
+    },
+    "Lung Neoplasms": {
+      "canonical": "Lung Neoplasms",
+      "mesh_id": "D008175",
+      "synonyms": ["Lung cancer", "Pulmonary neoplasm", "Bronchogenic carcinoma", "Pulmonary carcinoma", "Lung tumor"],
+      "search_terms": ["lung neoplasm", "lung cancer", "pulmonary carcinoma", "bronchogenic carcinoma"]
+    },
+    "Breast Neoplasms": {
+      "canonical": "Breast Neoplasms",
+      "mesh_id": "D001943",
+      "synonyms": ["Breast cancer", "Mammary neoplasm", "Breast tumor", "Mammary carcinoma"],
+      "search_terms": ["breast neoplasm", "breast cancer", "mammary carcinoma", "mammary tumor"]
+    },
+    "Colorectal Neoplasms": {
+      "canonical": "Colorectal Neoplasms",
+      "mesh_id": "D015169",
+      "synonyms": ["Colorectal cancer", "Colon cancer", "Rectal cancer", "Colon tumor", "Large intestine neoplasm"],
+      "search_terms": ["colorectal neoplasm", "colorectal cancer", "colon cancer", "rectal cancer"]
+    },
+    "Liver Neoplasms": {
+      "canonical": "Liver Neoplasms",
+      "mesh_id": "D008107",
+      "synonyms": ["Liver cancer", "Hepatic neoplasm", "Hepatocellular carcinoma", "HCC", "Primary liver cancer"],
+      "search_terms": ["liver neoplasm", "hepatic carcinoma", "hepatocellular carcinoma", "hepatic malignancy"]
+    },
+    "Stomach Neoplasms": {
+      "canonical": "Stomach Neoplasms",
+      "mesh_id": "D013274",
+      "synonyms": ["Gastric cancer", "Stomach cancer", "Gastric carcinoma", "Gastric tumor"],
+      "search_terms": ["stomach neoplasm", "gastric carcinoma", "gastric cancer", "gastric malignancy"]
+    },
+    "Prostatic Neoplasms": {
+      "canonical": "Prostatic Neoplasms",
+      "mesh_id": "D011471",
+      "synonyms": ["Prostate cancer", "Prostatic carcinoma", "Prostate tumor", "Prostatic cancer"],
+      "search_terms": ["prostatic neoplasm", "prostate cancer", "prostatic carcinoma"]
+    },
+    "Pancreatic Neoplasms": {
+      "canonical": "Pancreatic Neoplasms",
+      "mesh_id": "D010952",
+      "synonyms": ["Pancreatic cancer", "Pancreatic carcinoma", "Pancreas cancer", "PDAC"],
+      "search_terms": ["pancreatic neoplasm", "pancreatic carcinoma", "pancreatic adenocarcinoma"]
+    },
+    "Ovarian Neoplasms": {
+      "canonical": "Ovarian Neoplasms",
+      "mesh_id": "D010051",
+      "synonyms": ["Ovarian cancer", "Ovarian carcinoma", "Ovary tumor", "Ovarian tumor"],
+      "search_terms": ["ovarian neoplasm", "ovarian carcinoma", "ovarian cancer"]
+    },
+    "Cervical Neoplasms": {
+      "canonical": "Cervical Neoplasms",
+      "mesh_id": "D002291",
+      "synonyms": ["Cervical cancer", "Cervical carcinoma", "Cervix cancer"],
+      "search_terms": ["cervical neoplasm", "cervical carcinoma", "cervical cancer"]
+    },
+    "Urinary Bladder Neoplasms": {
+      "canonical": "Urinary Bladder Neoplasms",
+      "mesh_id": "D001749",
+      "synonyms": ["Bladder cancer", "Bladder carcinoma", "Bladder tumor", "Urothelial carcinoma"],
+      "search_terms": ["bladder neoplasm", "bladder carcinoma", "bladder cancer", "urothelial carcinoma"]
+    },
+    "Kidney Neoplasms": {
+      "canonical": "Kidney Neoplasms",
+      "mesh_id": "D007680",
+      "synonyms": ["Renal cancer", "Renal cell carcinoma", "RCC", "Kidney cancer"],
+      "search_terms": ["kidney neoplasm", "renal carcinoma", "renal cell carcinoma"]
+    },
+    "Thyroid Neoplasms": {
+      "canonical": "Thyroid Neoplasms",
+      "mesh_id": "D013376",
+      "synonyms": ["Thyroid cancer", "Thyroid carcinoma", "Thyroid tumor"],
+      "search_terms": ["thyroid neoplasm", "thyroid carcinoma", "thyroid cancer"]
+    },
+    "Leukemia": {
+      "canonical": "Leukemia",
+      "mesh_id": "D007938",
+      "synonyms": ["Blood cancer", "Leukemia", "Leukemia", "Hematologic malignancy"],
+      "search_terms": ["leukemia", "blood cancer", "hematopoietic malignancy"]
+    },
+    "Lymphoma": {
+      "canonical": "Lymphoma",
+      "mesh_id": "D008224",
+      "synonyms": ["Lymphoid cancer", "Lymphoma", "Lymphoid neoplasm"],
+      "search_terms": ["lymphoma", "lymphoid cancer", "lymphoid neoplasm"]
+    },
+    "Melanoma": {
+      "canonical": "Melanoma",
+      "mesh_id": "D008545",
+      "synonyms": ["Melanoma", "Malignant melanoma", "Cutaneous melanoma"],
+      "search_terms": ["melanoma", "malignant melanoma", "cutaneous melanoma"]
+    },
+    "Alzheimer Disease": {
+      "canonical": "Alzheimer Disease",
+      "mesh_id": "D000544",
+      "synonyms": ["Alzheimer disease", "Alzheimer's disease", "AD", "Senile dementia"],
+      "search_terms": ["alzheimer disease", "alzheimer", "senile dementia", "cognitive decline"]
+    },
+    "Parkinson Disease": {
+      "canonical": "Parkinson Disease",
+      "mesh_id": "D010300",
+      "synonyms": ["Parkinson disease", "Parkinson's disease", "PD", "Shaking palsy"],
+      "search_terms": ["parkinson disease", "parkinson", "movement disorder"]
+    },
+    "Diabetes Mellitus": {
+      "canonical": "Diabetes Mellitus",
+      "mesh_id": "D003920",
+      "synonyms": ["Diabetes", "DM", "Sugar diabetes", "Diabetes mellitus"],
+      "search_terms": ["diabetes", "diabetes mellitus", "hyperglycemia"]
+    },
+    "Cardiovascular Diseases": {
+      "canonical": "Cardiovascular Diseases",
+      "mesh_id": "D002318",
+      "synonyms": ["Heart disease", "CVD", "Cardiac disease", "Cardiovascular disorder"],
+      "search_terms": ["cardiovascular disease", "heart disease", "cardiac disorder"]
+    },
+    "Hypertension": {
+      "canonical": "Hypertension",
+      "mesh_id": "D006973",
+      "synonyms": ["High blood pressure", "HTN", "Essential hypertension"],
+      "search_terms": ["hypertension", "high blood pressure", "elevated blood pressure"]
+    },
+    "Kidney Diseases": {
+      "canonical": "Kidney Diseases",
+      "mesh_id": "D007690",
+      "synonyms": ["Renal disease", "Kidney disease", "Nephropathy", "Kidney disorder"],
+      "search_terms": ["kidney disease", "renal disease", "nephropathy"]
+    },
+    "Liver Diseases": {
+      "canonical": "Liver Diseases",
+      "mesh_id": "D008107",
+      "synonyms": ["Hepatic disease", "Liver disorder", "Hepatopathy", "Liver injury"],
+      "search_terms": ["liver disease", "hepatic disease", "hepatopathy"]
+    },
+    "Pulmonary Disease, Chronic Obstructive": {
+      "canonical": "Pulmonary Disease, Chronic Obstructive",
+      "mesh_id": "D000076",
+      "synonyms": ["COPD", "Chronic obstructive lung disease", "COLD", "Emphysema"],
+      "search_terms": ["COPD", "chronic obstructive pulmonary disease", "emphysema"]
+    },
+    "Asthma": {
+      "canonical": "Asthma",
+      "mesh_id": "D001249",
+      "synonyms": ["Bronchial asthma", "Reactive airway disease", "Bronchospasm"],
+      "search_terms": ["asthma", "bronchial asthma", "reactive airway"]
+    },
+    "Osteoarthritis": {
+      "canonical": "Osteoarthritis",
+      "mesh_id": "D010003",
+      "synonyms": ["OA", "Degenerative arthritis", "Degenerative joint disease", "DJD"],
+      "search_terms": ["osteoarthritis", "degenerative arthritis", "joint degeneration"]
+    },
+    "Arthritis, Rheumatoid": {
+      "canonical": "Arthritis, Rheumatoid",
+      "mesh_id": "D001172",
+      "synonyms": ["Rheumatoid arthritis", "RA", "Inflammatory arthritis"],
+      "search_terms": ["rheumatoid arthritis", "RA", "inflammatory arthritis"]
+    },
+    "Lupus Erythematosus, Systemic": {
+      "canonical": "Lupus Erythematosus, Systemic",
+      "mesh_id": "D008180",
+      "synonyms": ["Systemic lupus erythematosus", "SLE", "Lupus"],
+      "search_terms": ["systemic lupus erythematosus", "SLE", "lupus"]
+    },
+    "Inflammatory Bowel Diseases": {
+      "canonical": "Inflammatory Bowel Diseases",
+      "mesh_id": "D015240",
+      "synonyms": ["IBD", "Intestinal inflammation", "Chronic bowel inflammation"],
+      "search_terms": ["inflammatory bowel disease", "IBD", "chronic intestinal inflammation"]
+    },
+    "Crohn Disease": {
+      "canonical": "Crohn Disease",
+      "mesh_id": "D003424",
+      "synonyms": ["Crohn's disease", "CD", "Regional enteritis", "Ileitis"],
+      "search_terms": ["crohn disease", "crohn's disease", "regional enteritis"]
+    },
+    "Colitis, Ulcerative": {
+      "canonical": "Colitis, Ulcerative",
+      "mesh_id": "D014877",
+      "synonyms": ["Ulcerative colitis", "UC", "Idiopathic colitis"],
+      "search_terms": ["ulcerative colitis", "UC", "colitis"]
+    },
+    "Sequence Analysis, RNA": {
+      "canonical": "Sequence Analysis, RNA",
+      "mesh_id": "D012271",
+      "synonyms": ["RNA-Seq", "RNA sequencing", "Transcriptome sequencing", "mRNA-Seq"],
+      "search_terms": ["RNA sequencing", "RNA-Seq", "transcriptome analysis"]
+    },
+    "Sequence Analysis, DNA": {
+      "canonical": "Sequence Analysis, DNA",
+      "mesh_id": "D012268",
+      "synonyms": ["DNA sequencing", "Genome sequencing", "WGS", "NGS"],
+      "search_terms": ["DNA sequencing", "genome sequencing", "NGS", "next generation sequencing"]
+    },
+    "Exome Sequencing": {
+      "canonical": "Exome Sequencing",
+      "mesh_id": "D061385",
+      "synonyms": ["Whole exome sequencing", "WES", "Exome seq"],
+      "search_terms": ["exome sequencing", "whole exome sequencing", "WES"]
+    },
+    "Proteomics": {
+      "canonical": "Proteomics",
+      "mesh_id": "D010797",
+      "synonyms": ["Protein analysis", "Protein profiling", "Proteome analysis"],
+      "search_terms": ["proteomics", "protein analysis", "proteome"]
+    },
+    "Metabolomics": {
+      "canonical": "Metabolomics",
+      "mesh_id": "D061386",
+      "synonyms": ["Metabolite profiling", "Metabolome analysis", "Metabolic profiling"],
+      "search_terms": ["metabolomics", "metabolite profiling", "metabolome"]
+    },
+    "Microbiota": {
+      "canonical": "Microbiota",
+      "mesh_id": "D061332",
+      "synonyms": ["Microbiome", "Microbial community", "Gut flora", "Microbial flora"],
+      "search_terms": ["microbiota", "microbiome", "gut flora", "microbial community"]
+    },
+    "Single-Cell Analysis": {
+      "canonical": "Single-Cell Analysis",
+      "mesh_id": "D061387",
+      "synonyms": ["Single cell sequencing", "scRNA-Seq", "Single cell genomics"],
+      "search_terms": ["single-cell analysis", "single cell sequencing", "scRNA"]
+    },
+    "Epigenomics": {
+      "canonical": "Epigenomics",
+      "mesh_id": "D061388",
+      "synonyms": ["Epigenetics", "Chromatin modifications", "DNA methylation"],
+      "search_terms": ["epigenomics", "epigenetics", "chromatin modification"]
+    },
+    "Gene Expression Profiling": {
+      "canonical": "Gene Expression Profiling",
+      "mesh_id": "D019294",
+      "synonyms": ["Gene expression analysis", "Expression profiling", "Transcriptome analysis"],
+      "search_terms": ["gene expression profiling", "expression profiling", "transcriptome"]
+    },
+    "Genomics": {
+      "canonical": "Genomics",
+      "mesh_id": "D015857",
+      "synonyms": ["Genome analysis", "Genetic analysis", "Gene mapping"],
+      "search_terms": ["genomics", "genome analysis", "genetic"]
+    },
+    "Transcriptome": {
+      "canonical": "Transcriptome",
+      "mesh_id": "D061389",
+      "synonyms": ["Transcriptomics", "mRNA profile", "Gene expression"],
+      "search_terms": ["transcriptome", "transcriptomics", "mRNA"]
+    },
+    "Genotype": {
+      "canonical": "Genotype",
+      "mesh_id": "D005865",
+      "synonyms": ["Genetic makeup", "Allele", "Genetic variant"],
+      "search_terms": ["genotype", "genetic variant", "allele"]
+    },
+    "Phenotype": {
+      "canonical": "Phenotype",
+      "mesh_id": "D010600",
+      "synonyms": ["Physical trait", "Observable characteristic", "Trait"],
+      "search_terms": ["phenotype", "trait", "observable characteristic"]
+    },
+    "Biomarkers": {
+      "canonical": "Biomarkers",
+      "mesh_id": "D001649",
+      "synonyms": ["Biological marker", "Molecular marker", "Disease marker"],
+      "search_terms": ["biomarker", "biological marker", "disease marker"]
+    },
+    "Biomarkers, Tumor": {
+      "canonical": "Biomarkers, Tumor",
+      "mesh_id": "D001649",
+      "synonyms": ["Tumor marker", "Cancer biomarker", "Oncogenic marker"],
+      "search_terms": ["tumor marker", "cancer biomarker", "oncogenic marker"]
+    },
+    "Gene Expression Regulation": {
+      "canonical": "Gene Expression Regulation",
+      "mesh_id": "D018787",
+      "synonyms": ["Gene regulation", "Expression regulation", "Transcriptional regulation"],
+      "search_terms": ["gene expression regulation", "gene regulation", "transcriptional regulation"]
+    },
+    "Signal Transduction": {
+      "canonical": "Signal Transduction",
+      "mesh_id": "D012851",
+      "synonyms": ["Cell signaling", "Signaling pathway", "Signal pathway"],
+      "search_terms": ["signal transduction", "cell signaling", "signaling pathway"]
+    },
+    "Cell Proliferation": {
+      "canonical": "Cell Proliferation",
+      "mesh_id": "D001444",
+      "synonyms": ["Cell growth", "Cell division", "Replication"],
+      "search_terms": ["cell proliferation", "cell growth", "cell division"]
+    },
+    "Apoptosis": {
+      "canonical": "Apoptosis",
+      "mesh_id": "D001186",
+      "synonyms": ["Programmed cell death", "Cell death", "Apoptotic"],
+      "search_terms": ["apoptosis", "programmed cell death", "cell death"]
+    },
+    "Cellular Senescence": {
+      "canonical": "Cellular Senescence",
+      "mesh_id": "D012246",
+      "synonyms": ["Cell aging", "Senescent cell", "Age-associated change"],
+      "search_terms": ["cellular senescence", "cell aging", "senescent cell"]
+    },
+    "Inflammation": {
+      "canonical": "Inflammation",
+      "mesh_id": "D007249",
+      "synonyms": ["Inflammatory response", "Inflammatory process", "Swelling"],
+      "search_terms": ["inflammation", "inflammatory response", "inflammatory"]
+    },
+    "Immune Response": {
+      "canonical": "Immune Response",
+      "mesh_id": "D006609",
+      "synonyms": ["Immunity", "Immunological response", "Defense response"],
+      "search_terms": ["immune response", "immunity", "immunological"]
+    },
+    "Metastasis": {
+      "canonical": "Metastasis",
+      "mesh_id": "D009362",
+      "synonyms": ["Cancer metastasis", "Tumor spread", "Metastatic spread"],
+      "search_terms": ["metastasis", "metastatic", "cancer spread"]
+    },
+    "Drug Resistance": {
+      "canonical": "Drug Resistance",
+      "mesh_id": "D004307",
+      "synonyms": ["Chemoresistance", "Therapy resistance", "Treatment resistance"],
+      "search_terms": ["drug resistance", "chemoresistance", "therapy resistance"]
+    },
+    "Mutation": {
+      "canonical": "Mutation",
+      "mesh_id": "D009154",
+      "synonyms": ["Genetic mutation", "Gene variant", "DNA change"],
+      "search_terms": ["mutation", "genetic mutation", "gene variant"]
+    },
+    "Gene Fusion": {
+      "canonical": "Gene Fusion",
+      "mesh_id": "D061390",
+      "synonyms": ["Fusion gene", "Chimeric gene", "Translocation"],
+      "search_terms": ["gene fusion", "fusion gene", "chimeric gene"]
+    },
+    "DNA Methylation": {
+      "canonical": "DNA Methylation",
+      "mesh_id": "D004247",
+      "synonyms": ["Epigenetic modification", "Methylation", "Hypermethylation"],
+      "search_terms": ["DNA methylation", "methylation", "epigenetic"]
+    },
+    "Histone Modification": {
+      "canonical": "Histone Modification",
+      "mesh_id": "D018979",
+      "synonyms": ["Histone methylation", "Histone acetylation", "Chromatin modification"],
+      "search_terms": ["histone modification", "histone methylation", "chromatin"]
+    }
+  }
+}

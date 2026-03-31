@@ -1,4 +1,50 @@
-# 忽略其他文件
-*
-!.gitignore
-!geo-search/**
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+pip-wheel-metadata/
+MANIFEST
+
+# ===== Virtual environments =====
+venv/
+env/
+.env/
+.venv/
+ENV/
+
+# ===== IDE =====
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+
+# ===== Testing & coverage =====
+.pytest_cache/
+.tox/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+nosetests.xml
+
+# ===== Output / runtime data =====
+output/search_results/
+output/*.db
+output/*.sqlite
+*.log
+
+# Keep test_results.txt
+!output/test_results.txt
+
+# ===== Compiled / packaged =====
+geo-search.zip
+
+# ===== WorkBuddy internal =====
+.workbuddy/

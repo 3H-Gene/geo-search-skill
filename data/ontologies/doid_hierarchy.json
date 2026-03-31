@@ -1,0 +1,992 @@
+{
+  "version": "1.1",
+  "description": "Disease Ontology hierarchy with synonyms, related organs and species",
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_updated": "2026-03-30",
+    "curator": "SRA_search Team",
+    "source_databases": [
+      {"name": "DOID", "url": "http://disease-ontology.org"},
+      {"name": "MeSH", "url": "https://www.nlm.nih.gov/mesh/"}
+    ],
+    "license": "CC BY 4.0"
+  },
+  "diseases": {
+    "Gout": {
+      "canonical": "Gout",
+      "doid_id": "DOID:1319",
+      "mesh_id": "D006073",
+      "synonyms": ["Gouty arthritis", "Gouty arthropathy", "Uric acid arthritis", "Crystal arthritis"],
+      "related_organs": ["Kidney", "Joint", "Foot"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["gout", "hyperuricemia", "uric acid", "monosodium urate"],
+      "subtypes": {
+        "Acute gout": "Acute gouty arthritis",
+        "Chronic gout": "Chronic gouty arthritis",
+        "Tophaceous gout": "Chronic tophaceous gout"
+      }
+    },
+    "Hyperuricemia": {
+      "canonical": "Hyperuricemia",
+      "doid_id": "DOID:12700",
+      "mesh_id": "D006974",
+      "synonyms": ["High uric acid", "Elevated serum uric acid", "HUA"],
+      "related_organs": ["Kidney", "Liver"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["uric acid", "urate", "xanthine oxidase", "purine metabolism"],
+      "subtypes": {
+        "Asymptomatic hyperuricemia": "Asymptomatic hyperuricemia",
+        "Acute hyperuricemia": "Acute hyperuricemia"
+      }
+    },
+    "Lung Cancer": {
+      "canonical": "Lung Cancer",
+      "doid_id": "DOID:1324",
+      "mesh_id": "D008175",
+      "synonyms": ["Pulmonary carcinoma", "Bronchogenic carcinoma", "Lung carcinoma", "Cancer of lung", "Cancer of the lung"],
+      "related_organs": ["Lung", "Bronchus"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["lung neoplasm", "pulmonary malignancy", "bronchial carcinoma"],
+      "subtypes": {
+        "NSCLC": "Non-Small Cell Lung Cancer",
+        "SCLC": "Small Cell Lung Cancer",
+        "ADC": "Adenocarcinoma",
+        "SCC": "Squamous Cell Carcinoma"
+      }
+    },
+    "Breast Cancer": {
+      "canonical": "Breast Cancer",
+      "doid_id": "DOID:1612",
+      "mesh_id": "D001943",
+      "synonyms": ["Mammary carcinoma", "Breast carcinoma", "Cancer of breast", "Malignant breast neoplasm"],
+      "related_organs": ["Breast", "Mammary gland"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["mammary neoplasm", "breast malignancy"],
+      "subtypes": {
+        "IDC": "Invasive Ductal Carcinoma",
+        "ILC": "Invasive Lobular Carcinoma",
+        "DCIS": "Ductal Carcinoma In Situ",
+        "LCIS": "Lobular Carcinoma In Situ"
+      }
+    },
+    "Colorectal Cancer": {
+      "canonical": "Colorectal Cancer",
+      "doid_id": "DOID:219",
+      "mesh_id": "D015169",
+      "synonyms": ["Colon cancer", "Rectal cancer", "Colorectal carcinoma", "Large intestine cancer"],
+      "related_organs": ["Colon", "Rectum", "Intestine"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["colonic neoplasm", "rectal malignancy", "CRC"],
+      "subtypes": {
+        "CRC": "Colorectal Cancer",
+        "CC": "Colon Cancer"
+      }
+    },
+    "Liver Cancer": {
+      "canonical": "Liver Cancer",
+      "doid_id": "DOID:3571",
+      "mesh_id": "D008107",
+      "synonyms": ["Hepatic carcinoma", "Hepatocellular carcinoma", "HCC", "Liver neoplasm", "Primary liver cancer"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens", "Mus musculus"],
+      "search_terms": ["hepatic malignancy", "hepatocellular neoplasm"],
+      "subtypes": {
+        "HCC": "Hepatocellular Carcinoma",
+        "ICC": "Intrahepatic Cholangiocarcinoma",
+        "HCC-ICC": "Combined Hepatocellular-Cholangiocarcinoma"
+      }
+    },
+    "Gastric Cancer": {
+      "canonical": "Gastric Cancer",
+      "doid_id": "DOID:10534",
+      "mesh_id": "D013274",
+      "synonyms": ["Stomach cancer", "Gastric carcinoma", "Gastric adenocarcinoma", "Cancer of stomach"],
+      "related_organs": ["Stomach", "Gastric mucosa"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["gastric malignancy", "stomach neoplasm", "GC"],
+      "subtypes": {
+        "GC": "Gastric Cancer",
+        "GAC": "Gastric Adenocarcinoma"
+      }
+    },
+    "Prostate Cancer": {
+      "canonical": "Prostate Cancer",
+      "doid_id": "DOID:10286",
+      "mesh_id": "D011471",
+      "synonyms": ["Prostatic carcinoma", "Prostate carcinoma", "Cancer of prostate"],
+      "related_organs": ["Prostate", "Prostatic gland"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["prostatic neoplasm", "prostatic malignancy"],
+      "subtypes": {
+        "PCa": "Prostate Cancer",
+        "mCRPC": "Metastatic Castration-Resistant Prostate Cancer",
+        "HSPC": "Hormone-Sensitive Prostate Cancer"
+      }
+    },
+    "Pancreatic Cancer": {
+      "canonical": "Pancreatic Cancer",
+      "doid_id": "DOID:4910",
+      "mesh_id": "D010952",
+      "synonyms": ["Pancreatic carcinoma", "Pancreatic adenocarcinoma", "Cancer of pancreas"],
+      "related_organs": ["Pancreas", "Pancreatic duct"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["pancreatic neoplasm", "pancreatic malignancy", "PDAC"],
+      "subtypes": {
+        "PDAC": "Pancreatic Ductal Adenocarcinoma",
+        "PC": "Pancreatic Cancer"
+      }
+    },
+    "Ovarian Cancer": {
+      "canonical": "Ovarian Cancer",
+      "doid_id": "DOID:2394",
+      "mesh_id": "D010051",
+      "synonyms": ["Ovarian carcinoma", "Cancer of ovary", "Cancer of the ovary"],
+      "related_organs": ["Ovary", "Fallopian tube"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["ovarian neoplasm", "ovarian malignancy"],
+      "subtypes": {
+        "HGSOC": "High-Grade Serous Ovarian Cancer",
+        "EOC": "Epithelial Ovarian Cancer"
+      }
+    },
+    "Cervical Cancer": {
+      "canonical": "Cervical Cancer",
+      "doid_id": "DOID:3635",
+      "mesh_id": "D002291",
+      "synonyms": ["Cervical carcinoma", "Cancer of cervix", "Cancer of the cervix"],
+      "related_organs": ["Cervix", "Uterus"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["cervical neoplasm", "cervical malignancy"],
+      "subtypes": {
+        "SCC": "Squamous Cell Carcinoma",
+        "ADC": "Adenocarcinoma"
+      }
+    },
+    "Bladder Cancer": {
+      "canonical": "Bladder Cancer",
+      "doid_id": "DOID:11054",
+      "mesh_id": "D001749",
+      "synonyms": ["Bladder carcinoma", "Urinary bladder cancer", "Cancer of bladder"],
+      "related_organs": ["Bladder", "Urinary bladder"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["bladder neoplasm", "urothelial carcinoma", "BC"],
+      "subtypes": {
+        "NMIBC": "Non-Muscle-Invasive Bladder Cancer",
+        "MIBC": "Muscle-Invasive Bladder Cancer",
+        "UC": "Urothelial Carcinoma"
+      }
+    },
+    "Kidney Cancer": {
+      "canonical": "Kidney Cancer",
+      "doid_id": "DOID:4450",
+      "mesh_id": "D007680",
+      "synonyms": ["Renal cancer", "Renal cell carcinoma", "RCC", "Kidney carcinoma"],
+      "related_organs": ["Kidney", "Renal"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["renal neoplasm", "renal malignancy", "renal cell carcinoma"],
+      "subtypes": {
+        "RCC": "Renal Cell Carcinoma",
+        "ccRCC": "Clear Cell RCC",
+        "pRCC": "Papillary RCC",
+        "chRCC": "Chromophobe RCC"
+      }
+    },
+    "Thyroid Cancer": {
+      "canonical": "Thyroid Cancer",
+      "doid_id": "DOID:1781",
+      "mesh_id": "D013376",
+      "synonyms": ["Thyroid carcinoma", "Thyroid neoplasm", "Cancer of thyroid"],
+      "related_organs": ["Thyroid", "Thyroid gland"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["thyroid neoplasm", "thyroid malignancy"],
+      "subtypes": {
+        "PTC": "Papillary Thyroid Cancer",
+        "FTC": "Follicular Thyroid Cancer",
+        "MTC": "Medullary Thyroid Cancer",
+        "ATC": "Anaplastic Thyroid Cancer"
+      }
+    },
+    "Leukemia": {
+      "canonical": "Leukemia",
+      "doid_id": "DOID:1240",
+      "mesh_id": "D007938",
+      "synonyms": ["Leukemia", "Blood cancer", "Cancer of blood", "Hematologic malignancy"],
+      "related_organs": ["Bone marrow", "Blood", "Leukocyte"],
+      "related_species": ["Homo sapiens", "Mus musculus"],
+      "search_terms": ["hematopoietic neoplasm", "leukemia"],
+      "subtypes": {
+        "ALL": "Acute Lymphoblastic Leukemia",
+        "AML": "Acute Myeloid Leukemia",
+        "CLL": "Chronic Lymphocytic Leukemia",
+        "CML": "Chronic Myeloid Leukemia"
+      }
+    },
+    "Lymphoma": {
+      "canonical": "Lymphoma",
+      "doid_id": "DOID:170",
+      "mesh_id": "D008224",
+      "synonyms": ["Lymphoma", "Lymphoid cancer", "Cancer of lymph nodes"],
+      "related_organs": ["Lymph node", "Spleen", "Thymus"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["lymphoid neoplasm", "lymphoid malignancy"],
+      "subtypes": {
+        "DLBCL": "Diffuse Large B-Cell Lymphoma",
+        "FL": "Follicular Lymphoma",
+        "HL": "Hodgkin Lymphoma",
+        "NHL": "Non-Hodgkin Lymphoma"
+      }
+    },
+    "Multiple Myeloma": {
+      "canonical": "Multiple Myeloma",
+      "doid_id": "DOID:9538",
+      "mesh_id": "D008250",
+      "synonyms": ["Myeloma", "Plasma cell myeloma", "Kahler disease"],
+      "related_organs": ["Bone marrow", "Plasma cell"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["plasma cell neoplasm", "malignant plasma cell disease"],
+      "subtypes": {
+        "MM": "Multiple Myeloma",
+        "SMM": "Smoldering Multiple Myeloma"
+      }
+    },
+    "Melanoma": {
+      "canonical": "Melanoma",
+      "doid_id": "DOID:1909",
+      "mesh_id": "D008545",
+      "synonyms": ["Melanoma", "Malignant melanoma", "Cutaneous melanoma"],
+      "related_organs": ["Skin", "Melanocyte"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["skin cancer", "melanocytic neoplasm"],
+      "subtypes": {
+        "CM": "Cutaneous Melanoma",
+        "MM": "Mucosal Melanoma",
+        "UM": "Uveal Melanoma"
+      }
+    },
+    "Alzheimer Disease": {
+      "canonical": "Alzheimer Disease",
+      "doid_id": "DOID:10652",
+      "mesh_id": "D000544",
+      "synonyms": ["Alzheimer's disease", "AD", "Alzheimer disease", "Senile dementia"],
+      "related_organs": ["Brain", "Hippocampus", "Cerebral cortex"],
+      "related_species": ["Homo sapiens", "Mus musculus"],
+      "search_terms": ["Alzheimer", "neurodegeneration", "cognitive decline"],
+      "subtypes": {
+        "fAD": "Familial AD",
+        "sAD": "Sporadic AD",
+        "EAD": "Early-Onset AD",
+        "LOAD": "Late-Onset AD"
+      }
+    },
+    "Parkinson Disease": {
+      "canonical": "Parkinson Disease",
+      "doid_id": "DOID:14330",
+      "mesh_id": "D010300",
+      "synonyms": ["Parkinson's disease", "PD", "Parkinson disease", "Shaking palsy"],
+      "related_organs": ["Brain", "Substantia nigra", "Basal ganglia"],
+      "related_species": ["Homo sapiens", "Mus musculus"],
+      "search_terms": ["Parkinson", "movement disorder", "dopaminergic neuron"],
+      "subtypes": {
+        "iPD": "Idiopathic PD",
+        "fPD": "Familial PD"
+      }
+    },
+    "Diabetes Mellitus": {
+      "canonical": "Diabetes Mellitus",
+      "doid_id": "DOID:9351",
+      "mesh_id": "D003920",
+      "synonyms": ["Diabetes", "DM", "Sugar diabetes", "Diabetes mellitus"],
+      "related_organs": ["Pancreas", "Islet of Langerhans", "Insulin"],
+      "related_species": ["Homo sapiens", "Mus musculus"],
+      "search_terms": ["diabetes", "hyperglycemia", "glucose metabolism"],
+      "subtypes": {
+        "T1DM": "Type 1 Diabetes Mellitus",
+        "T2DM": "Type 2 Diabetes Mellitus",
+        "GDM": "Gestational Diabetes Mellitus",
+        "MODY": "Maturity-Onset Diabetes of the Young"
+      }
+    },
+    "Cardiovascular Disease": {
+      "canonical": "Cardiovascular Disease",
+      "doid_id": "DOID:1287",
+      "mesh_id": "D002318",
+      "synonyms": ["Heart disease", "CVD", "Cardiac disease", "Cardiovascular disorder"],
+      "related_organs": ["Heart", "Cardiac muscle", "Artery", "Vein"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["heart disease", "cardiac disorder", "vascular disease"],
+      "subtypes": {
+        "CAD": "Coronary Artery Disease",
+        "MI": "Myocardial Infarction",
+        "HF": "Heart Failure",
+        "AF": "Atrial Fibrillation"
+      }
+    },
+    "Atherosclerosis": {
+      "canonical": "Atherosclerosis",
+      "doid_id": "DOID:1936",
+      "mesh_id": "D001254",
+      "synonyms": ["Arteriosclerosis", "Athero", "Hardening of arteries"],
+      "related_organs": ["Artery", "Aorta", "Coronary artery"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["atherosclerotic plaque", "vascular inflammation"],
+      "subtypes": {
+        "CAD": "Coronary Artery Atherosclerosis",
+        "CAA": "Carotid Artery Atherosclerosis"
+      }
+    },
+    "Hypertension": {
+      "canonical": "Hypertension",
+      "doid_id": "DOID:10763",
+      "mesh_id": "D006973",
+      "synonyms": ["High blood pressure", "HTN", "Essential hypertension"],
+      "related_organs": ["Heart", "Artery", "Kidney"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["elevated blood pressure", "hypertensive"],
+      "subtypes": {
+        "ESH": "Essential Hypertension",
+        "RHT": "Resistant Hypertension"
+      }
+    },
+    "Chronic Kidney Disease": {
+      "canonical": "Chronic Kidney Disease",
+      "doid_id": "DOID:784",
+      "mesh_id": "D051215",
+      "synonyms": ["CKD", "Chronic renal failure", "Kidney failure", "Renal insufficiency"],
+      "related_organs": ["Kidney", "Nephron", "Glomerulus"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["renal disease", "kidney dysfunction", "nephropathy"],
+      "subtypes": {
+        "CKD": "Chronic Kidney Disease",
+        "ESRD": "End-Stage Renal Disease",
+        "DN": "Diabetic Nephropathy"
+      }
+    },
+    "Non-alcoholic Fatty Liver Disease": {
+      "canonical": "Non-alcoholic Fatty Liver Disease",
+      "doid_id": "DOID:4452",
+      "mesh_id": "D005234",
+      "synonyms": ["NAFLD", "Fatty liver", "Nonalcoholic fatty liver disease"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["hepatic steatosis", "liver fat accumulation"],
+      "subtypes": {
+        "NAFL": "Non-Alcoholic Fatty Liver",
+        "NASH": "Non-Alcoholic Steatohepatitis"
+      }
+    },
+    "Hepatitis": {
+      "canonical": "Hepatitis",
+      "doid_id": "DOID:1245",
+      "mesh_id": "D006505",
+      "synonyms": ["Liver inflammation", "Hepatic inflammation", "Viral hepatitis"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["liver inflammation", "hepatic disease"],
+      "subtypes": {
+        "HBV": "Hepatitis B",
+        "HCV": "Hepatitis C",
+        "NASH": "Non-Alcoholic Steatohepatitis"
+      }
+    },
+    "Cirrhosis": {
+      "canonical": "Cirrhosis",
+      "doid_id": "DOID:0060155",
+      "mesh_id": "D002185",
+      "synonyms": ["Liver cirrhosis", "Hepatic cirrhosis", "End-stage liver disease"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["liver fibrosis", "hepatic scarring"],
+      "subtypes": {
+        "LC": "Liver Cirrhosis",
+        "PBC": "Primary Biliary Cholangitis",
+        "PSC": "Primary Sclerosing Cholangitis"
+      }
+    },
+    "Chronic Obstructive Pulmonary Disease": {
+      "canonical": "Chronic Obstructive Pulmonary Disease",
+      "doid_id": "DOID:3088",
+      "mesh_id": "D000076",
+      "synonyms": ["COPD", "Chronic obstructive lung disease", "COLD"],
+      "related_organs": ["Lung", "Bronchus", "Airway"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["emphysema", "chronic bronchitis", "airflow obstruction"],
+      "subtypes": {
+        "COPD": "Chronic Obstructive Pulmonary Disease",
+        "emphysema": "Pulmonary Emphysema",
+        "CB": "Chronic Bronchitis"
+      }
+    },
+    "Asthma": {
+      "canonical": "Asthma",
+      "doid_id": "DOID:2841",
+      "mesh_id": "D001249",
+      "synonyms": ["Bronchial asthma", "Reactive airway disease"],
+      "related_organs": ["Lung", "Bronchus", "Airway"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["airway inflammation", "bronchial hyperresponsiveness"],
+      "subtypes": {
+        "AA": "Allergic Asthma",
+        "NAA": "Non-Allergic Asthma",
+        "SA": "Severe Asthma"
+      }
+    },
+    "Osteoarthritis": {
+      "canonical": "Osteoarthritis",
+      "doid_id": "DOID:8398",
+      "mesh_id": "D010003",
+      "synonyms": ["OA", "Degenerative arthritis", "Degenerative joint disease", "DJD"],
+      "related_organs": ["Joint", "Cartilage", "Bone"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["joint degeneration", "cartilage breakdown"],
+      "subtypes": {
+        "OA": "Osteoarthritis",
+        "HOA": "Hand Osteoarthritis",
+        "KOA": "Knee Osteoarthritis",
+        "HOA": "Hip Osteoarthritis"
+      }
+    },
+    "Rheumatoid Arthritis": {
+      "canonical": "Rheumatoid Arthritis",
+      "doid_id": "DOID:7148",
+      "mesh_id": "D001172",
+      "synonyms": ["RA", "Rheumatoid disease", "Inflammatory arthritis"],
+      "related_organs": ["Joint", "Synovium", "Cartilage"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["autoimmune arthritis", "joint inflammation"],
+      "subtypes": {
+        "RA": "Rheumatoid Arthritis",
+        "SERA": "Seropositive RA",
+        "SERA": "Seronegative RA"
+      }
+    },
+    "Systemic Lupus Erythematosus": {
+      "canonical": "Systemic Lupus Erythematosus",
+      "doid_id": "DOID:9074",
+      "mesh_id": "D008180",
+      "synonyms": ["SLE", "Lupus", "Lupus erythematosus"],
+      "related_organs": ["Kidney", "Skin", "Joint", "Heart"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["autoimmune", "systemic autoimmune disease"],
+      "subtypes": {
+        "SLE": "Systemic Lupus Erythematosus",
+        "CLE": "Cutaneous Lupus Erythematosus"
+      }
+    },
+    "Inflammatory Bowel Disease": {
+      "canonical": "Inflammatory Bowel Disease",
+      "doid_id": "DOID:0050546",
+      "mesh_id": "D015240",
+      "synonyms": ["IBD", "Intestinal inflammation", "Chronic bowel inflammation"],
+      "related_organs": ["Intestine", "Colon", "Small intestine"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["chronic intestinal inflammation", "GI inflammation"],
+      "subtypes": {
+        "CD": "Crohn Disease",
+        "UC": "Ulcerative Colitis"
+      }
+    },
+    "Crohn Disease": {
+      "canonical": "Crohn Disease",
+      "doid_id": "DOID:0050589",
+      "mesh_id": "D003424",
+      "synonyms": ["Crohn's disease", "CD", "Regional enteritis"],
+      "related_organs": ["Intestine", "Small intestine", "Colon"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["granulomatous enteritis", "transmural inflammation"],
+      "subtypes": {
+        "CD": "Crohn Disease",
+        "IC": "Ileocolonic CD"
+      }
+    },
+    "Ulcerative Colitis": {
+      "canonical": "Ulcerative Colitis",
+      "doid_id": "DOID:0050547",
+      "mesh_id": "D014877",
+      "synonyms": ["UC", "Idiopathic colitis", "Colitis gravis"],
+      "related_organs": ["Colon", "Rectum", "Intestine"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["colonic inflammation", "mucosal colitis"],
+      "subtypes": {
+        "UC": "Ulcerative Colitis",
+        "PC": "Pancolitis"
+      }
+    },
+    "COVID-19": {
+      "canonical": "COVID-19",
+      "doid_id": "DOID:0080644",
+      "mesh_id": "D000086382",
+      "synonyms": ["Coronavirus disease 2019", "SARS-CoV-2", "COVID", "Novel coronavirus"],
+      "related_organs": ["Lung", "Respiratory tract", "Heart"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["COVID-19", "SARS-CoV-2", "coronavirus infection", "respiratory virus"],
+      "subtypes": {
+        "MISC": "Multisystem Inflammatory Syndrome",
+        "Long COVID": "Post-acute sequelae of COVID-19"
+      }
+    },
+    "Influenza": {
+      "canonical": "Influenza",
+      "doid_id": "DOID:8469",
+      "mesh_id": "D006406",
+      "synonyms": ["Flu", "Seasonal influenza", "Viral influenza"],
+      "related_organs": ["Lung", "Respiratory tract", "Nasopharynx"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["influenza virus", "flu", "respiratory infection"],
+      "subtypes": {
+        "H1N1": "Influenza A H1N1",
+        "H3N2": "Influenza A H3N2",
+        "Influenza B": "Influenza B"
+      }
+    },
+    "Tuberculosis": {
+      "canonical": "Tuberculosis",
+      "doid_id": "DOID:399",
+      "mesh_id": "D014376",
+      "synonyms": ["TB", "Mycobacterium tuberculosis", "Pulmonary tuberculosis"],
+      "related_organs": ["Lung", "Lymph node", "Bone"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["TB", "mycobacterial infection", "pulmonary infection"],
+      "subtypes": {
+        "PTB": "Pulmonary TB",
+        "EPTB": "Extrapulmonary TB",
+        "MDR-TB": "Multidrug-Resistant TB"
+      }
+    },
+    "HIV/AIDS": {
+      "canonical": "HIV/AIDS",
+      "doid_id": "DOID:635",
+      "mesh_id": "D000653",
+      "synonyms": ["HIV infection", "Human immunodeficiency virus", "AIDS"],
+      "related_organs": ["Immune system", "CD4+ T cell", "Lymph node"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["HIV", "AIDS", "retroviral infection", "immunodeficiency"],
+      "subtypes": {
+        "HIV-1": "HIV type 1",
+        "HIV-2": "HIV type 2"
+      }
+    },
+    "Hepatitis B": {
+      "canonical": "Hepatitis B",
+      "doid_id": "DOID:2043",
+      "mesh_id": "D006509",
+      "synonyms": ["HBV", "Hep B", "Viral hepatitis B"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["HBV", "hep B virus", "viral hepatitis"],
+      "subtypes": {
+        "CHB": "Chronic Hepatitis B",
+        "AHB": "Acute Hepatitis B"
+      }
+    },
+    "Hepatitis C": {
+      "canonical": "Hepatitis C",
+      "doid_id": "DOID:2044",
+      "mesh_id": "D006528",
+      "synonyms": ["HCV", "Hep C", "Viral hepatitis C"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["HCV", "hep C virus", "viral hepatitis"],
+      "subtypes": {
+        "CHC": "Chronic Hepatitis C",
+        "HCV": "Hepatitis C Virus"
+      }
+    },
+    "Anemia": {
+      "canonical": "Anemia",
+      "doid_id": "DOID:2355",
+      "mesh_id": "D000740",
+      "synonyms": ["Anaemia", "Low hemoglobin", "Blood deficiency"],
+      "related_organs": ["Bone marrow", "Red blood cell", "Blood"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["hemoglobin", "red blood cell", "blood disorder"],
+      "subtypes": {
+        "IDA": "Iron Deficiency Anemia",
+        "SCD": "Sickle Cell Disease",
+        "Thalassemia": "Thalassemia"
+      }
+    },
+    "Sickle Cell Disease": {
+      "canonical": "Sickle Cell Disease",
+      "doid_id": "DOID:13371",
+      "mesh_id": "D000755",
+      "synonyms": ["SCD", "Sickle cell anemia", "Sickle cell disorder"],
+      "related_organs": ["Red blood cell", "Blood", "Bone marrow"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["sickle cell", "hemoglobinopathy", "vaso-occlusion"],
+      "subtypes": {
+        "SS": "Sickle Cell Anemia",
+        "SC": "Hemoglobin SC Disease"
+      }
+    },
+    "Aplastic Anemia": {
+      "canonical": "Aplastic Anemia",
+      "doid_id": "DOID:12487",
+      "mesh_id": "D000853",
+      "synonyms": ["AA", "Bone marrow failure", "Hypoplastic anemia"],
+      "related_organs": ["Bone marrow", "Blood", "Stem cell"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["bone marrow failure", "pancytopenia", "hematopoietic failure"]
+    },
+    "Myelodysplastic Syndrome": {
+      "canonical": "Myelodysplastic Syndrome",
+      "doid_id": "DOID:12474",
+      "mesh_id": "D009190",
+      "synonyms": ["MDS", "Myelodysplasia", "Pre-leukemia"],
+      "related_organs": ["Bone marrow", "Blood", "Myeloid"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["dysplastic marrow", "clonal hematopoiesis", "cytopenia"]
+    },
+    "Psoriasis": {
+      "canonical": "Psoriasis",
+      "doid_id": "DOID:8893",
+      "mesh_id": "D011565",
+      "synonyms": ["Psoriatic dermatitis", "Skin plaque"],
+      "related_organs": ["Skin", "Epidermis"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["skin inflammation", " keratinocyte", "skin lesion"],
+      "subtypes": {
+        "Plaque PS": "Plaque Psoriasis",
+        "Guttate PS": "Guttate Psoriasis",
+        "PsA": "Psoriatic Arthritis"
+      }
+    },
+    "Atopic Dermatitis": {
+      "canonical": "Atopic Dermatitis",
+      "doid_id": "DOID:6002",
+      "mesh_id": "D000874",
+      "synonyms": ["Eczema", "Atopic eczema", "Neurodermatitis"],
+      "related_organs": ["Skin", "Epidermis", "Immune system"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["eczema", "skin barrier", "pruritus"],
+      "subtypes": {
+        "AD": "Atopic Dermatitis",
+        "CE": "Contact Eczema"
+      }
+    },
+    "Acne Vulgaris": {
+      "canonical": "Acne Vulgaris",
+      "doid_id": "DOID:10647",
+      "mesh_id": "D000152",
+      "synonyms": ["Acne", "Common acne", "Cystic acne"],
+      "related_organs": ["Skin", "Sebaceous gland", "Hair follicle"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["sebaceous", "comedone", "pimples"]
+    },
+    "Cataract": {
+      "canonical": "Cataract",
+      "doid_id": "DOID:1716",
+      "mesh_id": "D000216",
+      "synonyms": ["Lens opacity", "Cloudy lens", "Age-related cataract"],
+      "related_organs": ["Eye", "Lens", "Retina"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["lens opacity", "visual impairment", "ocular"]
+    },
+    "Glaucoma": {
+      "canonical": "Glaucoma",
+      "doid_id": "DOID:4625",
+      "mesh_id": "D005901",
+      "synonyms": ["Glaucoma", "Increased intraocular pressure", "Optic neuropathy"],
+      "related_organs": ["Eye", "Optic nerve", "Retina"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["optic nerve", "intraocular pressure", "vision loss"],
+      "subtypes": {
+        "POAG": "Primary Open-Angle Glaucoma",
+        "ACG": "Angle-Closure Glaucoma"
+      }
+    },
+    "Age-related Macular Degeneration": {
+      "canonical": "Age-related Macular Degeneration",
+      "doid_id": "DOID:10871",
+      "mesh_id": "D000544",
+      "synonyms": ["AMD", "ARMD", "Macular degeneration", "Age-related maculopathy"],
+      "related_organs": ["Eye", "Macula", "Retina"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["macula", "retinal degeneration", "vision loss"],
+      "subtypes": {
+        "dry AMD": "Dry AMD",
+        "wet AMD": "Wet AMD",
+        "GA": "Geographic Atrophy"
+      }
+    },
+    "Diabetic Retinopathy": {
+      "canonical": "Diabetic Retinopathy",
+      "doid_id": "DOID:8897",
+      "mesh_id": "D003703",
+      "synonyms": ["DR", "Diabetes retinopathy", "Diabetic eye disease"],
+      "related_organs": ["Eye", "Retina", "Blood vessel"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["retinal vascular", "microaneurysm", "diabetic eye"],
+      "subtypes": {
+        "NPDR": "Non-Proliferative DR",
+        "PDR": "Proliferative DR"
+      }
+    },
+    "Otitis Media": {
+      "canonical": "Otitis Media",
+      "doid_id": "DOID:2916",
+      "mesh_id": "D010033",
+      "synonyms": ["Middle ear infection", "Ear infection", "OME"],
+      "related_organs": ["Ear", "Middle ear", "Eustachian tube"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["middle ear", "ear inflammation", "otitis"]
+    },
+    "Hearing Loss": {
+      "canonical": "Hearing Loss",
+      "doid_id": "DOID:0051002",
+      "mesh_id": "D006301",
+      "synonyms": ["Deafness", "Hearing impairment", "Sensorineural hearing loss"],
+      "related_organs": ["Ear", "Cochlea", "Auditory nerve"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["cochlea", "auditory", "deafness"],
+      "subtypes": {
+        "SNHL": "Sensorineural Hearing Loss",
+        "CHL": "Conductive Hearing Loss"
+      }
+    },
+    "Chronic Sinusitis": {
+      "canonical": "Chronic Sinusitis",
+      "doid_id": "DOID:0015642",
+      "mesh_id": "D012852",
+      "synonyms": ["Chronic rhinosinusitis", "CRS", "Sinus infection"],
+      "related_organs": ["Sinus", "Nasal cavity", "Upper airway"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["sinus inflammation", "nasal polyps", "chronic rhinosinusitis"]
+    },
+    "Bipolar Disorder": {
+      "canonical": "Bipolar Disorder",
+      "doid_id": "DOID:3312",
+      "mesh_id": "D001714",
+      "synonyms": ["Bipolar disease", "Manic-depressive illness", "Manic depression"],
+      "related_organs": ["Brain", "Hippocampus", "Prefrontal cortex"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["mania", "depression", "mood disorder"],
+      "subtypes": {
+        "BD-I": "Bipolar I Disorder",
+        "BD-II": "Bipolar II Disorder",
+        "Cyclothymia": "Cyclothymic Disorder"
+      }
+    },
+    "Major Depressive Disorder": {
+      "canonical": "Major Depressive Disorder",
+      "doid_id": "DOID:2418",
+      "mesh_id": "D004669",
+      "synonyms": ["MDD", "Depression", "Clinical depression", "Major depression"],
+      "related_organs": ["Brain", "Hippocampus", "Prefrontal cortex"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["depression", "mood disorder", "anhedonia"],
+      "subtypes": {
+        "MDD": "Major Depressive Disorder",
+        "Persistent depressive disorder": "Dysthymia"
+      }
+    },
+    "Anxiety Disorder": {
+      "canonical": "Anxiety Disorder",
+      "doid_id": "DOID:2030",
+      "mesh_id": "D001007",
+      "synonyms": ["Anxiety", "Anxiety neurosis", "Generalized anxiety"],
+      "related_organs": ["Brain", "Amygdala", "Hypothalamus"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["anxiety", "stress response", "fear"]
+    },
+    "Schizophrenia": {
+      "canonical": "Schizophrenia",
+      "doid_id": "DOID:5419",
+      "mesh_id": "D012559",
+      "synonyms": ["Schizophrenia", "SZ", "Psychosis"],
+      "related_organs": ["Brain", "Prefrontal cortex", "Hippocampus"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["psychosis", "schizophrenia", "dopamine hypothesis"],
+      "subtypes": {
+        "Paranoid SZ": "Paranoid Schizophrenia",
+        "Disorganized SZ": "Disorganized Schizophrenia"
+      }
+    },
+    "Autism Spectrum Disorder": {
+      "canonical": "Autism Spectrum Disorder",
+      "doid_id": "DOID:0060041",
+      "mesh_id": "D000067597",
+      "synonyms": ["ASD", "Autism", "Autistic disorder", "Asperger"],
+      "related_organs": ["Brain", "Cerebral cortex", "Cerebellum"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["autism", "neurodevelopmental", "social communication"],
+      "subtypes": {
+        "ASD": "Autism Spectrum Disorder",
+        "Asperger": "Asperger Syndrome"
+      }
+    },
+    "Attention Deficit Hyperactivity Disorder": {
+      "canonical": "Attention Deficit Hyperactivity Disorder",
+      "doid_id": "DOID:1094",
+      "mesh_id": "D000530",
+      "synonyms": ["ADHD", "Hyperactivity", "Attention deficit disorder"],
+      "related_organs": ["Brain", "Prefrontal cortex", "Striatum"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["ADHD", "inattention", "hyperactivity"],
+      "subtypes": {
+        "ADHD-I": "ADHD Inattentive Type",
+        "ADHD-HI": "ADHD Hyperactive-Impulsive Type"
+      }
+    },
+    "Epilepsy": {
+      "canonical": "Epilepsy",
+      "doid_id": "DOID:1826",
+      "mesh_id": "D001661",
+      "synonyms": ["Seizure disorder", "Epilepsy syndrome", "Recurrent seizures"],
+      "related_organs": ["Brain", "Neuron", "Cerebral cortex"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["seizure", "epilepsy", "neuronal hyperexcitability"],
+      "subtypes": {
+        "TLE": "Temporal Lobe Epilepsy",
+        "FCD": "Focal Cortical Dysplasia"
+      }
+    },
+    "Migraine": {
+      "canonical": "Migraine",
+      "doid_id": "DOID:6364",
+      "mesh_id": "D008618",
+      "synonyms": ["Migraine headache", "Migraine with aura", "Common migraine"],
+      "related_organs": ["Brain", "Trigeminal nerve", "Blood vessel"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["headache", "migraine", "trigeminovascular"],
+      "subtypes": {
+        "MA": "Migraine with Aura",
+        "MO": "Migraine without Aura"
+      }
+    },
+    "Multiple Sclerosis": {
+      "canonical": "Multiple Sclerosis",
+      "doid_id": "DOID:2377",
+      "mesh_id": "D009174",
+      "synonyms": ["MS", "Disseminated sclerosis", "Multiple sclerosis"],
+      "related_organs": ["Brain", "Spinal cord", "Myelin"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["multiple sclerosis", "MS", "demyelination", "autoimmune CNS", "neuroinflammation"],
+      "subtypes": {
+        "RRMS": "Relapsing-Remitting MS",
+        "SPMS": "Secondary Progressive MS",
+        "PPMS": "Primary Progressive MS"
+      }
+    },
+    "Cystic Fibrosis": {
+      "canonical": "Cystic Fibrosis",
+      "doid_id": "DOID:1480",
+      "mesh_id": "D003846",
+      "synonyms": ["CF", "Mucoviscidosis", "Fibrocystic disease"],
+      "related_organs": ["Lung", "Pancreas", "Intestine"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["CFTR", "mucus", "chloride channel"]
+    },
+    "Spondyloarthritis": {
+      "canonical": "Spondyloarthritis",
+      "doid_id": "DOID:3775",
+      "mesh_id": "D013168",
+      "synonyms": ["SpA", "Spondyloarthropathy", "Seronegative spondylitis"],
+      "related_organs": ["Spine", "Sacroiliac joint", "Enthesis"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["spondylitis", "axial SpA", "peripheral SpA"],
+      "subtypes": {
+        "AS": "Ankylosing Spondylitis",
+        "PsA": "Psoriatic Arthritis",
+        "ReA": "Reactive Arthritis"
+      }
+    },
+    "Systemic Sclerosis": {
+      "canonical": "Systemic Sclerosis",
+      "doid_id": "DOID:0050449",
+      "mesh_id": "D012595",
+      "synonyms": ["SSc", "Scleroderma", "Systemic scleroderma"],
+      "related_organs": ["Skin", "Blood vessel", "Connective tissue"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["fibrosis", "collagen", "vasculopathy"],
+      "subtypes": {
+        "dcSSc": "Diffuse Cutaneous SSc",
+        "lcSSc": "Limited Cutaneous SSc"
+      }
+    },
+    "Behcet Disease": {
+      "canonical": "Behcet Disease",
+      "doid_id": "DOID:8762",
+      "mesh_id": "D001474",
+      "synonyms": ["Behcet's disease", "BD", "Silk road disease"],
+      "related_organs": ["Blood vessel", "Skin", "Eye", "Mouth"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["vasculitis", "recurrent ulcer", "multisystem inflammation"]
+    },
+    "Sarcoidosis": {
+      "canonical": "Sarcoidosis",
+      "doid_id": "DOID:12056",
+      "mesh_id": "D012507",
+      "synonyms": ["Sarcoid", "Besnier-Boeck disease", "Boeck's disease"],
+      "related_organs": ["Lung", "Lymph node", "Skin"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["granuloma", "non-caseating granuloma", "multisystem granulomatous"]
+    },
+    "Graves Disease": {
+      "canonical": "Graves Disease",
+      "doid_id": "DOID:12387",
+      "mesh_id": "D006967",
+      "synonyms": ["GD", "Basedow disease", "Exophthalmic goiter"],
+      "related_organs": ["Thyroid", "Thyroid gland", "Eye"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["hyperthyroidism", "thyroidstimulating immunoglobulin", "autoimmune hyperthyroid"]
+    },
+    "Hashimoto Thyroiditis": {
+      "canonical": "Hashimoto Thyroiditis",
+      "doid_id": "DOID:6338",
+      "mesh_id": "D006957",
+      "synonyms": ["HT", "Chronic lymphocytic thyroiditis", "Autoimmune thyroiditis"],
+      "related_organs": ["Thyroid", "Thyroid gland"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["hypothyroidism", "thyroid autoimmunity", "lymphocytic thyroiditis"]
+    },
+    "Osteoporosis": {
+      "canonical": "Osteoporosis",
+      "doid_id": "DOID:10690",
+      "mesh_id": "D010787",
+      "synonyms": ["OP", "Brittle bone disease", "Low bone mass"],
+      "related_organs": ["Bone", "Osteoblast", "Osteoclast"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["bone loss", "bone density", "fragility fracture"],
+      "subtypes": {
+        "Primary OP": "Primary Osteoporosis",
+        "Secondary OP": "Secondary Osteoporosis"
+      }
+    },
+    "Fibromyalgia": {
+      "canonical": "Fibromyalgia",
+      "doid_id": "DOID:6329",
+      "mesh_id": "D005356",
+      "synonyms": ["FM", "Fibromyalgia syndrome", "FMS"],
+      "related_organs": ["Muscle", "Central nervous system"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["chronic pain", "widespread pain", "central sensitization"]
+    },
+    "Chronic Fatigue Syndrome": {
+      "canonical": "Chronic Fatigue Syndrome",
+      "doid_id": "DOID:14289",
+      "mesh_id": "D015673",
+      "synonyms": ["CFS", "Myalgic encephalomyelitis", "ME/CFS"],
+      "related_organs": ["Brain", "Immune system", "Mitochondria"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["fatigue", "post-exertional malaise", "malaise"]
+    },
+    "Polycystic Ovary Syndrome": {
+      "canonical": "Polycystic Ovary Syndrome",
+      "doid_id": "DOID:11610",
+      "mesh_id": "D011085",
+      "synonyms": ["PCOS", "Stein-Leventhal syndrome", "Hyperandrogenic chronic anovulation"],
+      "related_organs": ["Ovary", "Endometrium"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["anovulation", "hyperandrogenism", "ovarian cyst"]
+    },
+    "Endometriosis": {
+      "canonical": "Endometriosis",
+      "doid_id": "DOID:2895",
+      "mesh_id": "D004715",
+      "synonyms": ["Endometriosis", "Endometrioma", "Adenomyosis"],
+      "related_organs": ["Uterus", "Ovary", "Peritoneum"],
+      "related_species": ["Homo sapiens"],
+      "search_terms": ["endometrial tissue", "pelvic pain", "menstrual disorder"]
+    }
+  }
+}
