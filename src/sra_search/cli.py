@@ -75,9 +75,24 @@ def main(verbose: bool = False, config: Optional[str] = None):
 @click.option("--sources", "-s", multiple=True, type=click.Choice(["geo", "sra", "pubmed", "bioproject"]),
               help="数据源筛选（可多选）")
 @click.option("--retmax", "-n", default=None, type=int, help="每源最大返回数")
+@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "id-list"]),
+              default="table", help="输出格式：table(表格)/json(JSON结构化)/id-list(ID列表)")
+@click.option("--top", "-t", default=50, type=int, help="返回前 N 个结果（排序后）")
 @click.option("--save/--no-save", default=True, help="是否保存到数据库")
-def search(keyword: str, sources: tuple, retmax: Optional[int], save: bool):
-    """关键词搜索数据集"""
+def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: int, save: bool):
+    """关键词搜索数据集
+
+    支持三种输出格式：
+    - table: 表格形式（默认）
+    - json: 标准 JSON Schema 输出（与 gse-downloader 解耦）
+    - id-list: 仅 GSE ID 列表（适合管道处理）
+
+    示例：
+      sra-search search "breast cancer scRNA-seq" --format json --top 20
+      sra-search search "liver fibrosis" --sources geo --format id-list
+    """
+    import json
+    from sra_search.converter import records_to_search_result
     from sra_search.search_engine.aggregator import SearchAggregator
 
     sources_list = list(sources) if sources else None
@@ -91,29 +106,51 @@ def search(keyword: str, sources: tuple, retmax: Optional[int], save: bool):
         )
         return results
 
-    results = run_async(_do_search())
+    search_results = run_async(_do_search())
 
-    if not results:
+    if not search_results:
         click.echo(f"No datasets found for '{keyword}'")
         return
 
-    click.echo(f"\nFound {len(results)} datasets for '{keyword}':\n")
-    click.echo(f"{'GSE ID':<15} {'Title':<50} {'Sources':<20}")
-    click.echo("-" * 85)
-    for r in results:
-        ds = r.dataset
-        title = ds.title[:47] + "..." if len(ds.title) > 50 else ds.title
-        src = ",".join(r.sources)
-        click.echo(f"{ds.gse_id:<15} {title:<50} {src:<20}")
+    # 提取 DatasetRecord 列表
+    records = [r.dataset for r in search_results]
+
+    # 转换为 Schema 并排序
+    schema_result = records_to_search_result(records, query=keyword, top_n=top)
+
+    # 输出
+    if fmt == "json":
+        # JSON 结构化输出（标准 Schema）
+        output = schema_result.to_dict()
+        click.echo(json.dumps(output, ensure_ascii=False, indent=2))
+    elif fmt == "id-list":
+        # 仅 ID 列表
+        for ds in schema_result.results:
+            click.echo(ds.gse_id)
+    else:
+        # 表格形式（默认）
+        click.echo(f"\nFound {len(schema_result.results)} datasets for '{keyword}' (sorted):\n")
+        click.echo(f"{'GSE ID':<15} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<45}")
+        click.echo("-" * 95)
+        for ds in schema_result.results:
+            title = ds.title[:42] + "..." if len(ds.title) > 45 else ds.title
+            sc = "Y" if ds.single_cell else "N"
+            pert = "Y" if ds.has_perturbation else "N"
+            click.echo(f"{ds.gse_id:<15} {ds.data_type:<12} {sc:<4} {pert:<5} {ds.sample_count:<8} {title:<45}")
+
+        # 统计摘要
+        stats = schema_result.compute_stats()
+        click.echo(f"\n--- Summary ---")
+        click.echo(f"Total: {stats['total_found']} | scRNA-seq: {stats['scRNA_seq']} | with perturbation: {stats['with_perturbation']}")
 
     if save:
         from sra_search.data_store.database import get_database
         db = get_database()
         run_async(db.start_write_queue())
         try:
-            for r in results:
-                run_async(db.upsert_dataset(r.dataset))
-            click.echo(f"\n[SAVED] {len(results)} datasets to database")
+            for r in records:
+                run_async(db.upsert_dataset(r))
+            click.echo(f"\n[SAVED] {len(records)} datasets to database")
         finally:
             run_async(db.stop_write_queue())
 
@@ -176,8 +213,15 @@ def list_cmd(topic: Optional[str], list_all: bool, status: Optional[str],
 @main.command()
 @click.argument("gse_id")
 @click.option("--changelog", is_flag=True, help="显示变更日志")
-def show(gse_id: str, changelog: bool):
-    """查看单条数据集完整详情"""
+@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json"]),
+              default="table", help="输出格式：table(表格)/json(JSON Schema)")
+def show(gse_id: str, changelog: bool, fmt: str):
+    """查看单条数据集完整详情
+
+    支持 JSON 输出（标准 Schema 格式），可与 gse-downloader 集成。
+    """
+    import json as json_mod
+    from sra_search.converter import record_to_schema
     from sra_search.data_store.database import get_database
 
     db = get_database()
@@ -186,31 +230,37 @@ def show(gse_id: str, changelog: bool):
         click.echo(f"Dataset '{gse_id}' not found")
         return
 
-    click.echo(f"\n{'='*60}")
-    click.echo(f"  {ds.gse_id}")
-    click.echo(f"{'='*60}")
-    click.echo(f"  Title:           {ds.title}")
-    click.echo(f"  Organism:        {ds.organism}")
-    click.echo(f"  Disease:         {ds.disease or '-'}")
-    click.echo(f"  Organ:           {ds.organ or '-'}")
-    click.echo(f"  Omics Type:      {ds.omics_type or '-'}")
-    click.echo(f"  Granularity:     {ds.omics_granularity}")
-    click.echo(f"  Sample Count:    {ds.sample_count}")
-    click.echo(f"  Platform:        {ds.platform or '-'}")
-    click.echo(f"  Journal:         {ds.journal or '-'}")
-    click.echo(f"  Publication:     {ds.publication_date or '-'}")
-    click.echo(f"  PubMed IDs:      {', '.join(ds.pubmed_ids) or '-'}")
-    click.echo(f"  SRA IDs:         {', '.join(ds.sra_ids) or '-'}")
-    click.echo(f"  BioProject IDs:  {', '.join(ds.bioproject_ids) or '-'}")
-    click.echo(f"  Availability:    {ds.availability_status}")
-    if ds.availability_note:
-        click.echo(f"  Avail Note:      {ds.availability_note}")
-    click.echo(f"  Access Type:     {ds.access_type}")
-    click.echo(f"  Has GSE:         {'Yes' if ds.has_gse else 'No'}")
-    click.echo(f"  Version:         {ds.version}")
-    click.echo(f"  First Seen:      {ds.first_seen_at}")
-    click.echo(f"  Last Updated:    {ds.last_updated}")
-    click.echo(f"{'='*60}")
+    if fmt == "json":
+        # JSON Schema 输出
+        schema = record_to_schema(ds, query="")
+        click.echo(json_mod.dumps(schema.to_dict(), ensure_ascii=False, indent=2))
+    else:
+        # 表格形式
+        click.echo(f"\n{'='*60}")
+        click.echo(f"  {ds.gse_id}")
+        click.echo(f"{'='*60}")
+        click.echo(f"  Title:           {ds.title}")
+        click.echo(f"  Organism:        {ds.organism}")
+        click.echo(f"  Disease:         {ds.disease or '-'}")
+        click.echo(f"  Organ:           {ds.organ or '-'}")
+        click.echo(f"  Omics Type:      {ds.omics_type or '-'}")
+        click.echo(f"  Granularity:     {ds.omics_granularity}")
+        click.echo(f"  Sample Count:    {ds.sample_count}")
+        click.echo(f"  Platform:        {ds.platform or '-'}")
+        click.echo(f"  Journal:         {ds.journal or '-'}")
+        click.echo(f"  Publication:     {ds.publication_date or '-'}")
+        click.echo(f"  PubMed IDs:      {', '.join(ds.pubmed_ids) or '-'}")
+        click.echo(f"  SRA IDs:         {', '.join(ds.sra_ids) or '-'}")
+        click.echo(f"  BioProject IDs:  {', '.join(ds.bioproject_ids) or '-'}")
+        click.echo(f"  Availability:    {ds.availability_status}")
+        if ds.availability_note:
+            click.echo(f"  Avail Note:      {ds.availability_note}")
+        click.echo(f"  Access Type:     {ds.access_type}")
+        click.echo(f"  Has GSE:         {'Yes' if ds.has_gse else 'No'}")
+        click.echo(f"  Version:         {ds.version}")
+        click.echo(f"  First Seen:      {ds.first_seen_at}")
+        click.echo(f"  Last Updated:    {ds.last_updated}")
+        click.echo(f"{'='*60}")
 
 
 @main.command()

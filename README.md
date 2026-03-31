@@ -4,6 +4,34 @@
 
 ---
 
+## 设计定位
+
+**geo-search-skill 应被严格定义为：GEO 数据集发现（Data Discovery）工具**
+
+该工具只负责：
+- 数据检索（search）
+- 元数据解析（metadata abstraction）
+- 结构化结果输出（structured output）
+
+**明确不承担**：
+- 数据下载
+- 表达矩阵解析
+- 数据预处理或分析
+
+### 系统架构定位
+
+```
+geo-search-skill   →   gse-downloader   →   downstream analysis
+   (发现数据)           (获取数据)             (分析)
+```
+
+设计原则：
+- 单一职责（Single Responsibility）
+- 松耦合（Loose Coupling）
+- 可组合（Composable）
+
+---
+
 ## 主要功能
 
 - **多源联合检索** — 同时检索 GEO、SRA、PubMed、BioProject，结果自动去重合并
@@ -71,7 +99,21 @@ sra-search search "diabetes RNA-seq" --sources geo --sources sra
 
 # 限制返回数量
 sra-search search "cancer scRNA-seq" --retmax 50
+
+# JSON 结构化输出（与 gse-downloader 解耦）
+sra-search search "breast cancer scRNA-seq" --format json --top 20
+
+# 仅输出 GSE ID 列表（适合管道处理）
+sra-search search "liver fibrosis" --format id-list
 ```
+
+### 输出格式说明
+
+| 格式 | 说明 | 适用场景 |
+|------|------|----------|
+| `table` | 表格形式（默认） | 交互式浏览 |
+| `json` | 标准 JSON Schema 输出 | 程序集成、API |
+| `id-list` | 仅 GSE ID 列表 | 管道处理、外部工具调用 |
 
 ### 查看搜索结果
 
