@@ -1,17 +1,33 @@
 [build-system]
-requires = ["setuptools>=68.0", "wheel"]
+requires = ["setuptools>=61.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "sra-search"
 version = "0.1.0"
-description = "多组学数据集智能检索与管理工具"
+description = "多组学数据集智能检索与管理工具，支持 GEO/SRA/PubMed/BioProject 联合搜索、知识图谱扩展和数据集审核"
 readme = "README.md"
 license = {text = "MIT"}
 requires-python = ">=3.10"
 authors = [
     {name = "SRA_search contributors"},
 ]
+keywords = ["bioinformatics", "GEO", "SRA", "omics", "search", "NCBI"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+
+[project.urls]
+Homepage = "https://github.com/3H-Gene/geo-search-skill"
+Repository = "https://github.com/3H-Gene/geo-search-skill"
+"Bug Tracker" = "https://github.com/3H-Gene/geo-search-skill/issues"
 
 dependencies = [
     "biopython>=1.83",
@@ -21,22 +37,28 @@ dependencies = [
     "loguru>=0.7",
     "pydantic>=2.0",
     "pydantic-settings>=2.0",
+    "rich>=13.0.0",
+    "requests>=2.28.0",
+    "tomli>=2.0.0; python_version < '3.11'",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=7.0",
-    "pytest-asyncio>=0.21",
-    "pytest-cov>=4.0",
-]
 geo = [
     "GEOparse>=2.0",
 ]
 sra = [
     "pysradb>=2.0",
 ]
+dev = [
+    "pytest>=7.0",
+    "pytest-asyncio>=0.21",
+    "pytest-cov>=4.0",
+    "black>=23.0.0",
+    "ruff>=0.0.270",
+    "mypy>=1.0.0",
+]
 all = [
-    "sra-search[dev,geo,sra]",
+    "sra-search[geo,sra,dev]",
 ]
 
 [project.scripts]
@@ -48,3 +70,19 @@ where = ["src"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+
+[tool.black]
+line-length = 88
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "W", "I", "N", "UP", "B"]
+ignore = ["E501"]
+target-version = "py310"
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
