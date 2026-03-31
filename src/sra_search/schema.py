@@ -1,16 +1,68 @@
-"""标准输出 Schema 定义
+"""标准输出 Schema 定义（强约束协议）
 
 geo-search-skill 应被严格定义为 GEO 数据集发现（Data Discovery）工具：
 - 只负责数据检索、元数据解析、结构化结果输出
 - 明确不承担：数据下载、表达矩阵解析、数据预处理
 
-定义统一 JSON 结构作为接口契约，支持：
-- ID 驱动接口（与 gse-downloader 解耦）
-- 结构化 payload 接口
-- perturbation 标注
-- single-cell 数据识别
-- 排序机制
-- 结果摘要（用于 Agent 决策）
+===============================================================================
+协议级定义（强约束）
+===============================================================================
+
+所有输出字段必须遵循以下规则：
+1. 字段类型必须稳定（string/int/bool/List）
+2. 可选字段必须有明确默认值
+3. 不返回 null（使用空字符串或空列表）
+4. 字段名不可改变（向下兼容）
+
+输出 Schema（JSON）:
+
+    {
+      "gse_id": "string",           # 必须，唯一主键
+      "title": "string",            # 必须
+      "organism": "string",         # 必须，"" 表示未知
+      "data_type": "string",       # 必须，枚举值
+      "sample_count": int,         # 必须，>= 0
+      "platform": "string",         # 可选
+      "single_cell": bool,          # 必须
+      "granularity": "string",      # 枚举：single_cell/bulk/spatial/unknown
+      "has_perturbation": bool,    # 必须
+      "perturbation_types": [],    # 必须，List[string]
+      "disease": "string",          # 可选
+      "tissue": "string",          # 可选
+      "organ": "string",           # 可选
+      "summary": "string",         # 可选
+      "keywords": [],              # 必须，List[string]
+      "pubmed_ids": [],            # 必须，List[string]
+      "sra_ids": [],               # 必须，List[string]
+      "bioproject_ids": [],        # 必须，List[string]
+      "publication_date": "string", # 可选，YYYY-MM-DD
+      "journal": "string",          # 可选
+      "series_matrix_available": bool,
+      "ftp_link": "string",        # 不提供（只做发现）
+      "relevance_score": float,    # 0.0-1.0
+      "recency_score": float,      # 0.0-1.0
+      "quality_score": float,      # 0.0-1.0
+      "total_score": float,        # 0.0-1.0
+      "metadata_version": "1.0",    # 协议版本
+      "extracted_at": "ISO8601",   # 时间戳
+      "metadata_hash": "string"    # 内容哈希
+    }
+
+===============================================================================
+接口契约
+===============================================================================
+
+1. ID 驱动接口（与 gse-downloader 解耦）:
+
+    { "gse_id": "GSE12345" }
+
+2. 结构化 payload 接口:
+
+    {
+      "gse_id": "GSE12345",
+      "preferred_format": "metadata",
+      "metadata": { ... }
+    }
 """
 from __future__ import annotations
 

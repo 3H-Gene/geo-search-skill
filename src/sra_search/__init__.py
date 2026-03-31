@@ -10,4 +10,4 @@ geo-search-skill 应被严格定义为：
 - 松耦合（Loose Coupling）
 - 可组合（Composable）
 """
-__version__ = "0.2.0"
+__version__ = "0.3.0"

@@ -4,6 +4,25 @@
 
 ---
 
+## When to Use (触发条件)
+
+**Agent 可通过以下情况触发此 skill：**
+
+- 用户询问 GEO / GSE / 基因表达数据
+- 用户需要 RNA-seq / scRNA-seq / ATAC-seq 数据集
+- 用户提到疾病 + 表达数据（如"查找乳腺癌 RNA-seq 数据"）
+- 用户需要 perturbation datasets（如 CRISPR、knockout、drug treatment）
+- 用户需要单细胞数据或空间转录组数据
+- 用户需要查询某物种（human / mouse / rat）的组学数据
+- 用户需要获取 GSE ID 列表供下游下载
+
+**不应触发此 skill 的情况：**
+- 用户需要下载原始数据（调用 gse-downloader）
+- 用户需要表达矩阵解析或预处理
+- 用户需要执行差异分析等统计分析
+
+---
+
 ## 设计定位
 
 **geo-search-skill 应被严格定义为：GEO 数据集发现（Data Discovery）工具**
@@ -172,15 +191,26 @@ geo-search-skill/
 │   └── ontology_audit_report.md # 本体审核报告
 ├── src/
 │   └── sra_search/              # 核心包
-│       ├── knowledge_graph/     # 知识图谱（疾病/器官/组学扩展）
-│       ├── search_engine/       # 多源检索引擎
-│       ├── metadata_extractor/  # 元数据提取与标准化
-│       ├── topic_manager/       # 主题管理
-│       ├── review_manager/      # 审核管理
-│       ├── data_store/          # SQLite 数据存储（WAL 模式）
+│       ├── query/               # 查询处理 pipeline
+│       │   ├── parser.py        # 结构化查询解析器
+│       │   └── expander.py     # 本体知识扩展器
+│       ├── retriever/           # 检索层
+│       │   └── geo_api.py      # GEO API 封装 + 失败处理
+│       ├── processor/           # 结果处理 pipeline
+│       │   ├── filter.py       # 多维度结果过滤器
+│       │   └── ranking.py      # Bio-aware 排序器
+│       ├── schema.py           # 标准输出 Schema（强约束协议）
+│       ├── converter.py        # 数据转换器
+│       ├── cache.py            # 查询缓存
+│       ├── knowledge_graph/    # 知识图谱（疾病/器官/组学扩展）
+│       ├── search_engine/      # 多源检索引擎
+│       ├── metadata_extractor/ # 元数据提取与标准化
+│       ├── topic_manager/      # 主题管理
+│       ├── review_manager/     # 审核管理
+│       ├── data_store/         # SQLite 数据存储（WAL 模式）
 │       ├── availability_checker/ # 可用性验证
-│       ├── cli.py               # 命令行入口
-│       └── config.py            # 配置管理
+│       ├── cli.py              # 命令行入口
+│       └── config.py           # 配置管理
 ├── tests/                       # 测试套件
 ├── geo-search/                  # AI Skill（WorkBuddy/OpenClaw）
 │   ├── SKILL.md
