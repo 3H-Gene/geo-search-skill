@@ -178,7 +178,7 @@ def list_cmd(topic: Optional[str], list_all: bool, status: Optional[str],
         if t is None:
             click.echo(f"Topic '{topic}' not found")
             return
-        topic_id = t["topic_id"]
+        topic_id = t.topic_id
 
     datasets = db.list_datasets(
         topic_id=topic_id,
@@ -327,12 +327,6 @@ def update(topic: Optional[str]):
         click.echo(f"Update for topic '{topic}' is under development.")
     else:
         click.echo("Full update is under development.")
-
-
-# Stub functions for database operations
-def _get_topic_by_name(self, name: str) -> Optional[dict]:
-    """按名称查找主题"""
-    return None
 
 
 if __name__ == "__main__":

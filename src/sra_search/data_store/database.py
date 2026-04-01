@@ -445,6 +445,16 @@ class Database:
             return None
         return TopicRecord.from_db_row(dict(row))
 
+    def get_topic_by_name(self, name: str) -> Optional[TopicRecord]:
+        """根据名称获取主题"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM topics WHERE name = ?", (name,))
+        row = cursor.fetchone()
+        if row is None:
+            return None
+        return TopicRecord.from_db_row(dict(row))
+
     def list_topics(self) -> List[TopicRecord]:
         """列出所有主题"""
         conn = self.get_connection()

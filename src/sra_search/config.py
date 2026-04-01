@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     db_path: str = "data/sra_search.db"
     db_wal_enabled: bool = True
     db_path_resolved: str = ""
+    db_write_batch_size: int = 100
+    db_write_flush_interval: float = 2.0
+    db_busy_timeout: int = 30000
 
     # 导出配置
     export_default_format: str = "tsv"

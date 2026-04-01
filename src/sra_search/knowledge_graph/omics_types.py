@@ -63,6 +63,13 @@ class OmicsTypeMapper:
             return list(entry.get("search_terms", []))
         return [name]
 
+    def get_aliases(self, name: str) -> List[str]:
+        """获取别名列表"""
+        entry = self.resolve(name)
+        if entry:
+            return list(entry.get("aliases", []))
+        return []
+
     def detect_from_text(self, text: str) -> List[tuple[str, float]]:
         """从文本中检测组学类型
 

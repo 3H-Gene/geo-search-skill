@@ -75,7 +75,7 @@ class SraChecker:
             "retmode": "json",
         }
 
-        await self.rate_limiter.acquire()
+        await self.rate_limiter.acquire_async()
         try:
             async with session.get(
                 self.ESUMMARY_URL, params=params,
@@ -227,7 +227,7 @@ class SraChecker:
             "retmode": "xml",
         }
 
-        await self.rate_limiter.acquire()
+        await self.rate_limiter.acquire_async()
         try:
             async with session.get(
                 self.EFETCH_URL, params=params,
