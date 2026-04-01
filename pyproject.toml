@@ -24,11 +24,6 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
-[project.urls]
-Homepage = "https://github.com/3H-Gene/geo-search-skill"
-Repository = "https://github.com/3H-Gene/geo-search-skill"
-"Bug Tracker" = "https://github.com/3H-Gene/geo-search-skill/issues"
-
 dependencies = [
     "biopython>=1.83",
     "pandas>=2.0",
@@ -41,6 +36,11 @@ dependencies = [
     "requests>=2.28.0",
     "tomli>=2.0.0; python_version < '3.11'",
 ]
+
+[project.urls]
+Homepage = "https://github.com/3H-Gene/geo-search-skill"
+Repository = "https://github.com/3H-Gene/geo-search-skill"
+"Bug Tracker" = "https://github.com/3H-Gene/geo-search-skill/issues"
 
 [project.optional-dependencies]
 geo = [
