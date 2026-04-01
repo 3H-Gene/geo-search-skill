@@ -59,7 +59,7 @@ def main(verbose: bool = False, config: Optional[str] = None):
         from sra_search.config import load_settings_from_file
         load_settings_from_file(config)
 
-    level = "DEBUG" if verbose else None
+    level = "DEBUG" if verbose else "INFO"
     setup_logger(level=level)
 
     settings = get_settings()
