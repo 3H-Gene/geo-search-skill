@@ -1,0 +1,916 @@
+{
+  "version": "1.1",
+  "description": "Uberon-based organ ontology with synonyms and hierarchical relationships",
+  "metadata": {
+    "created_date": "2024-01-01",
+    "last_updated": "2026-03-30",
+    "curator": "SRA_search Team",
+    "source_databases": [
+      {"name": "Uberon", "url": "https://uberon.github.io/"},
+      {"name": "BTO", "url": "https://ontobee.org/ontology/BTO"}
+    ],
+    "license": "CC BY 4.0"
+  },
+  "organs": {
+    "Lung": {
+      "canonical": "Lung",
+      "uberon_id": "UBERON:0002048",
+      "adjective": "pulmonary",
+      "synonyms": ["Lungs", "Pulmonary", "Respiratory organ"],
+      "parent": "",
+      "children": ["Bronchus", "Alveolus", "Bronchiole"],
+      "search_terms": ["pulmonary", "respiratory", "lung tissue", "alveolar"],
+      "organ_system": "respiratory"
+    },
+    "Bronchus": {
+      "canonical": "Bronchus",
+      "uberon_id": "UBERON:0002415",
+      "adjective": "bronchial",
+      "synonyms": ["Bronchi", "Bronchial tube", "Primary bronchus"],
+      "parent": "Lung",
+      "children": ["Bronchiole"],
+      "search_terms": ["bronchial", "airway", "bronchi"],
+      "organ_system": "respiratory"
+    },
+    "Bronchiole": {
+      "canonical": "Bronchiole",
+      "uberon_id": "UBERON:0002186",
+      "adjective": "bronchiolar",
+      "synonyms": ["Terminal bronchiole", "Respiratory bronchiole"],
+      "parent": "Bronchus",
+      "children": ["Alveolus"],
+      "search_terms": ["bronchiole", "small airway"],
+      "organ_system": "respiratory"
+    },
+    "Alveolus": {
+      "canonical": "Alveolus",
+      "uberon_id": "UBERON:0002299",
+      "adjective": "alveolar",
+      "synonyms": ["Alveoli", "Pulmonary alveolus", "Air sac"],
+      "parent": "Bronchiole",
+      "children": [],
+      "search_terms": ["alveolar", "gas exchange", "air sac"],
+      "organ_system": "respiratory"
+    },
+    "Heart": {
+      "canonical": "Heart",
+      "uberon_id": "UBERON:0000948",
+      "adjective": "cardiac",
+      "synonyms": ["Cardiac", "Myocardium", "Heart muscle"],
+      "parent": "",
+      "children": ["Left ventricle", "Right ventricle", "Atrium", "Aorta"],
+      "search_terms": ["cardiac", "cardiovascular", "myocardial", "heart"],
+      "organ_system": "cardiovascular"
+    },
+    "Left ventricle": {
+      "canonical": "Left ventricle",
+      "uberon_id": "UBERON:0002084",
+      "adjective": "left ventricular",
+      "synonyms": ["Left heart ventricle"],
+      "parent": "Heart",
+      "children": [],
+      "search_terms": ["LV", "left ventricular"],
+      "organ_system": "cardiovascular"
+    },
+    "Right ventricle": {
+      "canonical": "Right ventricle",
+      "uberon_id": "UBERON:0002080",
+      "adjective": "right ventricular",
+      "synonyms": ["Right heart ventricle"],
+      "parent": "Heart",
+      "children": [],
+      "search_terms": ["RV", "right ventricular"],
+      "organ_system": "cardiovascular"
+    },
+    "Atrium": {
+      "canonical": "Atrium",
+      "uberon_id": "UBERON:0002078",
+      "adjective": "atrial",
+      "synonyms": ["Atria", "Heart atrium", "Cardiac atrium"],
+      "parent": "Heart",
+      "children": ["Left atrium", "Right atrium"],
+      "search_terms": ["atrial"],
+      "organ_system": "cardiovascular"
+    },
+    "Aorta": {
+      "canonical": "Aorta",
+      "uberon_id": "UBERON:0000947",
+      "adjective": "aortic",
+      "synonyms": ["Aortic artery", "Main artery"],
+      "parent": "Heart",
+      "children": ["Coronary artery"],
+      "search_terms": ["aortic", "arterial"],
+      "organ_system": "cardiovascular"
+    },
+    "Coronary artery": {
+      "canonical": "Coronary artery",
+      "uberon_id": "UBERON:0001627",
+      "adjective": "coronary",
+      "synonyms": ["Coronary arteries", "Coronary vessel"],
+      "parent": "Aorta",
+      "children": [],
+      "search_terms": ["coronary", "cardiac artery"],
+      "organ_system": "cardiovascular"
+    },
+    "Artery": {
+      "canonical": "Artery",
+      "uberon_id": "UBERON:0001981",
+      "adjective": "arterial",
+      "synonyms": ["Arteries", "Blood vessel", "Arterial vessel"],
+      "parent": "",
+      "children": ["Aorta", "Coronary artery", "Carotid artery"],
+      "search_terms": ["arterial", "vessel", "blood flow"],
+      "organ_system": "cardiovascular"
+    },
+    "Vein": {
+      "canonical": "Vein",
+      "uberon_id": "UBERON:0001982",
+      "adjective": "venous",
+      "synonyms": ["Veins", "Venous vessel", "Blood vein"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["venous", "vein"],
+      "organ_system": "cardiovascular"
+    },
+    "Liver": {
+      "canonical": "Liver",
+      "uberon_id": "UBERON:0002107",
+      "adjective": "hepatic",
+      "synonyms": ["Hepatic", "Liver organ", "Hepatocytes"],
+      "parent": "",
+      "children": ["Hepatocyte"],
+      "search_terms": ["hepatic", "liver", "hepatocyte"],
+      "organ_system": "digestive"
+    },
+    "Hepatocyte": {
+      "canonical": "Hepatocyte",
+      "uberon_id": "UBERON:0004265",
+      "adjective": "hepatocellular",
+      "synonyms": ["Liver cell", "Hepatic cell"],
+      "parent": "Liver",
+      "children": [],
+      "search_terms": ["hepatocellular", "liver cell"],
+      "organ_system": "digestive"
+    },
+    "Kidney": {
+      "canonical": "Kidney",
+      "uberon_id": "UBERON:0002113",
+      "adjective": "renal",
+      "synonyms": ["Renal", "Kidney organ", "Nephron"],
+      "parent": "",
+      "children": ["Nephron", "Glomerulus", "Renal tubule"],
+      "search_terms": ["renal", "kidney", "nephron"],
+      "organ_system": "urinary"
+    },
+    "Nephron": {
+      "canonical": "Nephron",
+      "uberon_id": "UBERON:0001285",
+      "adjective": "nephronic",
+      "synonyms": ["Kidney nephron", "Renal nephron"],
+      "parent": "Kidney",
+      "children": ["Glomerulus", "Renal tubule"],
+      "search_terms": ["nephron", "kidney unit"],
+      "organ_system": "urinary"
+    },
+    "Glomerulus": {
+      "canonical": "Glomerulus",
+      "uberon_id": "UBERON:0000074",
+      "adjective": "glomerular",
+      "synonyms": ["Renal glomerulus", "Kidney glomerulus"],
+      "parent": "Nephron",
+      "children": [],
+      "search_terms": ["glomerular", "filtration"],
+      "organ_system": "urinary"
+    },
+    "Renal tubule": {
+      "canonical": "Renal tubule",
+      "uberon_id": "UBERON:0001227",
+      "adjective": "tubular",
+      "synonyms": ["Kidney tubule", "Renal tubular"],
+      "parent": "Nephron",
+      "children": [],
+      "search_terms": ["tubular", "reabsorption"],
+      "organ_system": "urinary"
+    },
+    "Pancreas": {
+      "canonical": "Pancreas",
+      "uberon_id": "UBERON:0000004",
+      "adjective": "pancreatic",
+      "synonyms": ["Pancreatic gland", "Islet of Langerhans"],
+      "parent": "",
+      "children": ["Pancreatic duct", "Islet of Langerhans"],
+      "search_terms": ["pancreatic", "exocrine", "endocrine"],
+      "organ_system": "digestive"
+    },
+    "Pancreatic duct": {
+      "canonical": "Pancreatic duct",
+      "uberon_id": "UBERON:0001053",
+      "adjective": "pancreatic ductal",
+      "synonyms": ["Pancreas duct", "Duct of pancreas"],
+      "parent": "Pancreas",
+      "children": [],
+      "search_terms": ["pancreatic duct"],
+      "organ_system": "digestive"
+    },
+    "Islet of Langerhans": {
+      "canonical": "Islet of Langerhans",
+      "uberon_id": "UBERON:0000016",
+      "adjective": "islet",
+      "synonyms": ["Pancreatic islet", "Islet", "Endocrine pancreas"],
+      "parent": "Pancreas",
+      "children": ["Beta cell", "Alpha cell"],
+      "search_terms": ["islet", "insulin", "glucagon"],
+      "organ_system": "endocrine"
+    },
+    "Beta cell": {
+      "canonical": "Beta cell",
+      "uberon_id": "UBERON:0002000",
+      "adjective": "beta",
+      "synonyms": ["B cell", "Insulin-producing cell"],
+      "parent": "Islet of Langerhans",
+      "children": [],
+      "search_terms": ["beta cell", "insulin"],
+      "organ_system": "endocrine"
+    },
+    "Alpha cell": {
+      "canonical": "Alpha cell",
+      "uberon_id": "UBERON:0001990",
+      "adjective": "alpha",
+      "synonyms": ["A cell", "Glucagon-producing cell"],
+      "parent": "Islet of Langerhans",
+      "children": [],
+      "search_terms": ["alpha cell", "glucagon"],
+      "organ_system": "endocrine"
+    },
+    "Brain": {
+      "canonical": "Brain",
+      "uberon_id": "UBERON:0000955",
+      "adjective": "brain",
+      "synonyms": ["Cerebrum", "Neural tissue", "Encephalon"],
+      "parent": "",
+      "children": ["Hippocampus", "Cerebral cortex", "Cerebellum", "Substantia nigra", "Basal ganglia"],
+      "search_terms": ["brain", "neural", "cerebral", "neurological"],
+      "organ_system": "nervous"
+    },
+    "Hippocampus": {
+      "canonical": "Hippocampus",
+      "uberon_id": "UBERON:0001954",
+      "adjective": "hippocampal",
+      "synonyms": ["Hippocampal formation", "Ammon's horn"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["hippocampal", "memory", "limbic"],
+      "organ_system": "nervous"
+    },
+    "Cerebral cortex": {
+      "canonical": "Cerebral cortex",
+      "uberon_id": "UBERON:0000956",
+      "adjective": "cortical",
+      "synonyms": ["Cortex", "Brain cortex", "Neocortex"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["cortical", "cerebral cortex", "neocortical"],
+      "organ_system": "nervous"
+    },
+    "Cerebellum": {
+      "canonical": "Cerebellum",
+      "uberon_id": "UBERON:0002037",
+      "adjective": "cerebellar",
+      "synonyms": ["Little brain", "Cerebellar"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["cerebellar", "motor control"],
+      "organ_system": "nervous"
+    },
+    "Substantia nigra": {
+      "canonical": "Substantia nigra",
+      "uberon_id": "UBERON:0002038",
+      "adjective": "substantia nigra",
+      "synonyms": ["SN", "Black substance"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["substantia nigra", "dopamine", "Parkinson"],
+      "organ_system": "nervous"
+    },
+    "Basal ganglia": {
+      "canonical": "Basal ganglia",
+      "uberon_id": "UBERON:0000013",
+      "adjective": "basal ganglia",
+      "synonyms": ["Basal nuclei", "Corpus striatum"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["basal ganglia", "motor control"],
+      "organ_system": "nervous"
+    },
+    "Breast": {
+      "canonical": "Breast",
+      "uberon_id": "UBERON:0000310",
+      "adjective": "mammary",
+      "synonyms": ["Mammary gland", "Breast tissue"],
+      "parent": "",
+      "children": ["Mammary gland"],
+      "search_terms": ["mammary", "breast", "lactation"],
+      "organ_system": "reproductive"
+    },
+    "Mammary gland": {
+      "canonical": "Mammary gland",
+      "uberon_id": "UBERON:0001911",
+      "adjective": "mammary",
+      "synonyms": ["Mammary", "Milk gland"],
+      "parent": "Breast",
+      "children": [],
+      "search_terms": ["mammary gland", "lactation"],
+      "organ_system": "reproductive"
+    },
+    "Prostate": {
+      "canonical": "Prostate",
+      "uberon_id": "UBERON:0002367",
+      "adjective": "prostatic",
+      "synonyms": ["Prostate gland", "Prostatic gland"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["prostatic", "prostate"],
+      "organ_system": "reproductive"
+    },
+    "Ovary": {
+      "canonical": "Ovary",
+      "uberon_id": "UBERON:0000992",
+      "adjective": "ovarian",
+      "synonyms": ["Ovaries", "Gonad"],
+      "parent": "",
+      "children": ["Fallopian tube"],
+      "search_terms": ["ovarian", "ovary", "oocyte"],
+      "organ_system": "reproductive"
+    },
+    "Fallopian tube": {
+      "canonical": "Fallopian tube",
+      "uberon_id": "UBERON:0003889",
+      "adjective": "fallopian",
+      "synonyms": ["Oviduct", "Uterine tube"],
+      "parent": "Ovary",
+      "children": [],
+      "search_terms": ["fallopian", "oviduct"],
+      "organ_system": "reproductive"
+    },
+    "Uterus": {
+      "canonical": "Uterus",
+      "uberon_id": "UBERON:0000995",
+      "adjective": "uterine",
+      "synonyms": ["Womb", "Uterine"],
+      "parent": "",
+      "children": ["Cervix"],
+      "search_terms": ["uterine", "uterus", "womb"],
+      "organ_system": "reproductive"
+    },
+    "Cervix": {
+      "canonical": "Cervix",
+      "uberon_id": "UBERON:0000026",
+      "adjective": "cervical",
+      "synonyms": ["Cervix uteri", "Uterine cervix"],
+      "parent": "Uterus",
+      "children": [],
+      "search_terms": ["cervical", "cervix"],
+      "organ_system": "reproductive"
+    },
+    "Testis": {
+      "canonical": "Testis",
+      "uberon_id": "UBERON:0000473",
+      "adjective": "testicular",
+      "synonyms": ["Testes", "Testicle", "Testicular gland"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["testicular", "testis", "sperm"],
+      "organ_system": "reproductive"
+    },
+    "Thyroid": {
+      "canonical": "Thyroid",
+      "uberon_id": "UBERON:0002046",
+      "adjective": "thyroid",
+      "synonyms": ["Thyroid gland", "Thyroid hormone"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["thyroid", "thyroid hormone", "T3", "T4"],
+      "organ_system": "endocrine"
+    },
+    "Stomach": {
+      "canonical": "Stomach",
+      "uberon_id": "UBERON:0002113",
+      "adjective": "gastric",
+      "synonyms": ["Gastric", "Stomach organ", "Gastric mucosa"],
+      "parent": "",
+      "children": ["Gastric mucosa"],
+      "search_terms": ["gastric", "stomach", "digestive"],
+      "organ_system": "digestive"
+    },
+    "Gastric mucosa": {
+      "canonical": "Gastric mucosa",
+      "uberon_id": "UBERON:0001052",
+      "adjective": "gastric",
+      "synonyms": ["Stomach lining", "Gastric epithelium"],
+      "parent": "Stomach",
+      "children": [],
+      "search_terms": ["gastric mucosa", "stomach lining"],
+      "organ_system": "digestive"
+    },
+    "Intestine": {
+      "canonical": "Intestine",
+      "uberon_id": "UBERON:0002410",
+      "adjective": "intestinal",
+      "synonyms": ["Bowel", "Gut", "Intestinal tract"],
+      "parent": "",
+      "children": ["Small intestine", "Colon", "Large intestine"],
+      "search_terms": ["intestinal", "bowel", "gut"],
+      "organ_system": "digestive"
+    },
+    "Small intestine": {
+      "canonical": "Small intestine",
+      "uberon_id": "UBERON:0002114",
+      "adjective": "small intestinal",
+      "synonyms": ["Small bowel", "Small intestine"],
+      "parent": "Intestine",
+      "children": [],
+      "search_terms": ["small intestine", "duodenum", "jejunum", "ileum"],
+      "organ_system": "digestive"
+    },
+    "Colon": {
+      "canonical": "Colon",
+      "uberon_id": "UBERON:0001153",
+      "adjective": "colonic",
+      "synonyms": ["Large intestine", "Colon tissue"],
+      "parent": "Intestine",
+      "children": [],
+      "search_terms": ["colonic", "colon", "large intestine"],
+      "organ_system": "digestive"
+    },
+    "Rectum": {
+      "canonical": "Rectum",
+      "uberon_id": "UBERON:0001052",
+      "adjective": "rectal",
+      "synonyms": ["Rectal", "End of colon"],
+      "parent": "Intestine",
+      "children": [],
+      "search_terms": ["rectal", "rectum"],
+      "organ_system": "digestive"
+    },
+    "Bladder": {
+      "canonical": "Bladder",
+      "uberon_id": "UBERON:0001255",
+      "adjective": "urinary",
+      "synonyms": ["Urinary bladder", "Bladder organ", "Urine bladder"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["urinary", "bladder", "urine", "urinary bladder"],
+      "organ_system": "urinary"
+    },
+    "Skin": {
+      "canonical": "Skin",
+      "uberon_id": "UBERON:0002097",
+      "adjective": "cutaneous",
+      "synonyms": ["Cutaneous", "Integument", "Dermis"],
+      "parent": "",
+      "children": ["Epidermis", "Dermis"],
+      "search_terms": ["cutaneous", "skin", "dermal"],
+      "organ_system": "integumentary"
+    },
+    "Epidermis": {
+      "canonical": "Epidermis",
+      "uberon_id": "UBERON:0001003",
+      "adjective": "epidermal",
+      "synonyms": ["Skin surface", "Outer skin layer"],
+      "parent": "Skin",
+      "children": [],
+      "search_terms": ["epidermal", "epidermis"],
+      "organ_system": "integumentary"
+    },
+    "Dermis": {
+      "canonical": "Dermis",
+      "uberon_id": "UBERON:0002067",
+      "adjective": "dermal",
+      "synonyms": ["Skin dermis", "Inner skin layer"],
+      "parent": "Skin",
+      "children": [],
+      "search_terms": ["dermal", "dermis"],
+      "organ_system": "integumentary"
+    },
+    "Melanocyte": {
+      "canonical": "Melanocyte",
+      "uberon_id": "UBERON:0002000",
+      "adjective": "melanocytic",
+      "synonyms": ["Melanin cell", "Pigment cell"],
+      "parent": "Skin",
+      "children": [],
+      "search_terms": ["melanocyte", "melanin", "pigment"],
+      "organ_system": "integumentary"
+    },
+    "Bone": {
+      "canonical": "Bone",
+      "uberon_id": "UBERON:0001474",
+      "adjective": "bone",
+      "synonyms": ["Osseous tissue", "Skeletal tissue"],
+      "parent": "",
+      "children": ["Bone marrow"],
+      "search_terms": ["bone", "osseous", "skeletal"],
+      "organ_system": "skeletal"
+    },
+    "Bone marrow": {
+      "canonical": "Bone marrow",
+      "uberon_id": "UBERON:0002371",
+      "adjective": "bone marrow",
+      "synonyms": ["Marrow", "Hematopoietic tissue"],
+      "parent": "Bone",
+      "children": [],
+      "search_terms": ["bone marrow", "hematopoietic", "blood"],
+      "organ_system": "skeletal"
+    },
+    "Cartilage": {
+      "canonical": "Cartilage",
+      "uberon_id": "UBERON:0002418",
+      "adjective": "cartilaginous",
+      "synonyms": ["Cartilaginous tissue", "Gristle"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["cartilage", "cartilaginous"],
+      "organ_system": "skeletal"
+    },
+    "Joint": {
+      "canonical": "Joint",
+      "uberon_id": "UBERON:0000982",
+      "adjective": "articular",
+      "synonyms": ["Articulation", "Junction"],
+      "parent": "",
+      "children": ["Synovium"],
+      "search_terms": ["joint", "articulation", "articular"],
+      "organ_system": "skeletal"
+    },
+    "Synovium": {
+      "canonical": "Synovium",
+      "uberon_id": "UBERON:0002013",
+      "adjective": "synovial",
+      "synonyms": ["Synovial membrane", "Joint lining"],
+      "parent": "Joint",
+      "children": [],
+      "search_terms": ["synovial", "synovium"],
+      "organ_system": "skeletal"
+    },
+    "Blood": {
+      "canonical": "Blood",
+      "uberon_id": "UBERON:0000178",
+      "adjective": "blood",
+      "synonyms": ["Blood tissue", "Whole blood"],
+      "parent": "",
+      "children": ["Leukocyte", "Erythrocyte", "Platelet"],
+      "search_terms": ["blood", "hematologic", "circulatory"],
+      "organ_system": "circulatory"
+    },
+    "Leukocyte": {
+      "canonical": "Leukocyte",
+      "uberon_id": "UBERON:0000227",
+      "adjective": "leukocytic",
+      "synonyms": ["White blood cell", "WBC", "White cell"],
+      "parent": "Blood",
+      "children": [],
+      "search_terms": ["leukocyte", "WBC", "white blood cell"],
+      "organ_system": "circulatory"
+    },
+    "Erythrocyte": {
+      "canonical": "Erythrocyte",
+      "uberon_id": "UBERON:0000227",
+      "adjective": "erythrocytic",
+      "synonyms": ["Red blood cell", "RBC", "Red cell"],
+      "parent": "Blood",
+      "children": [],
+      "search_terms": ["erythrocyte", "RBC", "red blood cell"],
+      "organ_system": "circulatory"
+    },
+    "Platelet": {
+      "canonical": "Platelet",
+      "uberon_id": "UBERON:0000227",
+      "adjective": "platelet",
+      "synonyms": ["Thrombocyte", "Blood platelet"],
+      "parent": "Blood",
+      "children": [],
+      "search_terms": ["platelet", "thrombocyte", "clotting"],
+      "organ_system": "circulatory"
+    },
+    "Plasma cell": {
+      "canonical": "Plasma cell",
+      "uberon_id": "UBERON:0000227",
+      "adjective": "plasma cell",
+      "synonyms": ["Plasmacyte", "Antibody-secreting cell"],
+      "parent": "Blood",
+      "children": [],
+      "search_terms": ["plasma cell", "plasmacyte", "antibody"],
+      "organ_system": "immune"
+    },
+    "Lymph node": {
+      "canonical": "Lymph node",
+      "uberon_id": "UBERON:0000029",
+      "adjective": "lymph node",
+      "synonyms": ["Lymph gland", "LN"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["lymph node", "lymphoid"],
+      "organ_system": "immune"
+    },
+    "Spleen": {
+      "canonical": "Spleen",
+      "uberon_id": "UBERON:0002106",
+      "adjective": "splenic",
+      "synonyms": ["Lien"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["spleen", "splenic", "immune"],
+      "organ_system": "immune"
+    },
+    "Thymus": {
+      "canonical": "Thymus",
+      "uberon_id": "UBERON:0002370",
+      "adjective": "thymic",
+      "synonyms": ["Thymus gland"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["thymus", "thymic", "T cell"],
+      "organ_system": "immune"
+    },
+    "Eye": {
+      "canonical": "Eye",
+      "uberon_id": "UBERON:0000970",
+      "adjective": "ocular",
+      "synonyms": ["Eye organ", "Visual system", "Ocular"],
+      "parent": "",
+      "children": ["Retina", "Cornea", "Lens", "Optic nerve"],
+      "search_terms": ["eye", "ocular", "vision", "ophthalmic"],
+      "organ_system": "sensory"
+    },
+    "Retina": {
+      "canonical": "Retina",
+      "uberon_id": "UBERON:0000966",
+      "adjective": "retinal",
+      "synonyms": ["Retinal tissue", "Neural retina"],
+      "parent": "Eye",
+      "children": ["Macula"],
+      "search_terms": ["retina", "retinal", "photoreceptor"],
+      "organ_system": "sensory"
+    },
+    "Cornea": {
+      "canonical": "Cornea",
+      "uberon_id": "UBERON:0000968",
+      "adjective": "corneal",
+      "synonyms": ["Corneal tissue", "Eye surface"],
+      "parent": "Eye",
+      "children": [],
+      "search_terms": ["cornea", "corneal", "transparency"],
+      "organ_system": "sensory"
+    },
+    "Lens": {
+      "canonical": "Lens",
+      "uberon_id": "UBERON:0000958",
+      "adjective": "lenticular",
+      "synonyms": ["Crystalline lens", "Eye lens"],
+      "parent": "Eye",
+      "children": [],
+      "search_terms": ["lens", "lenticular", "accommodation"],
+      "organ_system": "sensory"
+    },
+    "Optic nerve": {
+      "canonical": "Optic nerve",
+      "uberon_id": "UBERON:0001091",
+      "adjective": "optic",
+      "synonyms": ["CN II", "Second cranial nerve"],
+      "parent": "Eye",
+      "children": [],
+      "search_terms": ["optic nerve", "vision", "visual pathway"],
+      "organ_system": "sensory"
+    },
+    "Macula": {
+      "canonical": "Macula",
+      "uberon_id": "UBERON:0002098",
+      "adjective": "macular",
+      "synonyms": ["Macula lutea", "Fovea"],
+      "parent": "Retina",
+      "children": [],
+      "search_terms": ["macula", "macular", "central vision"],
+      "organ_system": "sensory"
+    },
+    "Ear": {
+      "canonical": "Ear",
+      "uberon_id": "UBERON:0001690",
+      "adjective": "auditory",
+      "synonyms": ["Ear organ", "Hearing organ", "Auditory system"],
+      "parent": "",
+      "children": ["Inner ear", "Middle ear", "Cochlea"],
+      "search_terms": ["ear", "auditory", "hearing", "vestibular"],
+      "organ_system": "sensory"
+    },
+    "Cochlea": {
+      "canonical": "Cochlea",
+      "uberon_id": "UBERON:0000954",
+      "adjective": "cochlear",
+      "synonyms": ["Cochlear duct", "Organ of Corti"],
+      "parent": "Ear",
+      "children": [],
+      "search_terms": ["cochlea", "cochlear", "hearing", "organ of Corti"],
+      "organ_system": "sensory"
+    },
+    "Inner ear": {
+      "canonical": "Inner ear",
+      "uberon_id": "UBERON:0000996",
+      "adjective": "inner ear",
+      "synonyms": ["Labyrinth", "Bony labyrinth"],
+      "parent": "Ear",
+      "children": ["Cochlea"],
+      "search_terms": ["inner ear", "labyrinth", "balance"],
+      "organ_system": "sensory"
+    },
+    "Middle ear": {
+      "canonical": "Middle ear",
+      "uberon_id": "UBERON:0000928",
+      "adjective": "middle ear",
+      "synonyms": ["Tympanic cavity", "Middle ear cavity"],
+      "parent": "Ear",
+      "children": [],
+      "search_terms": ["middle ear", "tympanic", "ossicle"],
+      "organ_system": "sensory"
+    },
+    "Nose": {
+      "canonical": "Nose",
+      "uberon_id": "UBERON:0000004",
+      "adjective": "nasal",
+      "synonyms": ["Nose organ", "Nasal cavity", "Olfactory"],
+      "parent": "",
+      "children": ["Nasal cavity", "Sinus"],
+      "search_terms": ["nose", "nasal", "olfactory", "respiratory"],
+      "organ_system": "sensory"
+    },
+    "Nasal cavity": {
+      "canonical": "Nasal cavity",
+      "uberon_id": "UBERON:0001821",
+      "adjective": "nasal",
+      "synonyms": ["Nasal passage", "Nasal fossa"],
+      "parent": "Nose",
+      "children": [],
+      "search_terms": ["nasal cavity", "olfactory", "respiratory"],
+      "organ_system": "sensory"
+    },
+    "Sinus": {
+      "canonical": "Sinus",
+      "uberon_id": "UBERON:0004089",
+      "adjective": "sinus",
+      "synonyms": ["Paranasal sinus", "Nasal sinus"],
+      "parent": "Nose",
+      "children": [],
+      "search_terms": ["sinus", "paranasal sinus", "sinusitis"],
+      "organ_system": "sensory"
+    },
+    "Adrenal gland": {
+      "canonical": "Adrenal gland",
+      "uberon_id": "UBERON:0002369",
+      "adjective": "adrenal",
+      "synonyms": ["Adrenal", "Suprarenal gland"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["adrenal", "cortex", "medulla", "cortisol"],
+      "organ_system": "endocrine"
+    },
+    "Pituitary gland": {
+      "canonical": "Pituitary gland",
+      "uberon_id": "UBERON:0000007",
+      "adjective": "pituitary",
+      "synonyms": ["Hypophysis", "Master gland"],
+      "parent": "",
+      "children": [],
+      "search_terms": ["pituitary", "hypophysis", "hormone", "GH"],
+      "organ_system": "endocrine"
+    },
+    "Hypothalamus": {
+      "canonical": "Hypothalamus",
+      "uberon_id": "UBERON:0001898",
+      "adjective": "hypothalamic",
+      "synonyms": ["Hypothalamic region", "Brain hypothalamus"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["hypothalamus", "homeostasis", "endocrine"],
+      "organ_system": "nervous"
+    },
+    "Amygdala": {
+      "canonical": "Amygdala",
+      "uberon_id": "UBERON:0001874",
+      "adjective": "amygdalar",
+      "synonyms": ["Amygdaloid nucleus", "Lateral amygdala"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["amygdala", "emotion", "fear", "limbic"],
+      "organ_system": "nervous"
+    },
+    "Prefrontal cortex": {
+      "canonical": "Prefrontal cortex",
+      "uberon_id": "UBERON:0009834",
+      "adjective": "prefrontal",
+      "synonyms": ["PFC", "Frontal cortex"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["prefrontal cortex", "executive function", "decision"],
+      "organ_system": "nervous"
+    },
+    "Spinal cord": {
+      "canonical": "Spinal cord",
+      "uberon_id": "UBERON:0002247",
+      "adjective": "spinal",
+      "synonyms": ["Spinal cord tissue", "Medulla spinalis"],
+      "parent": "Brain",
+      "children": [],
+      "search_terms": ["spinal cord", "spinal", "motoneuron"],
+      "organ_system": "nervous"
+    },
+    "Myelin": {
+      "canonical": "Myelin",
+      "uberon_id": "UBERON:0002031",
+      "adjective": "myelin",
+      "synonyms": ["Myelin sheath", "White matter"],
+      "parent": "Nervous system",
+      "children": [],
+      "search_terms": ["myelin", "demyelination", "oligodendrocyte"],
+      "organ_system": "nervous"
+    },
+    "Muscle": {
+      "canonical": "Muscle",
+      "uberon_id": "UBERON:0001017",
+      "adjective": "muscular",
+      "synonyms": ["Muscle tissue", "Skeletal muscle"],
+      "parent": "",
+      "children": ["Skeletal muscle", "Cardiac muscle", "Smooth muscle"],
+      "search_terms": ["muscle", "muscular", "contraction"],
+      "organ_system": "muscular"
+    },
+    "Skeletal muscle": {
+      "canonical": "Skeletal muscle",
+      "uberon_id": "UBERON:0001134",
+      "adjective": "skeletal muscle",
+      "synonyms": ["Striated muscle", "Voluntary muscle"],
+      "parent": "Muscle",
+      "children": [],
+      "search_terms": ["skeletal muscle", "myofiber", "voluntary"],
+      "organ_system": "muscular"
+    },
+    "Cardiac muscle": {
+      "canonical": "Cardiac muscle",
+      "uberon_id": "UBERON:0002413",
+      "adjective": "cardiac muscle",
+      "synonyms": ["Myocardium", "Heart muscle"],
+      "parent": "Muscle",
+      "children": [],
+      "search_terms": ["myocardium", "cardiac muscle", "heart muscle"],
+      "organ_system": "muscular"
+    },
+    "Smooth muscle": {
+      "canonical": "Smooth muscle",
+      "uberon_id": "UBERON:0002414",
+      "adjective": "smooth muscle",
+      "synonyms": ["Involuntary muscle", "Visceral muscle"],
+      "parent": "Muscle",
+      "children": [],
+      "search_terms": ["smooth muscle", "involuntary", "visceral"],
+      "organ_system": "muscular"
+    },
+    "Adipose tissue": {
+      "canonical": "Adipose tissue",
+      "uberon_id": "UBERON:0001013",
+      "adjective": "adipose",
+      "synonyms": ["Fat tissue", "Body fat"],
+      "parent": "",
+      "children": ["White adipose tissue", "Brown adipose tissue"],
+      "search_terms": ["adipose", "fat", "lipid", "obesity"],
+      "organ_system": "connective"
+    },
+    "Connective tissue": {
+      "canonical": "Connective tissue",
+      "uberon_id": "UBERON:0002380",
+      "adjective": "connective",
+      "synonyms": ["CT", "Fibrous tissue"],
+      "parent": "",
+      "children": ["Adipose tissue", "Bone", "Cartilage"],
+      "search_terms": ["connective tissue", "fibroblast", "extracellular matrix"],
+      "organ_system": "connective"
+    },
+    "Nerve": {
+      "canonical": "Nerve",
+      "uberon_id": "UBERON:0001021",
+      "adjective": "nerve",
+      "synonyms": ["Neural nerve", "Peripheral nerve"],
+      "parent": "",
+      "children": ["Neuron", "Axon"],
+      "search_terms": ["nerve", "neuron", "axon", "peripheral"],
+      "organ_system": "nervous"
+    },
+    "Neuron": {
+      "canonical": "Neuron",
+      "uberon_id": "UBERON:0001016",
+      "adjective": "neuronal",
+      "synonyms": ["Nerve cell", "Neural cell"],
+      "parent": "Nerve",
+      "children": [],
+      "search_terms": ["neuron", "nerve cell", "synapse"],
+      "organ_system": "nervous"
+    }
+  }
+}

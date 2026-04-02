@@ -11,8 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-
-_ONTOLOGY_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "ontologies"
+from sra_search.knowledge_graph._paths import ONTOLOGY_DIR as _ONTOLOGY_DIR
 
 
 class OmicsTypeMapper:

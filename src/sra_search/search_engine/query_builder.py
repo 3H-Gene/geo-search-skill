@@ -93,6 +93,12 @@ class SmartQueryBuilder:
         omics_terms = list(dict.fromkeys(omics_terms))
         other_terms = list(dict.fromkeys(other_terms))
         
+        # ── 知识图谱无效时的 fallback：直接用原始查询，不拆词 ──
+        # 如果所有分类都落空，说明知识图谱数据未加载或词不在词表中，
+        # 此时直接用原始输入作为查询，比拆词后 OR 组合效果好得多。
+        if not disease_terms and not omics_terms and not other_terms:
+            return keywords, {'diseases': [], 'omics': [], 'other': [keywords]}
+        
         # Build query parts
         query_parts: List[str] = []
         

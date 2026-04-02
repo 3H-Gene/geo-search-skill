@@ -99,12 +99,18 @@ def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: i
     aggregator = SearchAggregator()
 
     async def _do_search():
-        results = await aggregator.search(
-            keyword=keyword,
-            sources=sources_list,
-            retmax=retmax,
-        )
-        return results
+        from sra_search.search_engine.base import get_entrez_client
+        client = get_entrez_client()
+        try:
+            results = await aggregator.search(
+                keyword=keyword,
+                sources=sources_list,
+                retmax=retmax,
+            )
+            return results
+        finally:
+            # 关闭 aiohttp session，避免 "Unclosed client session" 警告
+            await client.close()
 
     search_results = run_async(_do_search())
 

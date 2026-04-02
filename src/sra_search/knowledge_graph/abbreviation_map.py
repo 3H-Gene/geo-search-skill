@@ -12,9 +12,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-
-# 数据文件路径
-_DATA_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data"
+from sra_search.knowledge_graph._paths import DATA_DIR as _DATA_DIR
 
 
 class AbbreviationMapper:

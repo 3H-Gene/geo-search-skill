@@ -11,8 +11,7 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-
-_ONTOLOGY_DIR = Path(__file__).resolve().parent.parent.parent.parent / "data" / "ontologies"
+from sra_search.knowledge_graph._paths import ONTOLOGY_DIR as _ONTOLOGY_DIR
 
 
 class MeshMapper:
@@ -33,7 +32,7 @@ class MeshMapper:
         try:
             with open(self._data_path, "r", encoding="utf-8") as f:
                 raw = json.load(f)
-            groups = raw.get("synonym_groups", {})
+            groups = raw.get("synonym_groups") or raw.get("mesh_synonyms", {})
 
             for canonical, entry in groups.items():
                 self._canonical_to_entry[canonical] = entry

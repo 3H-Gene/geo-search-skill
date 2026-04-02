@@ -67,6 +67,10 @@ sra-search = "sra_search.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"sra_search.data" = ["**/*.json"]
+"sra_search.data.ontologies" = ["*.json"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"

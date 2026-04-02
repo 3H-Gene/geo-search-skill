@@ -178,7 +178,9 @@ class GeoRetriever:
             # 速率限制
             await self._rate_limit()
 
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(ssl=False)
+            ) as session:
                 async with session.get(search_url, params=params) as resp:
                     if resp.status != 200:
                         if retry < max_retries:
