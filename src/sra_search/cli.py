@@ -163,14 +163,65 @@ def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: i
 
     if save:
         from sra_search.data_store.database import get_database
+
         db = get_database()
-        run_async(db.start_write_queue())
         try:
+            # 使用同步批量写入代替异步队列，确保数据立即落盘
+            conn = db.get_connection()
+            cursor = conn.cursor()
+            flushed = 0
+            errors = 0
             for r in records:
-                run_async(db.upsert_dataset(r))
-            click.echo(f"\n[SAVED] {len(records)} datasets to database")
-        finally:
-            run_async(db.stop_write_queue())
+                try:
+                    row = r.to_db_row()
+                    cursor.execute("""
+                        INSERT INTO datasets (gse_id, title, pubmed_ids, sra_ids, bioproject_ids,
+                            organism, disease, organ, omics_type, omics_granularity, sample_count,
+                            platform, publication_date, journal, abstract, keywords,
+                            first_seen_at, last_updated, version, change_log,
+                            availability_status, availability_note, availability_checked_at,
+                            access_type, has_gse, metadata_hash)
+                        VALUES (:gse_id, :title, :pubmed_ids, :sra_ids, :bioproject_ids,
+                            :organism, :disease, :organ, :omics_type, :omics_granularity, :sample_count,
+                            :platform, :publication_date, :journal, :abstract, :keywords,
+                            :first_seen_at, :last_updated, :version, :change_log,
+                            :availability_status, :availability_note, :availability_checked_at,
+                            :access_type, :has_gse, :metadata_hash)
+                        ON CONFLICT(gse_id) DO UPDATE SET
+                            title = COALESCE(NULLIF(:title, ''), title),
+                            pubmed_ids = CASE WHEN :pubmed_ids != '[]' THEN :pubmed_ids ELSE pubmed_ids END,
+                            sra_ids = CASE WHEN :sra_ids != '[]' THEN :sra_ids ELSE sra_ids END,
+                            bioproject_ids = CASE WHEN :bioproject_ids != '[]' THEN :bioproject_ids ELSE bioproject_ids END,
+                            organism = COALESCE(NULLIF(:organism, ''), organism),
+                            disease = COALESCE(NULLIF(:disease, ''), disease),
+                            organ = COALESCE(NULLIF(:organ, ''), organ),
+                            omics_type = CASE WHEN :omics_type != '' THEN :omics_type ELSE omics_type END,
+                            omics_granularity = CASE WHEN :omics_granularity != 'unknown' THEN :omics_granularity ELSE omics_granularity END,
+                            sample_count = CASE WHEN :sample_count > 0 THEN :sample_count ELSE sample_count END,
+                            platform = COALESCE(NULLIF(:platform, ''), platform),
+                            publication_date = COALESCE(NULLIF(:publication_date, ''), publication_date),
+                            journal = COALESCE(NULLIF(:journal, ''), journal),
+                            abstract = CASE WHEN LENGTH(:abstract) > LENGTH(abstract) THEN :abstract ELSE abstract END,
+                            keywords = CASE WHEN :keywords != '[]' THEN :keywords ELSE keywords END,
+                            last_updated = :last_updated,
+                            version = :version,
+                            change_log = :change_log,
+                            availability_status = :availability_status,
+                            availability_note = :availability_note,
+                            availability_checked_at = :availability_checked_at,
+                            access_type = :access_type,
+                            has_gse = :has_gse,
+                            metadata_hash = :metadata_hash
+                    """, row)
+                    flushed += 1
+                except Exception as e:
+                    errors += 1
+                    logger.error(f"Save error for {r.gse_id}: {e}")
+            conn.commit()
+            click.echo(f"\n[SAVED] {flushed} datasets to database" + (f" ({errors} errors)" if errors else ""))
+        except Exception as e:
+            logger.error(f"Database save failed: {e}")
+            click.echo(f"\n[ERROR] Failed to save to database: {e}")
 
 
 @main.command("list")

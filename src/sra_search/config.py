@@ -58,11 +58,20 @@ class Settings(BaseSettings):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 解析数据库路径
-        if self.db_path:
+        # 优先使用环境变量 SRA_SEARCH_DB_PATH
+        # 如果是相对路径，基于当前工作目录（cwd）而非 __file__，确保
+        # search / list / show 命令始终使用同一路径，不受包安装位置影响
+        env_db = os.environ.get("SRA_SEARCH_DB_PATH", "")
+        if env_db:
+            db_abs = Path(env_db)
+            if not db_abs.is_absolute():
+                self.db_path_resolved = str(Path.cwd() / db_abs)
+            else:
+                self.db_path_resolved = str(db_abs)
+        elif self.db_path:
             db_abs = Path(self.db_path)
             if not db_abs.is_absolute():
-                base = Path(__file__).resolve().parent.parent.parent
-                self.db_path_resolved = str(base / db_abs)
+                self.db_path_resolved = str(Path.cwd() / db_abs)
             else:
                 self.db_path_resolved = str(db_abs)
 

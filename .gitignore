@@ -38,6 +38,10 @@ nosetests.xml
 output/search_results/
 output/*.db
 output/*.sqlite
+# Runtime database (search results cache)
+data/sra_search.db
+data/sra_search.db-wal
+data/sra_search.db-shm
 *.log
 
 # Keep test_results.txt

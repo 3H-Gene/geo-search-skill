@@ -60,11 +60,11 @@ class WriteQueue:
         logger.info(f"Write queue started (batch={self.batch_size}, interval={self.flush_interval}s)")
 
     async def stop(self) -> None:
-        """停止后台写入协程，刷新剩余数据"""
+        """停止后台写入协程，强制刷新所有剩余数据并等待完成"""
         self._running = False
+        # 强制最后一次 flush（确保无遗漏）
+        await self._queue.join()
         if self._task and not self._task.done():
-            # 等待队列清空
-            await self._queue.join()
             self._task.cancel()
             try:
                 await self._task
