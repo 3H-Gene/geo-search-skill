@@ -233,8 +233,10 @@ class SearchAggregator:
                         ))
                 else:
                     # 无 GSE 编号，使用 SRP 作为主键
+                    # 注意：srp_id 本身已带前缀（如 SRP570109），不要重复拼接
+                    # 直接使用 srp_id 作为 gse_id（数据库层需通过前缀判断类型）
                     dataset = DatasetRecord(
-                        gse_id=f"SRP:{sra_rec.srp_id}",  # 使用特殊前缀
+                        gse_id=sra_rec.srp_id,
                         title=sra_rec.title,
                         organism=sra_rec.organism,
                         platform=sra_rec.platform,

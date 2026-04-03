@@ -374,14 +374,32 @@ class Database:
     # ---- Query operations (synchronous, read-only) ----
 
     def get_dataset(self, gse_id: str) -> Optional[DatasetRecord]:
-        """获取单个数据集"""
+        """获取单个数据集
+
+        支持两种查询方式：
+        1. 直接按 gse_id 精确匹配
+        2. 按 sra_ids JSON 数组匹配（支持直接用 SRP/ERP/DRP accession 查询）
+        """
         conn = self.get_connection()
         cursor = conn.cursor()
+
+        # 1. 尝试精确匹配
         cursor.execute("SELECT * FROM datasets WHERE gse_id = ?", (gse_id,))
         row = cursor.fetchone()
-        if row is None:
-            return None
-        return DatasetRecord.from_db_row(dict(row))
+        if row is not None:
+            return DatasetRecord.from_db_row(dict(row))
+
+        # 2. 尝试在 sra_ids JSON 数组中查找（支持直接用 SRP/ERP/DRP 查询）
+        # JSON 数组格式如 ["SRP570109", "SRP406906"]
+        cursor.execute(
+            "SELECT * FROM datasets WHERE sra_ids LIKE ? LIMIT 1",
+            (f'%"{gse_id}"%',),
+        )
+        row = cursor.fetchone()
+        if row is not None:
+            return DatasetRecord.from_db_row(dict(row))
+
+        return None
 
     def list_datasets(
         self,
