@@ -135,19 +135,31 @@ def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: i
             click.echo(ds.gse_id)
     else:
         # 表格形式（默认）
-        click.echo(f"\nFound {len(schema_result.results)} datasets for '{keyword}' (sorted):\n")
-        click.echo(f"{'GSE ID':<15} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<45}")
-        click.echo("-" * 95)
+        click.echo(f"\nFound {len(schema_result.results)} datasets for '{keyword}' (sorted by score):\n")
+        click.echo(f"{'Accession':<12} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<40}")
+        click.echo("-" * 87)
         for ds in schema_result.results:
-            title = ds.title[:42] + "..." if len(ds.title) > 45 else ds.title
+            title = ds.title[:37] + "..." if len(ds.title) > 40 else ds.title
             sc = "Y" if ds.single_cell else "N"
             pert = "Y" if ds.has_perturbation else "N"
-            click.echo(f"{ds.gse_id:<15} {ds.data_type:<12} {sc:<4} {pert:<5} {ds.sample_count:<8} {title:<45}")
+            # 规范化 ID 展示：移除 SRP: 前缀，用 Accession 列显示类型
+            acc = ds.gse_id
+            if acc.startswith("SRP:") or acc.startswith("ERP:") or acc.startswith("DRP:"):
+                acc_type = acc.split(":")[0].lower()
+                acc = acc.split(":")[1] if ":" in acc else acc
+            else:
+                acc_type = "gse"
+            # Samples 为 0 显示为 —
+            samples = str(ds.sample_count) if ds.sample_count > 0 else "—"
+            click.echo(f"{acc:<12} {ds.data_type:<12} {sc:<4} {pert:<5} {samples:<8} {title:<40}")
 
-        # 统计摘要
+        # 统计摘要（区分来源）
         stats = schema_result.compute_stats()
         click.echo(f"\n--- Summary ---")
         click.echo(f"Total: {stats['total_found']} | scRNA-seq: {stats['scRNA_seq']} | with perturbation: {stats['with_perturbation']}")
+        # 说明各源合并情况（当有多个数据源时）
+        click.echo(f"\nNote: Results are deduplicated across GEO, SRA, and PubMed sources.")
+        click.echo(f"PubMed branch links publications to GEO; not all papers have linked datasets.")
 
     if save:
         from sra_search.data_store.database import get_database

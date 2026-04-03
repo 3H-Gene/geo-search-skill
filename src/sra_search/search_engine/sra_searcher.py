@@ -176,13 +176,23 @@ class SRASearcher:
             # SRA metadata 中有些 study 会包含 consent 或 accession_auth
             # 这些信息可能在 package level 或 study level
 
-            # 样本统计
+            # 样本统计（支持多种 XML 结构）
             sample_count = 0
             run_count = 0
-            for sample in pkg.findall(".//SAMPLE"):
-                sample_count += 1
-            for run in pkg.findall(".//RUN"):
-                run_count += 1
+            # SAMPLE 元素可能在多个层级，尝试多种路径
+            for tag in ["SAMPLE", "SAMPLE_DESCRIPTOR", "Sample"]:
+                for sample in pkg.iter(tag):
+                    sample_count += 1
+            # RUN 元素（最可靠的计数）
+            for tag in ["RUN", "Run"]:
+                for run in pkg.iter(tag):
+                    run_count += 1
+            # 如果仍为 0，尝试从 STUDY_SAMPLES 获取
+            if sample_count == 0:
+                for tag in ["STUDY_SAMPLES", "STUDY_SAMPLE"]:
+                    for _ in pkg.iter(tag):
+                        sample_count += 1
+            sample_count = max(sample_count, run_count)
 
             # Organism
             organism = ""

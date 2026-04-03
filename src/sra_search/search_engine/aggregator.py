@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from loguru import logger
 
@@ -129,13 +129,14 @@ class SearchAggregator:
         # 合并结果（按 gse_id 去重）
         seen_gse_ids: set = set()
         all_results: List[DatasetSearchResult] = []
+        source_raw_counts: Dict[str, int] = {}
         for i, results in enumerate(results_list):
             source = source_labels[i] if i < len(source_labels) else "unknown"
             if isinstance(results, Exception):
                 logger.error(f"Source {source} failed: {results}")
                 continue
             if results:
-                logger.info(f"Source {source}: {len(results)} records")
+                source_raw_counts[source] = len(results)
                 for r in results:
                     # 去重：同一 GSE ID 只保留第一个
                     gse_key = r.dataset.gse_id
@@ -146,7 +147,10 @@ class SearchAggregator:
         # 按 score 降序排序
         all_results.sort(key=lambda x: x.match_score, reverse=True)
 
-        logger.info(f"Total merged: {len(all_results)} unique records")
+        # 汇总日志：各源原始命中数 + 合并后数量
+        raw_parts = [f"{src}:{cnt}" for src, cnt in source_raw_counts.items()]
+        logger.info(f"Source raw hits: [{', '.join(raw_parts)}] → merged: {len(all_results)} unique records")
+
         return all_results
 
     async def _search_geo(
