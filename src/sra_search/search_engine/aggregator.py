@@ -77,6 +77,10 @@ class SearchAggregator:
         keyword: str,
         sources: Optional[List[str]] = None,
         retmax: Optional[int] = None,
+        organisms: Optional[List[str]] = None,
+        min_date: Optional[str] = None,
+        max_date: Optional[str] = None,
+        strict_scrna: bool = False,
     ) -> List[DatasetSearchResult]:
         """执行多源检索
 
@@ -84,6 +88,10 @@ class SearchAggregator:
             keyword: 搜索关键词
             sources: 数据源列表（geo/sra/pubmed/bioproject），None 表示全部
             retmax: 每源最大返回数
+            organisms: 生物体过滤列表（常用名，如 ["human", "mouse"]）
+            min_date: 最早发表日期（YYYY/MM/DD），仅 SRA/GEO 支持
+            max_date: 最晚发表日期（YYYY/MM/DD）
+            strict_scrna: 是否启用严格 scRNA-seq 过滤（仅 SRA 源）
 
         Returns:
             DatasetSearchResult 列表（按 match_score 降序）
@@ -108,7 +116,13 @@ class SearchAggregator:
             source_labels.append("geo")
 
         if "sra" in sources:
-            tasks.append(self._search_sra(optimized_query, retmax))
+            tasks.append(self._search_sra(
+                optimized_query, retmax,
+                organisms=organisms,
+                min_date=min_date,
+                max_date=max_date,
+                strict_scrna=strict_scrna,
+            ))
             source_labels.append("sra")
 
         if "pubmed" in sources:
@@ -201,10 +215,21 @@ class SearchAggregator:
         self,
         query: str,
         retmax: int,
+        organisms: Optional[List[str]] = None,
+        min_date: Optional[str] = None,
+        max_date: Optional[str] = None,
+        strict_scrna: bool = False,
     ) -> List[DatasetSearchResult]:
         """搜索 SRA 数据库"""
         try:
-            results = await self.sra_searcher.search_and_fetch(query, retmax)
+            results = await self.sra_searcher.search_and_fetch(
+                query,
+                retmax,
+                organisms=organisms,
+                strict_scrna=strict_scrna,
+                min_date=min_date,
+                max_date=max_date,
+            )
 
             records = []
             for sra_rec in results:

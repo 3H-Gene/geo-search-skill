@@ -1,6 +1,12 @@
 """SRA 数据集检索器
 
 搜索 SRA 数据库，获取 SRP/SRX 编号及元数据。
+
+v0.4 改进（参考 ArcInstitute/SRAgent）：
+- 增加 scRNA-seq 专用过滤（Illumina/配对/公开/有数据）
+- 支持 organism 过滤（常用名 → 学名 → Entrez Organism 语法）
+- 支持日期范围过滤
+- 元数据分类整合（LibPrep/Tech10X/CellPrep）
 """
 from __future__ import annotations
 
@@ -11,6 +17,8 @@ from typing import Any, Dict, List, Optional
 from loguru import logger
 
 from sra_search.search_engine.base import EntrezClient, get_entrez_client
+from sra_search.data.organisms import to_entrez_organism_filter
+from sra_search.metadata_extractor.enums import classify_all
 
 
 @dataclass
@@ -32,11 +40,65 @@ class SRAResult:
     gse_ids: List[str] = field(default_factory=list)  # 从 study_alias 提取
     study_alias: str = ""
     accession_auth: str = ""  # 用于判断 dbGaP 受控
+    # ── 结构化分类字段（v0.4 新增）────────────────
+    is_illumina: str = "unsure"
+    is_single_cell: str = "unsure"
+    lib_prep: str = "unknown"
+    tech_10x: str = "not_applicable"
+    cell_prep: str = "not_applicable"
+    granularity: str = "unknown"
     raw_data: dict = field(default_factory=dict)
 
 
+def build_scrna_query(
+    keyword: str,
+    organisms: Optional[List[str]] = None,
+    min_date: Optional[str] = None,
+    max_date: Optional[str] = None,
+    strict_scrna: bool = False,
+) -> str:
+    """构建 SRA scRNA-seq 专用检索查询
+
+    参考 SRAgent esearch_scrna() 的过滤策略，在 Entrez 层面过滤
+    无关数据，显著提升结果精度。
+
+    Args:
+        keyword: 用户原始查询词
+        organisms: 生物体名称列表（常用名，如 ["human", "mouse"]）
+        min_date: 最早发表日期，格式 "YYYY/MM/DD"
+        max_date: 最晚发表日期，格式 "YYYY/MM/DD"
+        strict_scrna: True 时启用严格 scRNA-seq 过滤（排除 Smart-seq）
+
+    Returns:
+        Entrez 查询字符串
+    """
+    # 1. 核心关键词
+    query = keyword
+
+    # 2. 日期范围
+    if min_date and max_date:
+        query += f" AND ({min_date}:{max_date}[PDAT])"
+
+    # 3. Organism 过滤
+    if organisms:
+        org_filter = to_entrez_organism_filter(organisms)
+        if org_filter:
+            query += f" AND {org_filter}"
+
+    # 4. 质量过滤（参考 SRAgent）
+    query += ' AND "public"[Access]'
+    query += ' AND "has data"[Properties]'
+    query += ' AND "platform illumina"[Filter]'
+
+    # 5. 严格 scRNA-seq 模式：排除低通量方法
+    if strict_scrna:
+        query += ' NOT ("Smart-seq" OR "Smart-seq2" OR "Smart-seq3" OR "MARS-seq" OR "CEL-seq")'
+
+    return query
+
+
 class SRASearcher:
-    """SRA 数据集检索器"""
+    """SRA 数据集检索器（v0.4）"""
 
     def __init__(self, client: Optional[EntrezClient] = None):
         self.client = client or get_entrez_client()
@@ -47,29 +109,48 @@ class SRASearcher:
         retmax: Optional[int] = None,
         mindate: Optional[str] = None,
         maxdate: Optional[str] = None,
+        organisms: Optional[List[str]] = None,
+        strict_scrna: bool = False,
     ) -> List[str]:
         """搜索 SRA 返回 UID 列表
 
         Args:
             term: 搜索词
             retmax: 最大返回数
+            mindate: 最早日期（YYYY/MM/DD）
+            maxdate: 最晚日期（YYYY/MM/DD）
+            organisms: 生物体过滤列表
+            strict_scrna: 是否启用严格 scRNA-seq 过滤
 
         Returns:
             SRA UID 列表
         """
-        logger.info(f"Searching SRA: '{term}'")
+        # 是否需要构建增强查询
+        if organisms or strict_scrna:
+            enhanced_term = build_scrna_query(
+                term,
+                organisms=organisms,
+                min_date=mindate,
+                max_date=maxdate,
+                strict_scrna=strict_scrna,
+            )
+            logger.info(f"Searching SRA (enhanced): '{enhanced_term}'")
+        else:
+            enhanced_term = term
+            logger.info(f"Searching SRA: '{term}'")
+
         result = await self.client.esearch(
             db="sra",
-            term=term,
+            term=enhanced_term,
             retmax=retmax,
-            mindate=mindate,
-            maxdate=maxdate,
+            mindate=mindate if not organisms else None,  # 已合并进 enhanced_term
+            maxdate=maxdate if not organisms else None,
             sort="relevance",
         )
 
         id_list = result.get("esearchresult", {}).get("idlist", [])
         count = result.get("esearchresult", {}).get("count", "0")
-        logger.info(f"SRA search '{term}': found {count} results, returning {len(id_list)}")
+        logger.info(f"SRA search: found {count} results, returning {len(id_list)}")
         return id_list
 
     async def fetch_summaries(self, uids: List[str]) -> List[SRAResult]:
@@ -100,12 +181,55 @@ class SRASearcher:
         self,
         term: str,
         retmax: Optional[int] = None,
+        organisms: Optional[List[str]] = None,
+        strict_scrna: bool = False,
+        min_date: Optional[str] = None,
+        max_date: Optional[str] = None,
     ) -> List[SRAResult]:
-        """搜索 + 获取摘要（一步完成）"""
-        uids = await self.search(term, retmax)
+        """搜索 + 获取摘要（一步完成）
+
+        Args:
+            term: 搜索词
+            retmax: 最大返回数
+            organisms: 生物体过滤
+            strict_scrna: 严格 scRNA-seq 过滤
+            min_date: 最早日期
+            max_date: 最晚日期
+        """
+        uids = await self.search(
+            term,
+            retmax=retmax,
+            mindate=min_date,
+            maxdate=max_date,
+            organisms=organisms,
+            strict_scrna=strict_scrna,
+        )
         if not uids:
             return []
-        return await self.fetch_summaries(uids)
+        results = await self.fetch_summaries(uids)
+        # 对结果进行元数据分类
+        for r in results:
+            self._enrich_metadata(r)
+        return results
+
+    def _enrich_metadata(self, result: SRAResult) -> None:
+        """用枚举分类器丰富结构化元数据字段（原地修改）"""
+        text = " ".join(filter(None, [
+            result.title,
+            result.library_strategy,
+            result.library_source,
+            result.library_selection,
+            result.instrument,
+            result.platform,
+        ]))
+        if text.strip():
+            classified = classify_all(text)
+            result.is_illumina = classified.get("is_illumina", "unsure")
+            result.is_single_cell = classified.get("is_single_cell", "unsure")
+            result.lib_prep = classified.get("lib_prep", "unknown")
+            result.tech_10x = classified.get("tech_10x", "not_applicable")
+            result.cell_prep = classified.get("cell_prep", "not_applicable")
+            result.granularity = classified.get("granularity", "unknown")
 
     def _parse_sra_xml(self, xml_text: str) -> List[SRAResult]:
         """解析 SRA EFetch XML 响应

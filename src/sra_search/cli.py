@@ -78,8 +78,25 @@ def main(verbose: bool = False, config: Optional[str] = None):
 @click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "id-list"]),
               default="table", help="输出格式：table(表格)/json(JSON结构化)/id-list(ID列表)")
 @click.option("--top", "-t", default=50, type=int, help="返回前 N 个结果（排序后）")
+@click.option("--organism", "-o", multiple=True,
+              help="生物体过滤（可多选），如 --organism human --organism mouse")
+@click.option("--since", default=None, help="最早发表日期（YYYY/MM/DD），如 --since 2020/01/01")
+@click.option("--until", default=None, help="最晚发表日期（YYYY/MM/DD），如 --until 2024/12/31")
+@click.option("--strict-scrna", is_flag=True, default=False,
+              help="启用严格 scRNA-seq 过滤（仅 SRA 源，排除 Smart-seq 等低通量方法）")
 @click.option("--save/--no-save", default=True, help="是否保存到数据库")
-def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: int, save: bool):
+def search(
+    keyword: str,
+    sources: tuple,
+    retmax: Optional[int],
+    fmt: str,
+    top: int,
+    organism: tuple,
+    since: Optional[str],
+    until: Optional[str],
+    strict_scrna: bool,
+    save: bool,
+):
     """关键词搜索数据集
 
     支持三种输出格式：
@@ -89,12 +106,15 @@ def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: i
 
     示例：
       sra-search search "breast cancer scRNA-seq" --format json --top 20
+      sra-search search "gout single cell" --organism human --since 2022/01/01
       sra-search search "liver fibrosis" --sources geo --format id-list
+      sra-search search "single cell" --organism mouse --strict-scrna
     """
     import json
     from sra_search.converter import records_to_search_result
     from sra_search.search_engine.aggregator import SearchAggregator
 
+    organisms_list = list(organism) if organism else None
     sources_list = list(sources) if sources else None
     aggregator = SearchAggregator()
 
@@ -106,6 +126,10 @@ def search(keyword: str, sources: tuple, retmax: Optional[int], fmt: str, top: i
                 keyword=keyword,
                 sources=sources_list,
                 retmax=retmax,
+                organisms=organisms_list,
+                min_date=since,
+                max_date=until,
+                strict_scrna=strict_scrna,
             )
             return results
         finally:
