@@ -6,14 +6,17 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
-from typing import Any, Dict, Optional
 
-from pydantic import BaseModel
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     """全局设置"""
+
+    model_config = SettingsConfigDict(
+        env_prefix="SRA_SEARCH_",
+        extra="ignore",
+    )
 
     # NCBI 配置
     ncbi_email: str = ""
@@ -51,10 +54,6 @@ class Settings(BaseSettings):
     # 日志
     log_level: str = "INFO"
 
-    class Config:
-        env_prefix = "SRA_SEARCH_"
-        extra = "ignore"
-
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 解析数据库路径
@@ -76,7 +75,7 @@ class Settings(BaseSettings):
                 self.db_path_resolved = str(db_abs)
 
 
-_settings: Optional[Settings] = None
+_settings: Settings | None = None
 
 
 def get_settings() -> Settings:

@@ -9,13 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import re
-import time
-from typing import Dict, List, Optional, Union
 
 import aiohttp
 from bs4 import BeautifulSoup
 from loguru import logger
-
 
 # ──────────────────────────────────────────────
 # 工具函数
@@ -37,10 +34,10 @@ def _make_session() -> aiohttp.ClientSession:
 
 async def _fetch_url(
     url: str,
-    session: Optional[aiohttp.ClientSession] = None,
+    session: aiohttp.ClientSession | None = None,
     max_retries: int = 3,
     base_delay: float = 2.0,
-) -> Optional[str]:
+) -> str | None:
     """抓取 URL，带指数退避重试
 
     Args:
@@ -95,14 +92,14 @@ _GEO_SECTION_NAMES = [
 ]
 
 
-def _parse_geo_page(html: str, gse_id: str) -> Dict[str, str]:
+def _parse_geo_page(html: str, gse_id: str) -> dict[str, str]:
     """从 GEO acc.cgi 页面解析元数据
 
     Returns:
         字段字典，如 {"title": "...", "organism": "...", "summary": "..."}
     """
     soup = BeautifulSoup(html, "html.parser")
-    result: Dict[str, str] = {"gse_id": gse_id}
+    result: dict[str, str] = {"gse_id": gse_id}
 
     for section_name in _GEO_SECTION_NAMES:
         for row in soup.find_all("tr"):
@@ -131,8 +128,8 @@ def _parse_geo_page(html: str, gse_id: str) -> Dict[str, str]:
 
 async def fetch_geo_record(
     gse_id: str,
-    session: Optional[aiohttp.ClientSession] = None,
-) -> Dict[str, str]:
+    session: aiohttp.ClientSession | None = None,
+) -> dict[str, str]:
     """爬取 GEO 数据集详情页
 
     Args:
@@ -154,9 +151,9 @@ async def fetch_geo_record(
 
 
 async def fetch_geo_records(
-    gse_ids: List[str],
+    gse_ids: list[str],
     max_concurrency: int = 3,
-) -> Dict[str, Dict[str, str]]:
+) -> dict[str, dict[str, str]]:
     """批量爬取 GEO 记录（有并发限制）
 
     Args:
@@ -167,7 +164,7 @@ async def fetch_geo_records(
         {gse_id: 元数据字典}
     """
     sem = asyncio.Semaphore(max_concurrency)
-    results: Dict[str, Dict[str, str]] = {}
+    results: dict[str, dict[str, str]] = {}
 
     async with _make_session() as session:
         async def _fetch_one(gse_id: str):
@@ -187,7 +184,7 @@ async def fetch_geo_records(
 async def fetch_sra_record(
     term: str,
     database: str = "sra",
-    session: Optional[aiohttp.ClientSession] = None,
+    session: aiohttp.ClientSession | None = None,
 ) -> str:
     """爬取 NCBI SRA 或 GEO(gds) 页面
 
@@ -225,8 +222,8 @@ async def fetch_sra_record(
 
 async def fetch_biosample_record(
     biosample_id: str,
-    session: Optional[aiohttp.ClientSession] = None,
-) -> Dict[str, Union[str, Dict[str, str]]]:
+    session: aiohttp.ClientSession | None = None,
+) -> dict[str, str | dict[str, str]]:
     """爬取 NCBI BioSample 详情
 
     Returns:
@@ -238,7 +235,7 @@ async def fetch_biosample_record(
         return {"biosample_id": biosample_id}
 
     soup = BeautifulSoup(html, "html.parser")
-    result: Dict[str, Union[str, Dict]] = {"biosample_id": biosample_id}
+    result: dict[str, str | dict] = {"biosample_id": biosample_id}
 
     # Title
     try:
@@ -282,8 +279,8 @@ async def fetch_biosample_record(
 
 async def fetch_bioproject_record(
     bioproject_id: str,
-    session: Optional[aiohttp.ClientSession] = None,
-) -> Dict[str, Union[str, Dict[str, str]]]:
+    session: aiohttp.ClientSession | None = None,
+) -> dict[str, str | dict[str, str]]:
     """爬取 NCBI BioProject 详情
 
     Returns:
@@ -295,7 +292,7 @@ async def fetch_bioproject_record(
         return {"bioproject_id": bioproject_id}
 
     soup = BeautifulSoup(html, "html.parser")
-    result: Dict[str, Union[str, Dict]] = {"bioproject_id": bioproject_id}
+    result: dict[str, str | dict] = {"bioproject_id": bioproject_id}
 
     try:
         result["title"] = soup.select_one("div.Title h2").get_text(strip=True)
@@ -329,8 +326,8 @@ async def fetch_bioproject_record(
 
 async def fetch_pubmed_abstract(
     pmid: str,
-    session: Optional[aiohttp.ClientSession] = None,
-) -> Dict[str, str]:
+    session: aiohttp.ClientSession | None = None,
+) -> dict[str, str]:
     """爬取 PubMed 摘要
 
     Returns:
@@ -342,7 +339,7 @@ async def fetch_pubmed_abstract(
         return {"pmid": pmid}
 
     soup = BeautifulSoup(html, "html.parser")
-    result: Dict[str, str] = {"pmid": pmid}
+    result: dict[str, str] = {"pmid": pmid}
 
     # Title
     try:
@@ -381,29 +378,29 @@ class NCBIFetcher:
     def __init__(self, max_concurrency: int = 3):
         self._sem = asyncio.Semaphore(max_concurrency)
 
-    async def enrich_geo(self, gse_id: str) -> Dict[str, str]:
+    async def enrich_geo(self, gse_id: str) -> dict[str, str]:
         """补充单个 GEO 数据集的元数据"""
         async with self._sem:
             return await fetch_geo_record(gse_id)
 
     async def enrich_geo_batch(
         self,
-        gse_ids: List[str],
-    ) -> Dict[str, Dict[str, str]]:
+        gse_ids: list[str],
+    ) -> dict[str, dict[str, str]]:
         """批量补充 GEO 元数据"""
         return await fetch_geo_records(gse_ids, max_concurrency=self._sem._value)
 
-    async def get_biosample(self, biosample_id: str) -> Dict:
+    async def get_biosample(self, biosample_id: str) -> dict:
         """获取 BioSample 元数据"""
         async with self._sem:
             return await fetch_biosample_record(biosample_id)
 
-    async def get_bioproject(self, bioproject_id: str) -> Dict:
+    async def get_bioproject(self, bioproject_id: str) -> dict:
         """获取 BioProject 元数据"""
         async with self._sem:
             return await fetch_bioproject_record(bioproject_id)
 
-    async def get_pubmed_abstract(self, pmid: str) -> Dict[str, str]:
+    async def get_pubmed_abstract(self, pmid: str) -> dict[str, str]:
         """获取 PubMed 摘要"""
         async with self._sem:
             return await fetch_pubmed_abstract(pmid)

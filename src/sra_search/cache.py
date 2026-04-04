@@ -7,9 +7,8 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -33,7 +32,7 @@ class QueryCache:
     ```
     """
 
-    def __init__(self, cache_dir: Optional[Path] = None, ttl_hours: int = 24):
+    def __init__(self, cache_dir: Path | None = None, ttl_hours: int = 24):
         self.cache_dir = cache_dir or DEFAULT_CACHE_DIR
         self.ttl_hours = ttl_hours
 
@@ -52,26 +51,26 @@ class QueryCache:
         """获取缓存结果文件路径"""
         return self.cache_dir / "results" / f"{query_hash}.json"
 
-    def _load_index(self) -> Dict[str, Any]:
+    def _load_index(self) -> dict[str, Any]:
         """加载缓存索引"""
         if not self.index_file.exists():
             return {}
         try:
-            with open(self.index_file, "r", encoding="utf-8") as f:
+            with open(self.index_file, encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to load cache index: {e}")
             return {}
 
-    def _save_index(self, index: Dict[str, Any]) -> None:
+    def _save_index(self, index: dict[str, Any]) -> None:
         """保存缓存索引"""
         try:
             with open(self.index_file, "w", encoding="utf-8") as f:
                 json.dump(index, f, ensure_ascii=False, indent=2)
-        except IOError as e:
+        except OSError as e:
             logger.warning(f"Failed to save cache index: {e}")
 
-    def get(self, query: str) -> Optional[Dict[str, Any]]:
+    def get(self, query: str) -> dict[str, Any] | None:
         """获取缓存的查询结果
 
         Args:
@@ -94,7 +93,6 @@ class QueryCache:
             from datetime import datetime, timezone
             try:
                 cached_time = datetime.fromisoformat(cached_at)
-                import time
                 age_hours = (datetime.now(timezone.utc) - cached_time).total_seconds() / 3600
                 if age_hours > self.ttl_hours:
                     logger.debug(f"Cache expired for query {query_hash}")
@@ -109,13 +107,13 @@ class QueryCache:
             return None
 
         try:
-            with open(cache_path, "r", encoding="utf-8") as f:
+            with open(cache_path, encoding="utf-8") as f:
                 return json.load(f)
-        except (json.JSONDecodeError, IOError) as e:
+        except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to load cache: {e}")
             return None
 
-    def set(self, query: str, result: Dict[str, Any]) -> None:
+    def set(self, query: str, result: dict[str, Any]) -> None:
         """缓存查询结果
 
         Args:
@@ -133,7 +131,7 @@ class QueryCache:
         try:
             with open(cache_path, "w", encoding="utf-8") as f:
                 json.dump(result, f, ensure_ascii=False, indent=2)
-        except IOError as e:
+        except OSError as e:
             logger.warning(f"Failed to save cache: {e}")
             return
 
@@ -147,7 +145,7 @@ class QueryCache:
         self._save_index(index)
         logger.debug(f"Cached query: {query_hash}")
 
-    def invalidate(self, query: Optional[str] = None, query_hash: Optional[str] = None) -> None:
+    def invalidate(self, query: str | None = None, query_hash: str | None = None) -> None:
         """清除缓存
 
         Args:
@@ -177,7 +175,7 @@ class QueryCache:
             self._save_index({})
             logger.info("Cleared all cache")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         """获取缓存统计信息"""
         index = self._load_index()
         total = len(index)
@@ -210,10 +208,10 @@ class QueryCache:
 
 
 # 全局缓存实例
-_cache: Optional[QueryCache] = None
+_cache: QueryCache | None = None
 
 
-def get_cache(cache_dir: Optional[Path] = None) -> QueryCache:
+def get_cache(cache_dir: Path | None = None) -> QueryCache:
     """获取全局缓存实例"""
     global _cache
     if _cache is None:
@@ -221,6 +219,6 @@ def get_cache(cache_dir: Optional[Path] = None) -> QueryCache:
     return _cache
 
 
-def clear_cache(query: Optional[str] = None, query_hash: Optional[str] = None) -> None:
+def clear_cache(query: str | None = None, query_hash: str | None = None) -> None:
     """清除缓存的便捷函数"""
     get_cache().invalidate(query, query_hash)

@@ -11,11 +11,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
 from enum import Enum
-
+from typing import Any
 
 # ---- Enums ----
 
@@ -102,9 +101,9 @@ class DatasetRecord:
     """
     gse_id: str  # GSE 编号（主键），has_gse=false 时使用 SRP:{SRP编号}
     title: str = ""
-    pubmed_ids: List[str] = field(default_factory=list)
-    sra_ids: List[str] = field(default_factory=list)  # SRP 编号列表
-    bioproject_ids: List[str] = field(default_factory=list)
+    pubmed_ids: list[str] = field(default_factory=list)
+    sra_ids: list[str] = field(default_factory=list)  # SRP 编号列表
+    bioproject_ids: list[str] = field(default_factory=list)
     organism: str = ""
     disease: str = ""
     organ: str = ""
@@ -115,11 +114,11 @@ class DatasetRecord:
     publication_date: str = ""
     journal: str = ""
     abstract: str = ""
-    keywords: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
     first_seen_at: str = field(default_factory=_now_iso)
     last_updated: str = field(default_factory=_now_iso)
     version: int = 1
-    change_log: List[dict] = field(default_factory=list)  # JSON 数组
+    change_log: list[dict] = field(default_factory=list)  # JSON 数组
     # --- 可用性字段 ---
     availability_status: str = AvailabilityStatus.UNVERIFIED.value
     availability_note: str = ""
@@ -158,7 +157,7 @@ class DatasetRecord:
         self.metadata_hash = self.compute_metadata_hash()
         return self.metadata_hash
 
-    def to_db_row(self) -> Dict[str, Any]:
+    def to_db_row(self) -> dict[str, Any]:
         """转换为数据库行字典（JSON 字段序列化为字符串）"""
         return {
             "gse_id": self.gse_id,
@@ -190,7 +189,7 @@ class DatasetRecord:
         }
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "DatasetRecord":
+    def from_db_row(cls, row: dict[str, Any]) -> DatasetRecord:
         """从数据库行字典创建 DatasetRecord"""
         return cls(
             gse_id=row["gse_id"],
@@ -228,11 +227,11 @@ class TopicRecord:
     topic_id: str  # 主题 ID（主键，UUID 或自增）
     name: str  # 主题名称
     description: str = ""
-    keywords_used: List[str] = field(default_factory=list)  # JSON
+    keywords_used: list[str] = field(default_factory=list)  # JSON
     created_at: str = field(default_factory=_now_iso)
     last_searched_at: str = field(default_factory=_now_iso)
 
-    def to_db_row(self) -> Dict[str, Any]:
+    def to_db_row(self) -> dict[str, Any]:
         return {
             "topic_id": self.topic_id,
             "name": self.name,
@@ -243,7 +242,7 @@ class TopicRecord:
         }
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "TopicRecord":
+    def from_db_row(cls, row: dict[str, Any]) -> TopicRecord:
         return cls(
             topic_id=row["topic_id"],
             name=row["name"],
@@ -274,7 +273,7 @@ class TopicDatasetRelation:
     reviewed_at: str = ""
     added_at: str = field(default_factory=_now_iso)
 
-    def to_db_row(self) -> Dict[str, Any]:
+    def to_db_row(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "topic_id": self.topic_id,
@@ -289,7 +288,7 @@ class TopicDatasetRelation:
         }
 
     @classmethod
-    def from_db_row(cls, row: Dict[str, Any]) -> "TopicDatasetRelation":
+    def from_db_row(cls, row: dict[str, Any]) -> TopicDatasetRelation:
         return cls(
             id=row["id"],
             topic_id=row["topic_id"],
@@ -308,12 +307,12 @@ class TopicDatasetRelation:
 class SearchHistoryRecord:
     """搜索历史记录"""
     id: str
-    topic_id: Optional[str] = None
+    topic_id: str | None = None
     search_time: str = field(default_factory=_now_iso)
     keyword_used: str = ""
     results_count: int = 0
 
-    def to_db_row(self) -> Dict[str, Any]:
+    def to_db_row(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "topic_id": self.topic_id,
@@ -335,7 +334,7 @@ class ReviewLogRecord:
     note: str = ""
     acted_at: str = field(default_factory=_now_iso)
 
-    def to_db_row(self) -> Dict[str, Any]:
+    def to_db_row(self) -> dict[str, Any]:
         return {
             "id": self.id,
             "topic_id": self.topic_id,

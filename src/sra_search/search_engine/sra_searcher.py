@@ -12,13 +12,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from sra_search.search_engine.base import EntrezClient, get_entrez_client
 from sra_search.data.organisms import to_entrez_organism_filter
 from sra_search.metadata_extractor.enums import classify_all
+from sra_search.search_engine.base import EntrezClient, get_entrez_client
 
 
 @dataclass
@@ -34,10 +33,10 @@ class SRAResult:
     sample_count: int = 0
     run_count: int = 0
     platform: str = ""
-    srx_ids: List[str] = field(default_factory=list)
-    srr_ids: List[str] = field(default_factory=list)
-    bioproject_ids: List[str] = field(default_factory=list)
-    gse_ids: List[str] = field(default_factory=list)  # 从 study_alias 提取
+    srx_ids: list[str] = field(default_factory=list)
+    srr_ids: list[str] = field(default_factory=list)
+    bioproject_ids: list[str] = field(default_factory=list)
+    gse_ids: list[str] = field(default_factory=list)  # 从 study_alias 提取
     study_alias: str = ""
     accession_auth: str = ""  # 用于判断 dbGaP 受控
     # ── 结构化分类字段（v0.4 新增）────────────────
@@ -52,9 +51,9 @@ class SRAResult:
 
 def build_scrna_query(
     keyword: str,
-    organisms: Optional[List[str]] = None,
-    min_date: Optional[str] = None,
-    max_date: Optional[str] = None,
+    organisms: list[str] | None = None,
+    min_date: str | None = None,
+    max_date: str | None = None,
     strict_scrna: bool = False,
 ) -> str:
     """构建 SRA scRNA-seq 专用检索查询
@@ -100,18 +99,18 @@ def build_scrna_query(
 class SRASearcher:
     """SRA 数据集检索器（v0.4）"""
 
-    def __init__(self, client: Optional[EntrezClient] = None):
+    def __init__(self, client: EntrezClient | None = None):
         self.client = client or get_entrez_client()
 
     async def search(
         self,
         term: str,
-        retmax: Optional[int] = None,
-        mindate: Optional[str] = None,
-        maxdate: Optional[str] = None,
-        organisms: Optional[List[str]] = None,
+        retmax: int | None = None,
+        mindate: str | None = None,
+        maxdate: str | None = None,
+        organisms: list[str] | None = None,
         strict_scrna: bool = False,
-    ) -> List[str]:
+    ) -> list[str]:
         """搜索 SRA 返回 UID 列表
 
         Args:
@@ -153,7 +152,7 @@ class SRASearcher:
         logger.info(f"SRA search: found {count} results, returning {len(id_list)}")
         return id_list
 
-    async def fetch_summaries(self, uids: List[str]) -> List[SRAResult]:
+    async def fetch_summaries(self, uids: list[str]) -> list[SRAResult]:
         """批量获取 SRA 数据集摘要
 
         Args:
@@ -180,12 +179,12 @@ class SRASearcher:
     async def search_and_fetch(
         self,
         term: str,
-        retmax: Optional[int] = None,
-        organisms: Optional[List[str]] = None,
+        retmax: int | None = None,
+        organisms: list[str] | None = None,
         strict_scrna: bool = False,
-        min_date: Optional[str] = None,
-        max_date: Optional[str] = None,
-    ) -> List[SRAResult]:
+        min_date: str | None = None,
+        max_date: str | None = None,
+    ) -> list[SRAResult]:
         """搜索 + 获取摘要（一步完成）
 
         Args:
@@ -231,7 +230,7 @@ class SRASearcher:
             result.cell_prep = classified.get("cell_prep", "not_applicable")
             result.granularity = classified.get("granularity", "unknown")
 
-    def _parse_sra_xml(self, xml_text: str) -> List[SRAResult]:
+    def _parse_sra_xml(self, xml_text: str) -> list[SRAResult]:
         """解析 SRA EFetch XML 响应
 
         SRA 的 XML 结构比较复杂，需要逐层解析 EXPERIMENT_PACKAGE。
@@ -240,11 +239,6 @@ class SRASearcher:
         try:
             import xml.etree.ElementTree as ET
             root = ET.fromstring(xml_text)
-            # SRA XML namespace
-            ns = {
-                "sra": "http://www.ncbi.nlm.nih.gov/TraceDb/sra/SRA.xsd",
-                "xsi": "http://www.w3.org/2001/XMLSchema-instance",
-            }
 
             # 尝试无 namespace 解析
             for pkg in root.iter("EXPERIMENT_PACKAGE"):
@@ -265,7 +259,7 @@ class SRASearcher:
 
         return results
 
-    def _parse_experiment_package(self, pkg) -> Optional[SRAResult]:
+    def _parse_experiment_package(self, pkg) -> SRAResult | None:
         """解析单个 EXPERIMENT_PACKAGE"""
         try:
             # STUDY
@@ -305,11 +299,11 @@ class SRASearcher:
             run_count = 0
             # SAMPLE 元素可能在多个层级，尝试多种路径
             for tag in ["SAMPLE", "SAMPLE_DESCRIPTOR", "Sample"]:
-                for sample in pkg.iter(tag):
+                for _sample in pkg.iter(tag):
                     sample_count += 1
             # RUN 元素（最可靠的计数）
             for tag in ["RUN", "Run"]:
-                for run in pkg.iter(tag):
+                for _run in pkg.iter(tag):
                     run_count += 1
             # 如果仍为 0，尝试从 STUDY_SAMPLES 获取
             if sample_count == 0:

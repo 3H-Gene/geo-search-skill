@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import asyncio
 import random
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable, Optional, TypeVar
+from typing import Any, TypeVar
 
 from loguru import logger
 
@@ -21,7 +22,7 @@ F = TypeVar("F", bound=Callable[..., Any])
 class RetryError(Exception):
     """重试耗尽后抛出的异常"""
 
-    def __init__(self, message: str, attempts: int, last_error: Optional[Exception] = None):
+    def __init__(self, message: str, attempts: int, last_error: Exception | None = None):
         super().__init__(message)
         self.attempts = attempts
         self.last_error = last_error
@@ -51,10 +52,10 @@ def calculate_delay(
 
 
 def with_retry(
-    max_attempts: Optional[int] = None,
-    base_delay: Optional[float] = None,
-    max_delay: Optional[float] = None,
-    jitter: Optional[float] = None,
+    max_attempts: int | None = None,
+    base_delay: float | None = None,
+    max_delay: float | None = None,
+    jitter: float | None = None,
     retryable_exceptions: tuple = (Exception,),
     on_429: str = "backoff",  # "backoff" | "raise"
 ) -> Callable[[F], F]:
@@ -79,7 +80,7 @@ def with_retry(
     def decorator(func: F) -> F:
         @wraps(func)
         async def async_wrapper(*args, **kwargs):
-            last_error: Optional[Exception] = None
+            last_error: Exception | None = None
             for attempt in range(_max_attempts):
                 try:
                     result = await func(*args, **kwargs)
@@ -101,7 +102,7 @@ def with_retry(
                                 f"rate limiter {'paused' if should_pause else 'backing off'}",
                                 attempts=attempt + 1,
                                 last_error=e,
-                            )
+                            ) from e
                         continue
 
                     if not isinstance(e, retryable_exceptions):
@@ -127,7 +128,7 @@ def with_retry(
 
         @wraps(func)
         def sync_wrapper(*args, **kwargs):
-            last_error: Optional[Exception] = None
+            last_error: Exception | None = None
             import time as _time
 
             for attempt in range(_max_attempts):
@@ -171,7 +172,6 @@ def with_retry(
             )
 
         # 根据函数类型返回对应 wrapper
-        import asyncio
         if asyncio.iscoroutinefunction(func):
             return async_wrapper  # type: ignore
         return sync_wrapper  # type: ignore
@@ -182,7 +182,7 @@ def with_retry(
 async def async_retry_call(
     func: Callable,
     *args,
-    max_attempts: Optional[int] = None,
+    max_attempts: int | None = None,
     **kwargs,
 ) -> Any:
     """直接调用的异步重试包装（不使用装饰器）

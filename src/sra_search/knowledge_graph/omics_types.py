@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -17,17 +17,17 @@ from sra_search.knowledge_graph._paths import ONTOLOGY_DIR as _ONTOLOGY_DIR
 class OmicsTypeMapper:
     """组学类型标准词表映射器"""
 
-    def __init__(self, data_path: Optional[Path] = None):
-        self._data: Dict[str, Any] = {}
+    def __init__(self, data_path: Path | None = None):
+        self._data: dict[str, Any] = {}
         self._loaded = False
         self._data_path = data_path or _ONTOLOGY_DIR / "omics_types.json"
-        self._name_to_canonical: Dict[str, str] = {}
+        self._name_to_canonical: dict[str, str] = {}
 
     def _load(self) -> None:
         if self._loaded:
             return
         try:
-            with open(self._data_path, "r", encoding="utf-8") as f:
+            with open(self._data_path, encoding="utf-8") as f:
                 raw = json.load(f)
             self._data = raw.get("omics_types", {})
             for canonical, entry in self._data.items():
@@ -41,7 +41,7 @@ class OmicsTypeMapper:
             logger.warning(f"Omics types not found: {self._data_path}")
             self._loaded = True
 
-    def resolve(self, name: str) -> Optional[Dict[str, Any]]:
+    def resolve(self, name: str) -> dict[str, Any] | None:
         """解析组学类型名称到完整条目"""
         self._load()
         canonical = self._name_to_canonical.get(name.strip().lower())
@@ -55,21 +55,21 @@ class OmicsTypeMapper:
         canonical = self._name_to_canonical.get(name.strip().lower())
         return canonical if canonical else name.strip()
 
-    def get_search_terms(self, name: str) -> List[str]:
+    def get_search_terms(self, name: str) -> list[str]:
         """获取扩展搜索词"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("search_terms", []))
         return [name]
 
-    def get_aliases(self, name: str) -> List[str]:
+    def get_aliases(self, name: str) -> list[str]:
         """获取别名列表"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("aliases", []))
         return []
 
-    def detect_from_text(self, text: str) -> List[tuple[str, float]]:
+    def detect_from_text(self, text: str) -> list[tuple[str, float]]:
         """从文本中检测组学类型
 
         Returns:

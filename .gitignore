@@ -33,6 +33,10 @@ htmlcov/
 coverage.xml
 *.cover
 nosetests.xml
+# Test output artifacts
+test_*.txt
+mypy_output.txt
+ruff_report.txt
 
 # ===== Output / runtime data =====
 output/search_results/

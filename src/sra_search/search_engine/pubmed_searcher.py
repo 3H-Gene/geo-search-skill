@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import List, Optional
 
 from loguru import logger
 
@@ -21,11 +20,11 @@ class PubMedResult:
     abstract: str = ""
     journal: str = ""
     publication_date: str = ""
-    authors: List[str] = field(default_factory=list)
+    authors: list[str] = field(default_factory=list)
     doi: str = ""
-    keywords: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
     # 关联的 GSE 编号
-    gse_ids: List[str] = field(default_factory=list)
+    gse_ids: list[str] = field(default_factory=list)
     # 原始 JSON 数据
     raw_data: dict = field(default_factory=dict)
 
@@ -33,16 +32,16 @@ class PubMedResult:
 class PubMedSearcher:
     """PubMed 文献检索器"""
 
-    def __init__(self, client: Optional[EntrezClient] = None):
+    def __init__(self, client: EntrezClient | None = None):
         self.client = client or get_entrez_client()
 
     async def search(
         self,
         term: str,
-        retmax: Optional[int] = None,
-        mindate: Optional[str] = None,
-        maxdate: Optional[str] = None,
-    ) -> List[str]:
+        retmax: int | None = None,
+        mindate: str | None = None,
+        maxdate: str | None = None,
+    ) -> list[str]:
         """搜索 PubMed 返回 PMID 列表
 
         Args:
@@ -69,7 +68,7 @@ class PubMedSearcher:
         logger.info(f"PubMed search '{term}': found {count} results, returning {len(id_list)}")
         return id_list
 
-    async def fetch_summaries(self, pmids: List[str]) -> List[PubMedResult]:
+    async def fetch_summaries(self, pmids: list[str]) -> list[PubMedResult]:
         """批量获取 PubMed 文献摘要
 
         Args:
@@ -128,7 +127,7 @@ class PubMedSearcher:
 
         return pubmed_results
 
-    async def link_to_geo(self, pmids: List[str]) -> dict[str, List[str]]:
+    async def link_to_geo(self, pmids: list[str]) -> dict[str, list[str]]:
         """通过 ELink 从 PubMed 关联到 GEO 数据集
 
         Args:
@@ -141,7 +140,7 @@ class PubMedSearcher:
             return {}
 
         logger.info(f"Linking {len(pmids)} PubMed IDs to GEO")
-        mapping: dict[str, List[str]] = {}
+        mapping: dict[str, list[str]] = {}
 
         # 分批处理（ELink 单次最多支持约 200 个 ID）
         batch_size = 200
@@ -176,9 +175,9 @@ class PubMedSearcher:
     async def search_and_fetch(
         self,
         term: str,
-        retmax: Optional[int] = None,
+        retmax: int | None = None,
         link_to_geo: bool = True,
-    ) -> tuple[List[PubMedResult], dict[str, List[str]]]:
+    ) -> tuple[list[PubMedResult], dict[str, list[str]]]:
         """搜索 + 获取摘要 + 关联 GEO（一步完成）
 
         Returns:
@@ -190,7 +189,7 @@ class PubMedSearcher:
 
         results = await self.fetch_summaries(pmids)
 
-        geo_mapping: dict[str, List[str]] = {}
+        geo_mapping: dict[str, list[str]] = {}
         if link_to_geo:
             geo_mapping = await self.link_to_geo(pmids)
             # 将关联的 GSE 写入对应结果

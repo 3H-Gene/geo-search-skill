@@ -8,27 +8,27 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 from loguru import logger
 
 from sra_search.knowledge_graph.abbreviation_map import AbbreviationMapper
 from sra_search.knowledge_graph.disease_ontology import DiseaseOntology
 from sra_search.knowledge_graph.mesh_mapper import MeshMapper
-from sra_search.knowledge_graph.organ_ontology import OrganOntology
 from sra_search.knowledge_graph.omics_types import OmicsTypeMapper
+from sra_search.knowledge_graph.organ_ontology import OrganOntology
 
 
 @dataclass
 class SemanticQuery:
     """语义扩展后的查询结果"""
     original_text: str
-    diseases: List[str] = field(default_factory=list)
-    organs: List[str] = field(default_factory=list)
-    omics_types: List[str] = field(default_factory=list)
-    species: List[str] = field(default_factory=list)
-    expanded_terms: List[str] = field(default_factory=list)
-    resolved_abbreviations: List[str] = field(default_factory=list)
+    diseases: list[str] = field(default_factory=list)
+    organs: list[str] = field(default_factory=list)
+    omics_types: list[str] = field(default_factory=list)
+    species: list[str] = field(default_factory=list)
+    expanded_terms: list[str] = field(default_factory=list)
+    resolved_abbreviations: list[str] = field(default_factory=list)
     confidence: float = 0.0
 
 
@@ -48,19 +48,19 @@ class KnowledgeGraph:
         self.organ = OrganOntology()
         self.omics = OmicsTypeMapper()
 
-    def resolve_abbreviation(self, term: str) -> Optional[Dict[str, Any]]:
+    def resolve_abbreviation(self, term: str) -> dict[str, Any] | None:
         """解析缩写"""
         return self.abbr.resolve(term)
 
-    def expand_keyword(self, keyword: str) -> List[str]:
+    def expand_keyword(self, keyword: str) -> list[str]:
         """将单个关键词扩展为搜索词列表
 
         优先级：缩写解析 > 疾病本体 > 器官本体 > 组学类型 > MeSH > 原样
         """
-        results: List[str] = []
+        results: list[str] = []
         seen: set = set()
 
-        def _add(terms: List[str]):
+        def _add(terms: list[str]):
             for t in terms:
                 t_low = t.lower()
                 if t_low not in seen:
@@ -109,14 +109,13 @@ class KnowledgeGraph:
 
         return results
 
-    def _extract_phrases(self, text: str) -> List[str]:
+    def _extract_phrases(self, text: str) -> list[str]:
         """从文本中提取已知实体短语（多词组合）
 
         先尝试匹配最长的已知短语，避免 "bladder" 和 "cancer" 被分开匹配。
         """
-        found: List[str] = []
-        remaining = text
-        seen_spans: List[tuple] = []
+        found: list[str] = []
+        seen_spans: list[tuple] = []
 
         def _mark_span(start: int, end: int):
             """标记已匹配的文本范围"""
@@ -126,11 +125,11 @@ class KnowledgeGraph:
             seen_spans.append((start, end))
 
         # 收集所有已知短语并按长度降序排列
-        known_phrases: List[str] = []
-        for d_name, d_entry in self.disease.get_all_diseases().items():
+        known_phrases: list[str] = []
+        for _d_name, d_entry in self.disease.get_all_diseases().items():
             known_phrases.append(d_entry["canonical"])
             known_phrases.extend(d_entry.get("synonyms", []))
-        for o_name, o_entry in self.organ.get_all_organs().items():
+        for _o_name, o_entry in self.organ.get_all_organs().items():
             known_phrases.append(o_entry["canonical"])
             known_phrases.extend(o_entry.get("synonyms", []))
 
@@ -176,7 +175,7 @@ class KnowledgeGraph:
         query.omics_types = [name for name, _ in omics_matches]
 
         # 生成候选词列表：先提取已知的多词短语，再用分词结果
-        all_terms: List[str] = list(abbreviations) + self._extract_phrases(text)
+        all_terms: list[str] = list(abbreviations) + self._extract_phrases(text)
 
         # 识别疾病
         disease_seen: set = set()
@@ -237,11 +236,11 @@ class KnowledgeGraph:
 
     def generate_search_queries(
         self,
-        diseases: Optional[List[str]] = None,
-        organs: Optional[List[str]] = None,
-        omics_types: Optional[List[str]] = None,
-        species: Optional[List[str]] = None,
-    ) -> List[str]:
+        diseases: list[str] | None = None,
+        organs: list[str] | None = None,
+        omics_types: list[str] | None = None,
+        species: list[str] | None = None,
+    ) -> list[str]:
         """生成搜索查询词的笛卡尔积组合
 
         Args:
@@ -260,23 +259,23 @@ class KnowledgeGraph:
         species = species or []
 
         # 展开每个维度
-        disease_terms: List[str] = []
+        disease_terms: list[str] = []
         for d in diseases:
             disease_terms.extend(self.disease.get_search_terms(d))
         disease_terms = list(dict.fromkeys(disease_terms)) or diseases
 
-        organ_terms: List[str] = []
+        organ_terms: list[str] = []
         for o in organs:
             organ_terms.extend(self.organ.get_search_terms(o))
         organ_terms = list(dict.fromkeys(organ_terms)) or organs
 
-        omics_terms: List[str] = []
+        omics_terms: list[str] = []
         for om in omics_types:
             omics_terms.extend(self.omics.get_search_terms(om))
         omics_terms = list(dict.fromkeys(omics_terms)) or omics_types
 
         # 生成组合
-        queries: List[str] = []
+        queries: list[str] = []
 
         # 疾病 x 组学类型 (最高优先级)
         for d in disease_terms:
@@ -319,11 +318,11 @@ class KnowledgeGraph:
 
         return queries
 
-    def get_organ_disease_associations(self, organ: str) -> List[str]:
+    def get_organ_disease_associations(self, organ: str) -> list[str]:
         """获取与器官相关的所有疾病"""
         return self.disease.find_diseases_by_organ(organ)
 
-    def get_disease_organ_associations(self, disease: str) -> List[str]:
+    def get_disease_organ_associations(self, disease: str) -> list[str]:
         """获取与疾病相关的所有器官"""
         return self.disease.get_related_organs(disease)
 

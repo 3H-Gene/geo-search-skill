@@ -9,20 +9,21 @@
 - 过滤器可组合
 - 明确的包含/排除规则
 """
-from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Set
+from collections.abc import Callable
+from dataclasses import dataclass
+from typing import Any
 
 
 @dataclass
 class FilterRule:
     """过滤规则"""
     field: str  # 要过滤的字段
-    allowed_values: Optional[Set[str]] = None  # 允许的值（None 表示不限制）
-    excluded_values: Optional[Set[str]] = None  # 排除的值
-    min_value: Optional[int] = None  # 最小值（用于数值字段）
-    max_value: Optional[int] = None  # 最大值
+    allowed_values: set[str] | None = None  # 允许的值（None 表示不限制）
+    excluded_values: set[str] | None = None  # 排除的值
+    min_value: int | None = None  # 最小值（用于数值字段）
+    max_value: int | None = None  # 最大值
 
-    def matches(self, record: Dict[str, Any]) -> bool:
+    def matches(self, record: dict[str, Any]) -> bool:
         """检查记录是否匹配规则"""
         value = record.get(self.field)
 
@@ -54,15 +55,15 @@ class ResultFilter:
     """
 
     def __init__(self):
-        self.rules: List[FilterRule] = []
-        self.custom_filters: List[Callable[[Dict], bool]] = []
+        self.rules: list[FilterRule] = []
+        self.custom_filters: list[Callable[[dict], bool]] = []
 
     def add_rule(self, rule: FilterRule) -> "ResultFilter":
         """添加过滤规则（链式调用）"""
         self.rules.append(rule)
         return self
 
-    def add_custom(self, filter_fn: Callable[[Dict], bool]) -> "ResultFilter":
+    def add_custom(self, filter_fn: Callable[[dict], bool]) -> "ResultFilter":
         """添加自定义过滤函数"""
         self.custom_filters.append(filter_fn)
         return self
@@ -109,7 +110,7 @@ class ResultFilter:
             min_value=min_score,
         ))
 
-    def apply(self, records: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def apply(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
         """应用过滤
 
         Args:
@@ -140,7 +141,7 @@ class ResultFilter:
 
         return filtered
 
-    def count_after_filter(self, total: int, filtered: int) -> Dict[str, int]:
+    def count_after_filter(self, total: int, filtered: int) -> dict[str, int]:
         """生成过滤统计"""
         return {
             "total": total,
@@ -162,7 +163,7 @@ def create_quality_filter(min_quality: float = 0.3) -> ResultFilter:
     return ResultFilter().filter_by_score(min_quality)
 
 
-def create_scRNA_filter() -> ResultFilter:
+def create_scRNA_filter() -> ResultFilter:  # noqa: N802
     """创建 scRNA-seq 过滤器"""
     return ResultFilter().filter_single_cell(require=True)
 

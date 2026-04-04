@@ -9,7 +9,7 @@
 - 可组合
 - 失败处理（无结果/结果过多/查询模糊）
 """
-from sra_search.query.parser import QueryParser
 from sra_search.query.expander import QueryExpander
+from sra_search.query.parser import QueryParser
 
 __all__ = ["QueryParser", "QueryExpander"]

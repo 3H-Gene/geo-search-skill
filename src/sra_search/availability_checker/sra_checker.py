@@ -6,13 +6,10 @@
 
 from __future__ import annotations
 
-import asyncio
 import xml.etree.ElementTree as ET
-from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
+from dataclasses import dataclass
 
 import aiohttp
-
 from loguru import logger
 
 from sra_search.utils.rate_limiter import RateLimiter
@@ -43,7 +40,7 @@ class SraChecker:
         "db gap", "database of genotypes and phenotypes",
     ]
 
-    def __init__(self, rate_limiter: Optional[RateLimiter] = None):
+    def __init__(self, rate_limiter: RateLimiter | None = None):
         self.rate_limiter = rate_limiter or RateLimiter()
 
     async def check_srp(

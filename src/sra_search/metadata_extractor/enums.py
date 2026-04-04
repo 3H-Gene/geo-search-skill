@@ -7,7 +7,6 @@ from __future__ import annotations
 
 import re
 from enum import Enum
-from typing import Dict, List, Optional, Tuple
 
 
 class YesNo(str, Enum):
@@ -79,7 +78,7 @@ class GranularityEnum(str, Enum):
 # ──────────────────────────────────────────────
 
 # LibPrep 关键词映射（顺序重要：更具体的排前面）
-_LIB_PREP_PATTERNS: List[Tuple[LibPrepEnum, List[str]]] = [
+_LIB_PREP_PATTERNS: list[tuple[LibPrepEnum, list[str]]] = [
     (LibPrepEnum.TENX, [
         "10x genomics", "10xgenomics", "chromium",
         "10x 3'", "10x 5'", "10x chromium",
@@ -105,7 +104,7 @@ _LIB_PREP_PATTERNS: List[Tuple[LibPrepEnum, List[str]]] = [
 ]
 
 # 10X 技术关键词映射
-_TECH_10X_PATTERNS: List[Tuple[Tech10XEnum, List[str]]] = [
+_TECH_10X_PATTERNS: list[tuple[Tech10XEnum, list[str]]] = [
     (Tech10XEnum.MULTIOME, ["multiome", "atac+gex", "atac + gex", "atac gex", "arc 2"]),
     (Tech10XEnum.FIVE_PRIME_GEX, [
         "5' gene expression", "5' gex", "5prime", "5' library",
@@ -229,7 +228,7 @@ def classify_granularity(text: str) -> GranularityEnum:
     return GranularityEnum.UNKNOWN
 
 
-def is_illumina(text: str) -> Optional[bool]:
+def is_illumina(text: str) -> bool | None:
     """检测是否为 Illumina 平台
 
     Returns:
@@ -243,7 +242,7 @@ def is_illumina(text: str) -> Optional[bool]:
     return None
 
 
-def is_single_cell(text: str) -> Optional[bool]:
+def is_single_cell(text: str) -> bool | None:
     """检测是否为单细胞数据
 
     Returns:
@@ -255,7 +254,7 @@ def is_single_cell(text: str) -> Optional[bool]:
     return None
 
 
-def classify_all(text: str) -> Dict[str, str]:
+def classify_all(text: str) -> dict[str, str]:
     """从元数据文本中提取所有分类信息
 
     Args:

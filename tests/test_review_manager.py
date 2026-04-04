@@ -1,253 +1,288 @@
 """Tests for review_manager module."""
 import pytest
-from sra_search.review_manager.reviewer import Reviewer
-from sra_search.review_manager.filters import (
-    ReviewFilters
-)
-from sra_search.review_manager import reviewer
+from unittest.mock import MagicMock, AsyncMock
+
+from sra_search.review_manager.reviewer import Reviewer, ReviewResult, VALID_STATUSES, VALID_TRANSITIONS
+from sra_search.review_manager.filters import ReviewFilters
 
 
-class TestReviewer:
-    """Test cases for Reviewer."""
+class TestReviewerInit:
+    """Test cases for Reviewer initialization."""
+
+    def test_reviewer_requires_db(self):
+        """Test that Reviewer requires a database instance."""
+        mock_db = MagicMock()
+        reviewer = Reviewer(db=mock_db)
+        assert reviewer.db is mock_db
+
+
+class TestReviewerMethods:
+    """Test cases for Reviewer API (async methods require mocking)."""
 
     @pytest.fixture
-    def reviewer(self):
-        """Create a Reviewer instance."""
-        return Reviewer()
+    def mock_db(self):
+        """Create a mock database for testing."""
+        db = MagicMock()
+        db.get_connection.return_value = MagicMock()
+        return db
 
     @pytest.fixture
-    def sample_datasets(self):
-        """Sample datasets for testing."""
-        return [
+    def reviewer(self, mock_db):
+        """Create a Reviewer with mock database."""
+        return Reviewer(db=mock_db)
+
+    def test_reviewer_has_mark_method(self, reviewer):
+        """Test that Reviewer has an async mark() method."""
+        assert hasattr(reviewer, "mark")
+        assert callable(reviewer.mark)
+
+    def test_reviewer_has_approve_method(self, reviewer):
+        """Test that Reviewer has an async approve() method."""
+        assert hasattr(reviewer, "approve")
+        assert callable(reviewer.approve)
+
+    def test_reviewer_has_delete_method(self, reviewer):
+        """Test that Reviewer has an async delete() method."""
+        assert hasattr(reviewer, "delete")
+        assert callable(reviewer.delete)
+
+    def test_reviewer_has_batch_mark_method(self, reviewer):
+        """Test that Reviewer has an async batch_mark() method."""
+        assert hasattr(reviewer, "batch_mark")
+        assert callable(reviewer.batch_mark)
+
+    def test_reviewer_has_undo_method(self, reviewer):
+        """Test that Reviewer has an async undo() method."""
+        assert hasattr(reviewer, "undo")
+        assert callable(reviewer.undo)
+
+    def test_review_result_dataclass(self):
+        """Test ReviewResult dataclass fields."""
+        result = ReviewResult(
+            topic_id="topic-001",
+            gse_id="GSE123456",
+            action="approve",
+            old_status="pending",
+            new_status="approved",
+            note="Looks good",
+            success=True,
+        )
+        assert result.topic_id == "topic-001"
+        assert result.gse_id == "GSE123456"
+        assert result.action == "approve"
+        assert result.old_status == "pending"
+        assert result.new_status == "approved"
+        assert result.success is True
+
+    def test_review_result_failure(self):
+        """Test ReviewResult with failure."""
+        result = ReviewResult(
+            topic_id="topic-001",
+            gse_id="GSE123456",
+            action="approve",
+            old_status="pending",
+            new_status="approved",
+            note="",
+            success=False,
+            error="Dataset not found",
+        )
+        assert result.success is False
+        assert result.error == "Dataset not found"
+
+
+class TestReviewerAsync:
+    """Test Reviewer async methods with mocked async database."""
+
+    @pytest.fixture
+    def mock_db_async(self):
+        """Create an async-compatible mock database."""
+        db = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        db.get_connection.return_value = mock_conn
+        # These are async methods called by Reviewer
+        db.update_review = AsyncMock(return_value=None)
+        db.insert_review_log = AsyncMock(return_value=None)
+        return db, mock_conn, mock_cursor
+
+    @pytest.mark.asyncio
+    async def test_approve_success(self, mock_db_async):
+        """Test successful approval of a dataset."""
+        db, conn, cursor = mock_db_async
+        cursor.fetchone.return_value = {"review_status": "pending"}
+
+        reviewer = Reviewer(db=db)
+        result = await reviewer.approve(gse_id="GSE123456", topic_id="topic-001", note="Good")
+
+        assert result.success is True
+        assert result.action == "approve"
+
+    @pytest.mark.asyncio
+    async def test_mark_invalid_status(self, mock_db_async):
+        """Test marking with invalid status returns failure."""
+        db, conn, cursor = mock_db_async
+
+        reviewer = Reviewer(db=db)
+        result = await reviewer.mark(
+            gse_id="GSE123456",
+            topic_id="topic-001",
+            status="invalid_status",
+        )
+
+        assert result.success is False
+        assert "Invalid status" in result.error
+
+    @pytest.mark.asyncio
+    async def test_delete_dataset(self, mock_db_async):
+        """Test deleting a dataset from topic."""
+        db, conn, cursor = mock_db_async
+        cursor.fetchone.return_value = {"review_status": "approved"}
+
+        reviewer = Reviewer(db=db)
+        result = await reviewer.delete(gse_id="GSE123456", topic_id="topic-001", note="Remove")
+
+        assert result.success is True
+        assert result.action == "delete"
+
+    @pytest.mark.asyncio
+    async def test_undo_no_log(self, mock_db_async):
+        """Test undo when no review log exists."""
+        db, conn, cursor = mock_db_async
+        cursor.fetchone.return_value = None
+
+        reviewer = Reviewer(db=db)
+        result = await reviewer.undo(gse_id="GSE123456", topic_id="topic-001")
+
+        assert result.success is False
+        assert "No review log found" in result.error
+
+
+class TestValidStatuses:
+    """Test valid status constants."""
+
+    def test_valid_statuses(self):
+        """Test that valid statuses are defined."""
+        assert "pending" in VALID_STATUSES
+        assert "approved" in VALID_STATUSES
+        assert "irrelevant" in VALID_STATUSES
+        assert "deleted" in VALID_STATUSES
+
+    def test_valid_transitions_from_pending(self):
+        """Test valid transitions from pending status."""
+        assert "approved" in VALID_TRANSITIONS["pending"]
+        assert "irrelevant" in VALID_TRANSITIONS["pending"]
+        assert "deleted" in VALID_TRANSITIONS["pending"]
+
+    def test_valid_transitions_from_approved(self):
+        """Test valid transitions from approved status."""
+        assert "irrelevant" in VALID_TRANSITIONS["approved"]
+        assert "deleted" in VALID_TRANSITIONS["approved"]
+
+
+class TestReviewFilters:
+    """Test cases for ReviewFilters."""
+
+    @pytest.fixture
+    def mock_db(self):
+        db = MagicMock()
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value = mock_cursor
+        db.get_connection.return_value = mock_conn
+        return db, mock_conn, mock_cursor
+
+    def test_review_filters_init(self, mock_db):
+        """Test ReviewFilters requires a database."""
+        db, _, _ = mock_db
+        filters = ReviewFilters(db=db)
+        assert filters.db is db
+
+    def test_review_filters_has_get_pending(self, mock_db):
+        """Test ReviewFilters has get_pending method."""
+        db, _, _ = mock_db
+        filters = ReviewFilters(db=db)
+        assert hasattr(filters, "get_pending")
+        assert callable(filters.get_pending)
+
+    def test_review_filters_has_get_by_status(self, mock_db):
+        """Test ReviewFilters has get_by_status method."""
+        db, _, _ = mock_db
+        filters = ReviewFilters(db=db)
+        assert hasattr(filters, "get_by_status")
+        assert callable(filters.get_by_status)
+
+    def test_review_filters_has_get_review_summary(self, mock_db):
+        """Test ReviewFilters has get_review_summary method."""
+        db, _, _ = mock_db
+        filters = ReviewFilters(db=db)
+        assert hasattr(filters, "get_review_summary")
+        assert callable(filters.get_review_summary)
+
+    def test_review_filters_has_get_unreviewed_count(self, mock_db):
+        """Test ReviewFilters has get_unreviewed_count method."""
+        db, _, _ = mock_db
+        filters = ReviewFilters(db=db)
+        assert hasattr(filters, "get_unreviewed_count")
+        assert callable(filters.get_unreviewed_count)
+
+    def test_review_filters_has_get_review_log(self, mock_db):
+        """Test ReviewFilters has get_review_log method."""
+        db, _, _ = mock_db
+        filters = ReviewFilters(db=db)
+        assert hasattr(filters, "get_review_log")
+        assert callable(filters.get_review_log)
+
+    def test_get_review_summary_returns_dict(self, mock_db):
+        """Test get_review_summary returns expected dict structure."""
+        db, conn, cursor = mock_db
+        cursor.fetchall.return_value = [
+            {"review_status": "pending", "cnt": 5},
+            {"review_status": "approved", "cnt": 3},
+        ]
+
+        filters = ReviewFilters(db=db)
+        result = filters.get_review_summary()
+
+        assert "total" in result
+        assert "pending" in result
+        assert "approved" in result
+        assert "irrelevant" in result
+        assert "deleted" in result
+        assert result["pending"] == 5
+        assert result["approved"] == 3
+        assert result["total"] == 8
+
+    def test_get_unreviewed_count(self, mock_db):
+        """Test get_unreviewed_count returns pending count."""
+        db, conn, cursor = mock_db
+        cursor.fetchall.return_value = [
+            {"review_status": "pending", "cnt": 10},
+        ]
+
+        filters = ReviewFilters(db=db)
+        count = filters.get_unreviewed_count()
+        assert count == 10
+
+    def test_get_review_log(self, mock_db):
+        """Test get_review_log returns list of log entries."""
+        db, conn, cursor = mock_db
+        cursor.fetchall.return_value = [
             {
-                "accession": "SRR001",
-                "title": "Test RNA-Seq Dataset 1",
-                "platform": "ILLUMINA",
-                "status": "pending",
-                "relevance_score": 0.9
-            },
-            {
-                "accession": "SRR002",
-                "title": "Test RNA-Seq Dataset 2",
-                "platform": "ILLUMINA",
-                "status": "approved",
-                "relevance_score": 0.8
-            },
-            {
-                "accession": "SRR003",
-                "title": "Test WGS Dataset",
-                "platform": "PACBIO",
-                "status": "rejected",
-                "relevance_score": 0.3
+                "id": "log-001",
+                "topic_id": "topic-001",
+                "gse_id": "GSE123456",
+                "action": "approve",
+                "old_status": "pending",
+                "new_status": "approved",
+                "note": "Looks good",
+                "acted_at": "2024-01-01T00:00:00",
             }
         ]
 
-    def test_approve_dataset(self, reviewer, sample_datasets):
-        """Test approving a dataset."""
-        result = reviewer.approve_dataset(sample_datasets[0], "Looks good")
-        
-        assert result["status"] == "approved"
-        assert result["review_comment"] == "Looks good"
+        filters = ReviewFilters(db=db)
+        result = filters.get_review_log(topic_id="topic-001", limit=20)
 
-    def test_reject_dataset(self, reviewer, sample_datasets):
-        """Test rejecting a dataset."""
-        result = reviewer.reject_dataset(sample_datasets[0], "Not relevant")
-        
-        assert result["status"] == "rejected"
-        assert result["review_comment"] == "Not relevant"
-
-    def test_skip_dataset(self, reviewer, sample_datasets):
-        """Test skipping a dataset."""
-        result = reviewer.skip_dataset(sample_datasets[0])
-        
-        assert result["status"] == "skipped"
-
-    def test_bulk_approve(self, reviewer, sample_datasets):
-        """Test bulk approval."""
-        ids = ["SRR001", "SRR002"]
-        result = reviewer.bulk_approve(ids)
-        
-        assert result["approved_count"] == 2
-
-    def test_bulk_reject(self, reviewer, sample_datasets):
-        """Test bulk rejection."""
-        ids = ["SRR001", "SRR003"]
-        result = reviewer.bulk_reject(ids, "Not relevant to topic")
-        
-        assert result["rejected_count"] == 2
-
-
-class TestReviewFilter:
-    """Test cases for ReviewFilter."""
-
-    def test_filter_by_status(self):
-        """Test filtering by status."""
-        filter_func = ReviewFilter.filter_by_status("approved")
-        
-        datasets = [
-            {"status": "approved"},
-            {"status": "pending"},
-            {"status": "rejected"}
-        ]
-        
-        result = filter_func(datasets)
-        
+        assert isinstance(result, list)
         assert len(result) == 1
-        assert result[0]["status"] == "approved"
-
-    def test_filter_by_platform(self):
-        """Test filtering by platform."""
-        filter_func = ReviewFilter.filter_by_platform("ILLUMINA")
-        
-        datasets = [
-            {"platform": "ILLUMINA"},
-            {"platform": "PACBIO"},
-            {"platform": "ILLUMINA"}
-        ]
-        
-        result = filter_func(datasets)
-        
-        assert len(result) == 2
-
-    def test_filter_by_relevance(self):
-        """Test filtering by relevance score."""
-        filter_func = ReviewFilter.filter_by_relevance(0.7)
-        
-        datasets = [
-            {"relevance_score": 0.9},
-            {"relevance_score": 0.5},
-            {"relevance_score": 0.8}
-        ]
-        
-        result = filter_func(datasets)
-        
-        assert len(result) == 2
-        assert all(d["relevance_score"] >= 0.7 for d in result)
-
-
-class TestStatusFilter:
-    """Test cases for StatusFilter."""
-
-    def test_approved_filter(self):
-        """Test approved status filter."""
-        datasets = [
-            {"status": "approved"},
-            {"status": "pending"},
-            {"status": "rejected"}
-        ]
-        
-        result = StatusFilter.approved(datasets)
-        
-        assert len(result) == 1
-
-    def test_pending_filter(self):
-        """Test pending status filter."""
-        datasets = [
-            {"status": "approved"},
-            {"status": "pending"},
-            {"status": "pending"}
-        ]
-        
-        result = StatusFilter.pending(datasets)
-        
-        assert len(result) == 2
-
-    def test_rejected_filter(self):
-        """Test rejected status filter."""
-        datasets = [
-            {"status": "approved"},
-            {"status": "rejected"}
-        ]
-        
-        result = StatusFilter.rejected(datasets)
-        
-        assert len(result) == 1
-
-
-class TestPlatformFilter:
-    """Test cases for PlatformFilter."""
-
-    def test_filter_by_platform(self):
-        """Test platform filtering."""
-        datasets = [
-            {"platform": "ILLUMINA"},
-            {"platform": "PACBIO"},
-            {"platform": "ILLUMINA"}
-        ]
-        
-        result = PlatformFilter.filter(datasets, "ILLUMINA")
-        
-        assert len(result) == 2
-
-    def test_filter_multiple_platforms(self):
-        """Test filtering with multiple platforms."""
-        datasets = [
-            {"platform": "ILLUMINA"},
-            {"platform": "PACBIO"},
-            {"platform": "ONT"}
-        ]
-        
-        result = PlatformFilter.filter(datasets, ["ILLUMINA", "PACBIO"])
-        
-        assert len(result) == 2
-
-
-class TestDateRangeFilter:
-    """Test cases for DateRangeFilter."""
-
-    def test_filter_by_date_range(self):
-        """Test date range filtering."""
-        datasets = [
-            {"created_at": "2023-01-01"},
-            {"created_at": "2023-06-01"},
-            {"created_at": "2023-12-01"}
-        ]
-        
-        result = DateRangeFilter.filter(
-            datasets,
-            start_date="2023-06-01",
-            end_date="2023-12-31"
-        )
-        
-        assert len(result) == 2
-
-
-class TestRelevanceFilter:
-    """Test cases for RelevanceFilter."""
-
-    def test_filter_min_relevance(self):
-        """Test minimum relevance filter."""
-        datasets = [
-            {"relevance_score": 0.9},
-            {"relevance_score": 0.5},
-            {"relevance_score": 0.8}
-        ]
-        
-        result = RelevanceFilter.min_score(datasets, 0.7)
-        
-        assert len(result) == 2
-        assert all(d["relevance_score"] >= 0.7 for d in result)
-
-    def test_filter_range(self):
-        """Test relevance range filter."""
-        datasets = [
-            {"relevance_score": 0.9},
-            {"relevance_score": 0.5},
-            {"relevance_score": 0.7}
-        ]
-        
-        result = RelevanceFilter.range(datasets, 0.6, 0.8)
-        
-        assert len(result) == 2
-
-    def test_sort_by_relevance(self):
-        """Test sorting by relevance."""
-        datasets = [
-            {"relevance_score": 0.5},
-            {"relevance_score": 0.9},
-            {"relevance_score": 0.7}
-        ]
-        
-        result = RelevanceFilter.sort_by_relevance(datasets, descending=True)
-        
-        assert result[0]["relevance_score"] == 0.9
+        assert result[0]["gse_id"] == "GSE123456"

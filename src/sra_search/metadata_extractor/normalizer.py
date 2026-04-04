@@ -9,17 +9,13 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, List, Optional, Tuple
-
-from loguru import logger
-
 
 # ============================================================
 # 物种名称标准化
 # ============================================================
 
 # 常见物种别名映射 (别名 -> 标准学名)
-_SPECIES_ALIASES: Dict[str, str] = {
+_SPECIES_ALIASES: dict[str, str] = {
     # 人类
     "human": "Homo sapiens",
     "humans": "Homo sapiens",
@@ -82,7 +78,7 @@ _SPECIES_ALIASES: Dict[str, str] = {
 }
 
 # 物种缩写 (缩写 -> 标准学名)
-_SPECIES_ABBREVS: Dict[str, str] = {
+_SPECIES_ABBREVS: dict[str, str] = {
     "H.sapiens": "Homo sapiens",
     "M.musculus": "Mus musculus",
     "R.norvegicus": "Rattus norvegicus",
@@ -129,7 +125,7 @@ def normalize_organism(text: str) -> str:
 # ============================================================
 
 # 器官别名映射 (别名 -> 标准术语)
-_ORGAN_ALIASES: Dict[str, str] = {
+_ORGAN_ALIASES: dict[str, str] = {
     "bladder": "urinary bladder",
     "urinary bladder": "urinary bladder",
     "liver": "liver",
@@ -229,7 +225,7 @@ def normalize_organ(text: str) -> str:
 # 疾病名称标准化
 # ============================================================
 
-_DISEASE_ALIASES: Dict[str, str] = {
+_DISEASE_ALIASES: dict[str, str] = {
     # 癌症
     "cancer": "cancer",
     "carcinoma": "carcinoma",
@@ -373,7 +369,7 @@ def normalize_disease(text: str) -> str:
 # 平台名称标准化
 # ============================================================
 
-_PLATFORM_ALIASES: Dict[str, str] = {
+_PLATFORM_ALIASES: dict[str, str] = {
     "illumina": "Illumina",
     "illumina hiseq": "Illumina HiSeq",
     "illumina novaseq": "Illumina NovaSeq",
@@ -454,7 +450,7 @@ def normalize_dataset_fields(
     disease: str = "",
     organ: str = "",
     platform: str = "",
-) -> Dict[str, str]:
+) -> dict[str, str]:
     """统一标准化数据集字段
 
     Args:
@@ -474,7 +470,7 @@ def normalize_dataset_fields(
     }
 
 
-def extract_disease_from_text(text: str) -> Optional[str]:
+def extract_disease_from_text(text: str) -> str | None:
     """从自由文本中提取标准化的疾病名称
 
     扫描文本中匹配的已知疾病术语，返回最长的匹配。
@@ -501,7 +497,7 @@ def extract_disease_from_text(text: str) -> Optional[str]:
     return best_match
 
 
-def extract_organ_from_text(text: str) -> Optional[str]:
+def extract_organ_from_text(text: str) -> str | None:
     """从自由文本中提取标准化的器官名称
 
     Args:

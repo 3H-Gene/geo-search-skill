@@ -7,9 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import ssl
-import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode
+from typing import Any
 
 import aiohttp
 from Bio import Entrez
@@ -18,7 +16,6 @@ from loguru import logger
 from sra_search.config import get_settings
 from sra_search.utils.rate_limiter import get_global_limiter
 
-
 # NCBI E-utilities 基础 URL
 EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 
@@ -26,7 +23,7 @@ EUTILS_BASE = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 class NCBIError(Exception):
     """NCBI API 错误"""
 
-    def __init__(self, tool: str, message: str, http_code: Optional[int] = None):
+    def __init__(self, tool: str, message: str, http_code: int | None = None):
         self.tool = tool
         self.http_code = http_code
         super().__init__(f"NCBI {tool} error: {message}")
@@ -41,12 +38,12 @@ class EntrezClient:
     - WebEnv 支持：EPost + EFetch 批量请求
     """
 
-    def __init__(self, email: Optional[str] = None, api_key: Optional[str] = None):
+    def __init__(self, email: str | None = None, api_key: str | None = None):
         settings = get_settings()
         self.email = email or settings.ncbi_email
         self.api_key = api_key or settings.ncbi_api_key
         self.limiter = get_global_limiter()
-        self._session: Optional[aiohttp.ClientSession] = None
+        self._session: aiohttp.ClientSession | None = None
 
         # 同步 Entrez（Biopython）配置
         if self.email:
@@ -54,9 +51,9 @@ class EntrezClient:
         if self.api_key:
             Entrez.api_key = self.api_key
 
-    def _params(self, **extra: Any) -> Dict[str, str]:
+    def _params(self, **extra: Any) -> dict[str, str]:
         """构建通用请求参数"""
-        params: Dict[str, str] = {}
+        params: dict[str, str] = {}
         if self.email:
             params["email"] = self.email
         if self.api_key:
@@ -86,9 +83,9 @@ class EntrezClient:
     async def _request(
         self,
         tool: str,
-        params: Dict[str, str],
+        params: dict[str, str],
         retmode: str = "json",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """发送异步请求到 NCBI E-utilities
 
         Args:
@@ -181,7 +178,7 @@ class EntrezClient:
                     logger.debug(f"Request failed ({e}), retrying in {delay:.1f}s")
                     await asyncio.sleep(delay)
                 else:
-                    raise NCBIError(tool, str(e))
+                    raise NCBIError(tool, str(e)) from e
 
         raise NCBIError(tool, f"Max retries ({max_retries}) exceeded")
 
@@ -191,14 +188,14 @@ class EntrezClient:
         self,
         db: str,
         term: str,
-        retmax: Optional[int] = None,
+        retmax: int | None = None,
         retstart: int = 0,
-        sort: Optional[str] = None,
-        mindate: Optional[str] = None,
-        maxdate: Optional[str] = None,
+        sort: str | None = None,
+        mindate: str | None = None,
+        maxdate: str | None = None,
         datetype: str = "pubmed",
         use_history: bool = False,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """ESearch: 文本搜索，返回 UID 列表"""
         settings = get_settings()
         params = self._params(
@@ -219,8 +216,8 @@ class EntrezClient:
     async def epost(
         self,
         db: str,
-        ids: List[str],
-    ) -> Dict[str, Any]:
+        ids: list[str],
+    ) -> dict[str, Any]:
         """EPost: 将 ID 列表上传到 NCBI 服务器，获取 WebEnv 和 query_key
 
         用于批量 EFetch，避免对大量 ID 逐个请求。
@@ -233,12 +230,12 @@ class EntrezClient:
     async def efetch(
         self,
         db: str,
-        ids: Optional[List[str]] = None,
-        webenv: Optional[str] = None,
-        query_key: Optional[str] = None,
+        ids: list[str] | None = None,
+        webenv: str | None = None,
+        query_key: str | None = None,
         retstart: int = 0,
-        retmax: Optional[int] = None,
-        rettype: Optional[str] = None,
+        retmax: int | None = None,
+        rettype: str | None = None,
         retmode: str = "json",
     ) -> Any:
         """EFetch: 根据 UID 或 WebEnv 获取完整记录"""
@@ -261,8 +258,8 @@ class EntrezClient:
     async def esummary(
         self,
         db: str,
-        ids: List[str],
-    ) -> Dict[str, Any]:
+        ids: list[str],
+    ) -> dict[str, Any]:
         """ESummary: 根据 UID 获取文档摘要"""
         params = self._params(db=db, id=",".join(ids))
         return await self._request("esummary", params)
@@ -273,9 +270,9 @@ class EntrezClient:
         self,
         dbfrom: str,
         db: str,
-        ids: List[str],
+        ids: list[str],
         cmd: str = "neighbor",
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """ELink: 跨数据库关联查询"""
         params = self._params(
             dbfrom=dbfrom,
@@ -290,10 +287,10 @@ class EntrezClient:
     async def batch_efetch(
         self,
         db: str,
-        ids: List[str],
-        rettype: Optional[str] = None,
+        ids: list[str],
+        rettype: str | None = None,
         retmode: str = "json",
-    ) -> List[Any]:
+    ) -> list[Any]:
         """批量 EFetch: 当 ID 数量超过阈值时自动使用 EPost + WebEnv
 
         Args:
@@ -365,7 +362,7 @@ class EntrezClient:
 
 
 # 全局客户端单例
-_client: Optional[EntrezClient] = None
+_client: EntrezClient | None = None
 
 
 def get_entrez_client() -> EntrezClient:

@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -23,7 +22,7 @@ class ReportBuilder:
     def build_topic_report(
         self,
         topic: TopicDefinition,
-        output_path: Optional[str] = None,
+        output_path: str | None = None,
     ) -> str:
         """生成主题搜索报告
 
@@ -69,8 +68,8 @@ class ReportBuilder:
         # 统计摘要
         lines.append("## Statistics")
         lines.append("")
-        lines.append(f"| Metric | Count |")
-        lines.append(f"|--------|-------|")
+        lines.append("| Metric | Count |")
+        lines.append("|--------|-------|")
         lines.append(f"| Total datasets found | {total_datasets} |")
         lines.append(f"| Pending review | {summary['pending']} |")
         lines.append(f"| Approved | {summary['approved']} |")
@@ -86,8 +85,8 @@ class ReportBuilder:
 
         lines.append("## Availability")
         lines.append("")
-        lines.append(f"| Status | Count |")
-        lines.append(f"|--------|-------|")
+        lines.append("| Status | Count |")
+        lines.append("|--------|-------|")
         lines.append(f"| Available | {available_count} |")
         lines.append(f"| Unavailable | {unavailable_count} |")
         lines.append(f"| Restricted | {restricted_count} |")

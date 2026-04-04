@@ -8,7 +8,6 @@ from __future__ import annotations
 import asyncio
 import re
 from dataclasses import dataclass
-from typing import Dict, List, Optional
 
 from loguru import logger
 
@@ -47,9 +46,9 @@ class SearchAggregator:
 
     def __init__(
         self,
-        geo_retriever: Optional[GeoRetriever] = None,
-        sra_searcher: Optional[SRASearcher] = None,
-        pubmed_searcher: Optional[PubMedSearcher] = None,
+        geo_retriever: GeoRetriever | None = None,
+        sra_searcher: SRASearcher | None = None,
+        pubmed_searcher: PubMedSearcher | None = None,
     ):
         """初始化聚合器
 
@@ -75,13 +74,13 @@ class SearchAggregator:
     async def search(
         self,
         keyword: str,
-        sources: Optional[List[str]] = None,
-        retmax: Optional[int] = None,
-        organisms: Optional[List[str]] = None,
-        min_date: Optional[str] = None,
-        max_date: Optional[str] = None,
+        sources: list[str] | None = None,
+        retmax: int | None = None,
+        organisms: list[str] | None = None,
+        min_date: str | None = None,
+        max_date: str | None = None,
         strict_scrna: bool = False,
-    ) -> List[DatasetSearchResult]:
+    ) -> list[DatasetSearchResult]:
         """执行多源检索
 
         Args:
@@ -142,8 +141,8 @@ class SearchAggregator:
 
         # 合并结果（按 gse_id 去重）
         seen_gse_ids: set = set()
-        all_results: List[DatasetSearchResult] = []
-        source_raw_counts: Dict[str, int] = {}
+        all_results: list[DatasetSearchResult] = []
+        source_raw_counts: dict[str, int] = {}
         for i, results in enumerate(results_list):
             source = source_labels[i] if i < len(source_labels) else "unknown"
             if isinstance(results, Exception):
@@ -171,7 +170,7 @@ class SearchAggregator:
         self,
         query: str,
         retmax: int,
-    ) -> List[DatasetSearchResult]:
+    ) -> list[DatasetSearchResult]:
         """搜索 GEO 数据库"""
         try:
             if self.geo_retriever is None:
@@ -215,11 +214,11 @@ class SearchAggregator:
         self,
         query: str,
         retmax: int,
-        organisms: Optional[List[str]] = None,
-        min_date: Optional[str] = None,
-        max_date: Optional[str] = None,
+        organisms: list[str] | None = None,
+        min_date: str | None = None,
+        max_date: str | None = None,
         strict_scrna: bool = False,
-    ) -> List[DatasetSearchResult]:
+    ) -> list[DatasetSearchResult]:
         """搜索 SRA 数据库"""
         try:
             results = await self.sra_searcher.search_and_fetch(
@@ -288,7 +287,7 @@ class SearchAggregator:
         self,
         query: str,
         retmax: int,
-    ) -> List[DatasetSearchResult]:
+    ) -> list[DatasetSearchResult]:
         """搜索 PubMed 并关联 GEO 数据集"""
         try:
             pubmed_results, geo_mapping = await self.pubmed_searcher.search_and_fetch(
@@ -336,7 +335,7 @@ class SearchAggregator:
         self,
         query: str,
         retmax: int,
-    ) -> List[DatasetSearchResult]:
+    ) -> list[DatasetSearchResult]:
         """搜索 BioProject 数据库
 
         策略：通过 SRA 的 bioproject 关联字段来间接搜索

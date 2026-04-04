@@ -9,12 +9,9 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sqlite3
 import uuid
-from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
@@ -22,12 +19,10 @@ from sra_search.config import get_settings
 from sra_search.data_store.schema import ALL_TABLES, CREATE_INDEXES
 from sra_search.metadata_extractor.models import (
     DatasetRecord,
+    ReviewLogRecord,
+    SearchHistoryRecord,
     TopicDatasetRelation,
     TopicRecord,
-    SearchHistoryRecord,
-    ReviewLogRecord,
-    _json_dumps,
-    _json_loads,
 )
 
 
@@ -40,7 +35,7 @@ class WriteQueue:
 
     def __init__(
         self,
-        db: "Database",
+        db: Database,
         batch_size: int = 100,
         flush_interval: float = 2.0,
     ):
@@ -48,7 +43,7 @@ class WriteQueue:
         self.batch_size = batch_size
         self.flush_interval = flush_interval
         self._queue: asyncio.Queue = asyncio.Queue()
-        self._task: Optional[asyncio.Task] = None
+        self._task: asyncio.Task | None = None
         self._running = False
 
     async def start(self) -> None:
@@ -81,14 +76,14 @@ class WriteQueue:
         """
         await self._queue.put((operation, data))
 
-    async def put_many(self, operations: List[tuple]) -> None:
+    async def put_many(self, operations: list[tuple]) -> None:
         """批量提交写入操作"""
         for op in operations:
             await self._queue.put(op)
 
     async def _write_loop(self) -> None:
         """后台写入循环"""
-        batch: List[tuple] = []
+        batch: list[tuple] = []
         last_flush = asyncio.get_event_loop().time()
 
         try:
@@ -124,7 +119,7 @@ class WriteQueue:
                 self._flush_batch(batch)
             raise
 
-    def _flush_batch(self, batch: List[tuple]) -> None:
+    def _flush_batch(self, batch: list[tuple]) -> None:
         """同步执行一批写入操作"""
         try:
             conn = self.db.get_connection()
@@ -261,10 +256,10 @@ class WriteQueue:
 class Database:
     """SQLite 数据库操作封装"""
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: str | None = None):
         settings = get_settings()
         self.db_path = db_path or str(settings.db_path_resolved)
-        self._conn: Optional[sqlite3.Connection] = None
+        self._conn: sqlite3.Connection | None = None
         self.write_queue = WriteQueue(self, settings.db_write_batch_size, settings.db_write_flush_interval)
 
     def get_connection(self) -> sqlite3.Connection:
@@ -317,7 +312,7 @@ class Database:
         """插入或更新数据集（通过写入队列）"""
         await self.write_queue.put("upsert_dataset", record.to_db_row())
 
-    async def upsert_datasets_batch(self, records: List[DatasetRecord]) -> None:
+    async def upsert_datasets_batch(self, records: list[DatasetRecord]) -> None:
         """批量插入或更新数据集"""
         ops = [("upsert_dataset", r.to_db_row()) for r in records]
         await self.write_queue.put_many(ops)
@@ -373,7 +368,7 @@ class Database:
 
     # ---- Query operations (synchronous, read-only) ----
 
-    def get_dataset(self, gse_id: str) -> Optional[DatasetRecord]:
+    def get_dataset(self, gse_id: str) -> DatasetRecord | None:
         """获取单个数据集
 
         支持两种查询方式：
@@ -403,15 +398,15 @@ class Database:
 
     def list_datasets(
         self,
-        topic_id: Optional[str] = None,
-        review_status: Optional[str] = None,
-        availability: Optional[str] = None,
-        access_type: Optional[str] = None,
-        granularity: Optional[str] = None,
-        organism: Optional[str] = None,
+        topic_id: str | None = None,
+        review_status: str | None = None,
+        availability: str | None = None,
+        access_type: str | None = None,
+        granularity: str | None = None,
+        organism: str | None = None,
         limit: int = 50,
         offset: int = 0,
-    ) -> List[DatasetRecord]:
+    ) -> list[DatasetRecord]:
         """列出数据集（支持多条件筛选）"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -423,7 +418,7 @@ class Database:
             query += " JOIN topic_datasets td ON d.gse_id = td.gse_id"
             params_append = []
             if review_status:
-                params_append.append(f"td.review_status = ?")
+                params_append.append("td.review_status = ?")
                 params.append(review_status)
             if params_append:
                 query += " WHERE " + " AND ".join(params_append)
@@ -439,7 +434,7 @@ class Database:
             conditions.append("d.omics_granularity = ?")
             params.append(granularity)
         if organism:
-            conditions.append(f"d.organism LIKE ?")
+            conditions.append("d.organism LIKE ?")
             params.append(f"%{organism}%")
 
         if conditions:
@@ -453,7 +448,7 @@ class Database:
         rows = cursor.fetchall()
         return [DatasetRecord.from_db_row(dict(r)) for r in rows]
 
-    def get_topic(self, topic_id: str) -> Optional[TopicRecord]:
+    def get_topic(self, topic_id: str) -> TopicRecord | None:
         """获取单个主题"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -463,7 +458,7 @@ class Database:
             return None
         return TopicRecord.from_db_row(dict(row))
 
-    def get_topic_by_name(self, name: str) -> Optional[TopicRecord]:
+    def get_topic_by_name(self, name: str) -> TopicRecord | None:
         """根据名称获取主题"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -473,7 +468,7 @@ class Database:
             return None
         return TopicRecord.from_db_row(dict(row))
 
-    def list_topics(self) -> List[TopicRecord]:
+    def list_topics(self) -> list[TopicRecord]:
         """列出所有主题"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -484,8 +479,8 @@ class Database:
     def get_topic_datasets(
         self,
         topic_id: str,
-        review_status: Optional[str] = None,
-    ) -> List[dict]:
+        review_status: str | None = None,
+    ) -> list[dict]:
         """获取主题下的数据集关联（JOIN datasets）"""
         conn = self.get_connection()
         cursor = conn.cursor()
@@ -511,9 +506,9 @@ class Database:
 
     def count_datasets(
         self,
-        topic_id: Optional[str] = None,
-        review_status: Optional[str] = None,
-        availability: Optional[str] = None,
+        topic_id: str | None = None,
+        review_status: str | None = None,
+        availability: str | None = None,
     ) -> int:
         """统计数据集数量"""
         conn = self.get_connection()
@@ -551,10 +546,10 @@ class Database:
 
 
 # 全局数据库单例
-_db: Optional[Database] = None
+_db: Database | None = None
 
 
-def get_database(db_path: Optional[str] = None) -> Database:
+def get_database(db_path: str | None = None) -> Database:
     """获取全局数据库单例"""
     global _db
     if _db is None:

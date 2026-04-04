@@ -12,9 +12,9 @@
 """
 import math
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 # === Perturbation 类型加权 ===
 PERTURBATION_WEIGHTS = {
@@ -95,7 +95,7 @@ class BioAwareRanker:
     )
     """
 
-    def __init__(self, weights: Optional[RankingWeights] = None):
+    def __init__(self, weights: RankingWeights | None = None):
         """初始化
 
         Args:
@@ -128,10 +128,10 @@ class BioAwareRanker:
 
     def rank(
         self,
-        records: List[Dict[str, Any]],
+        records: list[dict[str, Any]],
         query: str = "",
-        top_n: Optional[int] = None,
-    ) -> List[Dict[str, Any]]:
+        top_n: int | None = None,
+    ) -> list[dict[str, Any]]:
         """排序记录
 
         Args:
@@ -163,7 +163,7 @@ class BioAwareRanker:
         # 移除内部字段
         return [self._clean_record(r) for r in scored_records]
 
-    def _calculate_score(self, record: Dict[str, Any], query: str) -> ScoreBreakdown:
+    def _calculate_score(self, record: dict[str, Any], query: str) -> ScoreBreakdown:
         """计算单条记录的分数"""
         gse_id = record.get("gse_id", "")
         breakdown = ScoreBreakdown(gse_id=gse_id)
@@ -210,7 +210,7 @@ class BioAwareRanker:
 
         return breakdown
 
-    def _calc_relevance(self, record: Dict[str, Any], query: str) -> float:
+    def _calc_relevance(self, record: dict[str, Any], query: str) -> float:
         """计算相关性分数"""
         if not query:
             return 0.5
@@ -236,7 +236,7 @@ class BioAwareRanker:
         max_matches = len(query_terms) * 4
         return min(matches / max_matches, 1.0) if max_matches > 0 else 0.5
 
-    def _calc_recency(self, record: Dict[str, Any]) -> float:
+    def _calc_recency(self, record: dict[str, Any]) -> float:
         """计算时效性分数
 
         越新的数据分数越高
@@ -277,7 +277,7 @@ class BioAwareRanker:
 
         return 0.5
 
-    def _calc_sample_size(self, record: Dict[str, Any]) -> float:
+    def _calc_sample_size(self, record: dict[str, Any]) -> float:
         """计算样本数分数
 
         使用 log scale 避免大样本主导
@@ -291,7 +291,7 @@ class BioAwareRanker:
         log_score = math.log(sample_count + 1) / math.log(10001)
         return min(log_score, 1.0)
 
-    def _calc_perturbation_bonus(self, record: Dict[str, Any]) -> float:
+    def _calc_perturbation_bonus(self, record: dict[str, Any]) -> float:
         """计算 perturbation 加分"""
         # 检查标记字段
         if record.get("has_perturbation"):
@@ -320,7 +320,7 @@ class BioAwareRanker:
 
         return 0.0
 
-    def _calc_single_cell_bonus(self, record: Dict[str, Any]) -> float:
+    def _calc_single_cell_bonus(self, record: dict[str, Any]) -> float:
         """计算单细胞加分"""
         # 检查标记字段
         if record.get("single_cell"):
@@ -338,7 +338,7 @@ class BioAwareRanker:
 
         return 0.0
 
-    def _calc_omics_bonus(self, record: Dict[str, Any]) -> float:
+    def _calc_omics_bonus(self, record: dict[str, Any]) -> float:
         """计算组学类型加权"""
         data_type = record.get("data_type", "")
         if not data_type:
@@ -346,7 +346,7 @@ class BioAwareRanker:
 
         return OMICS_WEIGHTS.get(data_type, 0.0)
 
-    def _calc_organism_bonus(self, record: Dict[str, Any]) -> float:
+    def _calc_organism_bonus(self, record: dict[str, Any]) -> float:
         """计算物种加权"""
         organism = record.get("organism", "")
         if not organism:
@@ -354,12 +354,12 @@ class BioAwareRanker:
 
         return ORGANISM_WEIGHTS.get(organism, 0.0)
 
-    def _clean_record(self, record: Dict[str, Any]) -> Dict[str, Any]:
+    def _clean_record(self, record: dict[str, Any]) -> dict[str, Any]:
         """清理记录（移除内部字段）"""
         cleaned = {k: v for k, v in record.items() if not k.startswith("_")}
         return cleaned
 
-    def get_score_breakdown(self, record: Dict[str, Any]) -> Optional[ScoreBreakdown]:
+    def get_score_breakdown(self, record: dict[str, Any]) -> ScoreBreakdown | None:
         """获取记录的评分明细"""
         return record.get("_score_breakdown")
 

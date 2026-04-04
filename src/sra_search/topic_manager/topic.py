@@ -8,11 +8,10 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
-from sra_search.knowledge_graph import KnowledgeGraph, SemanticQuery
+from sra_search.knowledge_graph import KnowledgeGraph
 
 
 @dataclass
@@ -21,12 +20,12 @@ class TopicDefinition:
     topic_id: str
     name: str
     description: str
-    diseases: List[str] = field(default_factory=list)
-    organs: List[str] = field(default_factory=list)
-    omics_types: List[str] = field(default_factory=list)
-    species: List[str] = field(default_factory=list)
-    keywords_used: List[str] = field(default_factory=list)
-    extra_keywords: List[str] = field(default_factory=list)
+    diseases: list[str] = field(default_factory=list)
+    organs: list[str] = field(default_factory=list)
+    omics_types: list[str] = field(default_factory=list)
+    species: list[str] = field(default_factory=list)
+    keywords_used: list[str] = field(default_factory=list)
+    extra_keywords: list[str] = field(default_factory=list)
 
 
 class TopicParser:
@@ -35,10 +34,10 @@ class TopicParser:
     将自然语言主题拆解为结构化维度。
     """
 
-    def __init__(self, kg: Optional[KnowledgeGraph] = None):
+    def __init__(self, kg: KnowledgeGraph | None = None):
         self.kg = kg or KnowledgeGraph()
 
-    def parse(self, text: str, extra_keywords: Optional[List[str]] = None) -> TopicDefinition:
+    def parse(self, text: str, extra_keywords: list[str] | None = None) -> TopicDefinition:
         """解析主题文本
 
         Args:
@@ -107,10 +106,10 @@ class TopicParser:
     def parse_from_dimensions(
         self,
         name: str,
-        diseases: Optional[List[str]] = None,
-        organs: Optional[List[str]] = None,
-        omics_types: Optional[List[str]] = None,
-        species: Optional[List[str]] = None,
+        diseases: list[str] | None = None,
+        organs: list[str] | None = None,
+        omics_types: list[str] | None = None,
+        species: list[str] | None = None,
         description: str = "",
     ) -> TopicDefinition:
         """从用户明确指定的维度创建主题

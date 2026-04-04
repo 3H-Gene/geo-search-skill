@@ -13,7 +13,6 @@
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Set
 
 
 @dataclass
@@ -21,11 +20,11 @@ class ExpansionResult:
     """扩展结果"""
     original_query: str
     expanded_query: str  # 可直接用于 E-utilities 的查询字符串
-    expansions: Dict[str, List[str]] = field(default_factory=dict)  # 各类型的扩展词
+    expansions: dict[str, list[str]] = field(default_factory=dict)  # 各类型的扩展词
     used_knowledge_graph: bool = False
     fallback_used: bool = False
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         return {
             "original_query": self.original_query,
             "expanded_query": self.expanded_query,
@@ -41,7 +40,7 @@ class QueryExpander:
     使用本体知识扩展查询，提供更丰富的语义搜索能力
     """
 
-    def __init__(self, ontology_dir: Optional[Path] = None):
+    def __init__(self, ontology_dir: Path | None = None):
         """初始化
 
         Args:
@@ -53,9 +52,9 @@ class QueryExpander:
             ontology_dir = base
 
         self.ontology_dir = Path(ontology_dir)
-        self._ontology_cache: Dict[str, dict] = {}
+        self._ontology_cache: dict[str, dict] = {}
 
-    def expand(self, query: str, parsed_query: Optional[Dict] = None) -> ExpansionResult:
+    def expand(self, query: str, parsed_query: dict | None = None) -> ExpansionResult:
         """扩展查询词
 
         Args:
@@ -71,7 +70,7 @@ class QueryExpander:
             >>> result.expanded_query
             '(gout OR hyperuricemia OR "uric acid") AND (scRNA-Seq OR "10x Genomics")'
         """
-        expansions: Dict[str, List[str]] = {
+        expansions: dict[str, list[str]] = {
             "disease": [],
             "organ": [],
             "omics": [],
@@ -112,7 +111,7 @@ class QueryExpander:
             fallback_used=False,
         )
 
-    def _expand_diseases(self, disease_terms: List[str]) -> List[str]:
+    def _expand_diseases(self, disease_terms: list[str]) -> list[str]:
         """扩展疾病词（使用 DOID 本体）"""
         if not disease_terms:
             return []
@@ -142,7 +141,7 @@ class QueryExpander:
         # 去重并限制数量
         return list(dict.fromkeys(expanded))[:10]
 
-    def _expand_organs(self, tissue_terms: List[str]) -> List[str]:
+    def _expand_organs(self, tissue_terms: list[str]) -> list[str]:
         """扩展器官词（使用 Uberon 本体）"""
         if not tissue_terms:
             return []
@@ -169,7 +168,7 @@ class QueryExpander:
 
         return list(dict.fromkeys(expanded))[:10]
 
-    def _expand_omics(self, omics_type: str) -> List[str]:
+    def _expand_omics(self, omics_type: str) -> list[str]:
         """扩展组学类型"""
         omics_data = self._load_ontology("omics_types.json")
         if not omics_data:
@@ -182,7 +181,7 @@ class QueryExpander:
 
         return [omics_type]
 
-    def _load_ontology(self, filename: str) -> Optional[dict]:
+    def _load_ontology(self, filename: str) -> dict | None:
         """加载本体数据（带缓存）"""
         if filename in self._ontology_cache:
             return self._ontology_cache[filename]
@@ -192,18 +191,18 @@ class QueryExpander:
             return None
 
         try:
-            with open(filepath, "r", encoding="utf-8") as f:
+            with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
                 self._ontology_cache[filename] = data
                 return data
-        except (json.JSONDecodeError, IOError):
+        except (OSError, json.JSONDecodeError):
             return None
 
     def _build_expanded_query(
         self,
         query: str,
-        parsed_query: Dict,
-        expansions: Dict[str, List[str]]
+        parsed_query: dict,
+        expansions: dict[str, list[str]]
     ) -> str:
         """构建扩展后的查询字符串
 

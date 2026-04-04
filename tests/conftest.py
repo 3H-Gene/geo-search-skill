@@ -17,18 +17,14 @@ def temp_dir():
 def sample_dataset_record():
     """Sample dataset record for testing."""
     return {
-        "accession": "SRR1234567",
+        "gse_id": "GSE123456",
         "title": "Test RNA-Seq of lung cancer",
         "organism": "Homo sapiens",
-        "library_strategy": "RNA-Seq",
-        "platform": "ILLUMINA",
+        "platform": "Illumina",
         "bioproject": "PRJNA123456",
-        "sra_metadata": {
-            "run_id": "SRR1234567",
-            "sample_id": "SRS123456",
-            "experiment_id": "SRX123456",
-            "study_id": "SRP123456"
-        }
+        "sra_ids": ["SRP123456"],
+        "omics_type": "RNA-Seq",
+        "sample_count": 10,
     }
 
 

@@ -7,7 +7,6 @@ from __future__ import annotations
 import asyncio
 import time
 from threading import Lock
-from typing import Optional
 
 from loguru import logger
 
@@ -32,7 +31,7 @@ class RateLimiter:
 
         # HTTP 429 跟踪
         self.consecutive_429 = 0
-        self.paused_until: Optional[float] = None
+        self.paused_until: float | None = None
 
         logger.info(f"Rate limiter initialized: {rate} requests/second")
 
@@ -114,7 +113,7 @@ class RateLimiter:
 
 
 # 全局速率限制器实例
-_limiter: Optional[RateLimiter] = None
+_limiter: RateLimiter | None = None
 
 
 def get_global_limiter() -> RateLimiter:

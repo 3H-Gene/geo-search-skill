@@ -17,15 +17,12 @@
 from __future__ import annotations
 
 import asyncio
-import sys
-import uuid
 from datetime import datetime, timezone
-from typing import List, Optional
 
 import click
 from loguru import logger
 
-from sra_search.config import get_settings, reset_settings
+from sra_search.config import get_settings
 from sra_search.utils.logger import setup_logger
 
 
@@ -53,7 +50,7 @@ def run_async(coro):
 @click.option("--verbose", "-v", is_flag=True, help="详细日志输出")
 @click.option("--config", "-c", type=click.Path(), help="配置文件路径")
 @click.version_option(package_name="sra-search")
-def main(verbose: bool = False, config: Optional[str] = None):
+def main(verbose: bool = False, config: str | None = None):
     """SRA_search - 多组学数据集智能检索与管理工具"""
     if config:
         from sra_search.config import load_settings_from_file
@@ -88,12 +85,12 @@ def main(verbose: bool = False, config: Optional[str] = None):
 def search(
     keyword: str,
     sources: tuple,
-    retmax: Optional[int],
+    retmax: int | None,
     fmt: str,
     top: int,
     organism: tuple,
-    since: Optional[str],
-    until: Optional[str],
+    since: str | None,
+    until: str | None,
     strict_scrna: bool,
     save: bool,
 ):
@@ -111,6 +108,7 @@ def search(
       sra-search search "single cell" --organism mouse --strict-scrna
     """
     import json
+
     from sra_search.converter import records_to_search_result
     from sra_search.search_engine.aggregator import SearchAggregator
 
@@ -169,21 +167,18 @@ def search(
             # 规范化 ID 展示：移除 SRP: 前缀，用 Accession 列显示类型
             acc = ds.gse_id
             if acc.startswith("SRP:") or acc.startswith("ERP:") or acc.startswith("DRP:"):
-                acc_type = acc.split(":")[0].lower()
                 acc = acc.split(":")[1] if ":" in acc else acc
-            else:
-                acc_type = "gse"
             # Samples 为 0 显示为 —
             samples = str(ds.sample_count) if ds.sample_count > 0 else "—"
             click.echo(f"{acc:<12} {ds.data_type:<12} {sc:<4} {pert:<5} {samples:<8} {title:<40}")
 
         # 统计摘要（区分来源）
         stats = schema_result.compute_stats()
-        click.echo(f"\n--- Summary ---")
+        click.echo("\n--- Summary ---")
         click.echo(f"Total: {stats['total_found']} | scRNA-seq: {stats['scRNA_seq']} | with perturbation: {stats['with_perturbation']}")
         # 说明各源合并情况（当有多个数据源时）
-        click.echo(f"\nNote: Results are deduplicated across GEO, SRA, and PubMed sources.")
-        click.echo(f"PubMed branch links publications to GEO; not all papers have linked datasets.")
+        click.echo("\nNote: Results are deduplicated across GEO, SRA, and PubMed sources.")
+        click.echo("PubMed branch links publications to GEO; not all papers have linked datasets.")
 
     if save:
         from sra_search.data_store.database import get_database
@@ -259,8 +254,8 @@ def search(
 @click.option("--offset", default=0, type=int, help="偏移量（分页）")
 @click.option("--format", "fmt", type=click.Choice(["short", "wide"]), default="short",
               help="展示格式")
-def list_cmd(topic: Optional[str], list_all: bool, status: Optional[str],
-             availability: Optional[str], limit: int, offset: int, fmt: str):
+def list_cmd(topic: str | None, list_all: bool, status: str | None,
+             availability: str | None, limit: int, offset: int, fmt: str):
     """列表浏览已存储的数据集"""
     from sra_search.data_store.database import get_database
 
@@ -314,6 +309,7 @@ def show(gse_id: str, changelog: bool, fmt: str):
     支持 JSON 输出（标准 Schema 格式），可与 gse-downloader 集成。
     """
     import json as json_mod
+
     from sra_search.converter import record_to_schema
     from sra_search.data_store.database import get_database
 
@@ -400,7 +396,7 @@ def convert(accession: str):
 @click.option("--topic", "-t", help="检查某主题下所有数据集")
 @click.option("--all", "check_all", is_flag=True, help="检查全部未验证数据集")
 @click.option("--recheck", is_flag=True, help="重新检查已有状态的数据集")
-def check(gse_id: Optional[str], topic: Optional[str], check_all: bool, recheck: bool):
+def check(gse_id: str | None, topic: str | None, check_all: bool, recheck: bool):
     """数据集可用性检查（开发中）"""
     if gse_id:
         click.echo(f"Availability check for '{gse_id}' is under development.")
@@ -414,7 +410,7 @@ def check(gse_id: Optional[str], topic: Optional[str], check_all: bool, recheck:
 
 @main.command()
 @click.option("--topic", "-t", help="更新指定主题")
-def update(topic: Optional[str]):
+def update(topic: str | None):
     """手动触发更新（开发中）"""
     if topic:
         click.echo(f"Update for topic '{topic}' is under development.")

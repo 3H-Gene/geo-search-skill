@@ -12,13 +12,11 @@
 """
 from __future__ import annotations
 
-from typing import Dict, List, Optional
-
 # ──────────────────────────────────────────────
 # 生物体映射表：{常用名: 学名}
 # ──────────────────────────────────────────────
 
-ORGANISM_MAP: Dict[str, str] = {
+ORGANISM_MAP: dict[str, str] = {
     # 哺乳动物
     "human": "Homo sapiens",
     "homo sapiens": "Homo sapiens",
@@ -139,10 +137,10 @@ ORGANISM_MAP: Dict[str, str] = {
 }
 
 # 反向映射：{学名: 常用名}
-_REVERSE_MAP: Dict[str, str] = {v.lower(): k for k, v in ORGANISM_MAP.items()}
+_REVERSE_MAP: dict[str, str] = {v.lower(): k for k, v in ORGANISM_MAP.items()}
 
 
-def normalize_organism(name: str) -> Optional[str]:
+def normalize_organism(name: str) -> str | None:
     """将生物体名称规范化为学名
 
     Args:
@@ -163,7 +161,7 @@ def normalize_organism(name: str) -> Optional[str]:
 
 
 def to_entrez_organism_filter(
-    organisms: List[str],
+    organisms: list[str],
     quoted: bool = True,
 ) -> str:
     """将生物体列表转为 Entrez 查询过滤条件
@@ -197,7 +195,7 @@ def to_entrez_organism_filter(
     return "(" + " OR ".join(sci_names) + ")"
 
 
-def list_supported_organisms() -> List[str]:
+def list_supported_organisms() -> list[str]:
     """返回所有支持的常用名列表（去重排序）"""
     # 仅返回不含空格或连字符开头的主要名称
     names = sorted(set(

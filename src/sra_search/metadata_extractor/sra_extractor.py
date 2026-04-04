@@ -6,9 +6,6 @@
 from __future__ import annotations
 
 import re
-from typing import Any, Dict, List, Optional
-
-from loguru import logger
 
 from sra_search.metadata_extractor.models import DatasetRecord
 from sra_search.metadata_extractor.normalizer import (
@@ -18,9 +15,8 @@ from sra_search.metadata_extractor.normalizer import (
     normalize_platform,
 )
 
-
 # library_strategy 到粗分类组学类型的映射
-_LIBRARY_STRATEGY_MAP: Dict[str, str] = {
+_LIBRARY_STRATEGY_MAP: dict[str, str] = {
     "RNA-Seq": "RNA-seq",
     "RNA-SEQ": "RNA-seq",
     "WGS": "WGS",
@@ -59,7 +55,7 @@ _LIBRARY_STRATEGY_MAP: Dict[str, str] = {
 }
 
 # library_source 到粒度的映射
-_LIBRARY_SOURCE_GRANULARITY: Dict[str, str] = {
+_LIBRARY_SOURCE_GRANULARITY: dict[str, str] = {
     "TRANSCRIPTOMIC SINGLE CELL": "single_cell",
     "TRANSCRIPTOMIC": "bulk",
     "GENOMIC SINGLE CELL": "single_cell",
@@ -111,7 +107,6 @@ class SRAExtractor:
         instrument = sra_result.instrument or ""
         library_strategy = sra_result.library_strategy or ""
         library_source = sra_result.library_source or ""
-        library_selection = sra_result.library_selection or ""
 
         # 标准化
         organism = normalize_organism(organism_raw)
@@ -392,7 +387,7 @@ class SRAExtractor:
         return "unknown"
 
     @staticmethod
-    def extract_srp_from_text(text: str) -> List[str]:
+    def extract_srp_from_text(text: str) -> list[str]:
         """从文本中提取所有 SRA Study 编号
 
         支持格式: SRP/ERP/DRP/SRPX + 数字
@@ -409,7 +404,7 @@ class SRAExtractor:
         return list(dict.fromkeys(re.findall(pattern, text, re.IGNORECASE)))
 
     @staticmethod
-    def extract_srr_from_text(text: str) -> List[str]:
+    def extract_srr_from_text(text: str) -> list[str]:
         """从文本中提取所有 SRA Run 编号"""
         if not text:
             return []

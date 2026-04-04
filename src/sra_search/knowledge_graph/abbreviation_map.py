@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from loguru import logger
 
@@ -18,8 +18,8 @@ from sra_search.knowledge_graph._paths import DATA_DIR as _DATA_DIR
 class AbbreviationMapper:
     """生物医学缩写 -> 全称 + 关联词映射器"""
 
-    def __init__(self, data_path: Optional[Path] = None):
-        self._data: Dict[str, Any] = {}
+    def __init__(self, data_path: Path | None = None):
+        self._data: dict[str, Any] = {}
         self._loaded = False
         self._data_path = data_path or _DATA_DIR / "abbreviation_map.json"
 
@@ -28,7 +28,7 @@ class AbbreviationMapper:
         if self._loaded:
             return
         try:
-            with open(self._data_path, "r", encoding="utf-8") as f:
+            with open(self._data_path, encoding="utf-8") as f:
                 raw = json.load(f)
             self._data = raw.get("abbreviations", {})
             self._loaded = True
@@ -38,7 +38,7 @@ class AbbreviationMapper:
             self._data = {}
             self._loaded = True
 
-    def resolve(self, term: str) -> Optional[Dict[str, Any]]:
+    def resolve(self, term: str) -> dict[str, Any] | None:
         """解析一个缩写，返回其完整信息
 
         Args:
@@ -57,7 +57,7 @@ class AbbreviationMapper:
         key = term.strip().upper()
         return key in self._data
 
-    def expand_search_terms(self, term: str) -> List[str]:
+    def expand_search_terms(self, term: str) -> list[str]:
         """将缩写或关键词扩展为搜索词列表
 
         如果输入是已知缩写，返回其搜索词 + 全称 + 关联疾病/器官。
@@ -87,7 +87,7 @@ class AbbreviationMapper:
         # 不是缩写，原样返回
         return [term]
 
-    def extract_abbreviations(self, text: str) -> List[str]:
+    def extract_abbreviations(self, text: str) -> list[str]:
         """从文本中提取已知缩写
 
         Args:
@@ -105,7 +105,7 @@ class AbbreviationMapper:
                 found.append(abbr)
         return found
 
-    def get_related_organs(self, term: str) -> List[str]:
+    def get_related_organs(self, term: str) -> list[str]:
         """获取与术语关联的器官列表"""
         self._load()
         entry = self.resolve(term)
@@ -113,7 +113,7 @@ class AbbreviationMapper:
             return entry.get("related_organs", [])
         return []
 
-    def get_related_diseases(self, term: str) -> List[str]:
+    def get_related_diseases(self, term: str) -> list[str]:
         """获取与术语关联的疾病列表"""
         self._load()
         entry = self.resolve(term)
@@ -121,7 +121,7 @@ class AbbreviationMapper:
             return entry.get("related_diseases", [])
         return []
 
-    def get_all_abbreviations(self) -> Dict[str, str]:
+    def get_all_abbreviations(self) -> dict[str, str]:
         """获取所有缩写及其全称的映射"""
         self._load()
         return {abbr: info.get("full_name", "") for abbr, info in self._data.items()}

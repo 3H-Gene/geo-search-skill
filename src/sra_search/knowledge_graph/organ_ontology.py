@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from loguru import logger
 
@@ -18,17 +18,17 @@ from sra_search.knowledge_graph._paths import ONTOLOGY_DIR as _ONTOLOGY_DIR
 class OrganOntology:
     """器官本体映射器"""
 
-    def __init__(self, data_path: Optional[Path] = None):
-        self._data: Dict[str, Dict[str, Any]] = {}
+    def __init__(self, data_path: Path | None = None):
+        self._data: dict[str, dict[str, Any]] = {}
         self._loaded = False
         self._data_path = data_path or _ONTOLOGY_DIR / "uberon_organs.json"
-        self._name_to_canonical: Dict[str, str] = {}
+        self._name_to_canonical: dict[str, str] = {}
 
     def _load(self) -> None:
         if self._loaded:
             return
         try:
-            with open(self._data_path, "r", encoding="utf-8") as f:
+            with open(self._data_path, encoding="utf-8") as f:
                 raw = json.load(f)
             self._data = raw.get("organs", {})
             for canonical, entry in self._data.items():
@@ -45,7 +45,7 @@ class OrganOntology:
             logger.warning(f"Organ ontology not found: {self._data_path}")
             self._loaded = True
 
-    def resolve(self, name: str) -> Optional[Dict[str, Any]]:
+    def resolve(self, name: str) -> dict[str, Any] | None:
         """解析器官名到完整条目"""
         self._load()
         canonical = self._name_to_canonical.get(name.strip().lower())
@@ -59,7 +59,7 @@ class OrganOntology:
         canonical = self._name_to_canonical.get(name.strip().lower())
         return canonical if canonical else name.strip()
 
-    def get_synonyms(self, name: str) -> List[str]:
+    def get_synonyms(self, name: str) -> list[str]:
         """获取同义词列表"""
         entry = self.resolve(name)
         if entry:
@@ -73,33 +73,33 @@ class OrganOntology:
             return entry.get("adjective", "")
         return ""
 
-    def get_uberon_id(self, name: str) -> Optional[str]:
+    def get_uberon_id(self, name: str) -> str | None:
         """获取 Uberon ID"""
         entry = self.resolve(name)
         if entry:
             return entry.get("uberon_id")
         return None
 
-    def get_children(self, name: str) -> List[str]:
+    def get_children(self, name: str) -> list[str]:
         """获取子器官"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("children", []))
         return []
 
-    def get_parent(self, name: str) -> Optional[str]:
+    def get_parent(self, name: str) -> str | None:
         """获取父器官"""
         entry = self.resolve(name)
         if entry:
             return entry.get("parent")
         return None
 
-    def get_ancestor_chain(self, name: str) -> List[str]:
+    def get_ancestor_chain(self, name: str) -> list[str]:
         """获取从器官到根的祖先链"""
         self._load()
         chain = []
         current = name.strip()
-        visited: Set[str] = set()
+        visited: set[str] = set()
         while current and current not in visited:
             visited.add(current)
             canonical = self._name_to_canonical.get(current.lower(), current)
@@ -110,11 +110,11 @@ class OrganOntology:
             current = entry.get("parent", "")
         return chain
 
-    def get_descendants(self, name: str) -> List[str]:
+    def get_descendants(self, name: str) -> list[str]:
         """获取所有后代器官 (递归)"""
         self._load()
         canonical = self._name_to_canonical.get(name.strip().lower(), name.strip())
-        descendants: List[str] = []
+        descendants: list[str] = []
 
         def _walk(node: str):
             entry = self._data.get(node)
@@ -127,7 +127,7 @@ class OrganOntology:
         _walk(canonical)
         return descendants
 
-    def get_search_terms(self, name: str) -> List[str]:
+    def get_search_terms(self, name: str) -> list[str]:
         """获取扩展搜索词"""
         entry = self.resolve(name)
         if entry:
@@ -139,7 +139,7 @@ class OrganOntology:
         self._load()
         return name.strip().lower() in self._name_to_canonical
 
-    def get_all_organs(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_organs(self) -> dict[str, dict[str, Any]]:
         """获取所有器官条目"""
         self._load()
         return dict(self._data)

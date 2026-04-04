@@ -5,10 +5,6 @@
 
 from __future__ import annotations
 
-from typing import List, Optional
-
-from loguru import logger
-
 from sra_search.data_store.database import Database
 
 
@@ -18,7 +14,7 @@ class ReviewFilters:
     def __init__(self, db: Database):
         self.db = db
 
-    def get_pending(self, topic_id: Optional[str] = None, limit: int = 50) -> List[dict]:
+    def get_pending(self, topic_id: str | None = None, limit: int = 50) -> list[dict]:
         """获取待审核的数据集
 
         Args:
@@ -48,9 +44,9 @@ class ReviewFilters:
     def get_by_status(
         self,
         status: str,
-        topic_id: Optional[str] = None,
+        topic_id: str | None = None,
         limit: int = 50,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """按审核状态筛选
 
         Args:
@@ -77,7 +73,7 @@ class ReviewFilters:
         )
         return [dict(r) for r in cursor.fetchall()]
 
-    def get_review_summary(self, topic_id: Optional[str] = None) -> dict:
+    def get_review_summary(self, topic_id: str | None = None) -> dict:
         """获取审核状态统计摘要
 
         Args:
@@ -118,17 +114,17 @@ class ReviewFilters:
 
         return summary
 
-    def get_unreviewed_count(self, topic_id: Optional[str] = None) -> int:
+    def get_unreviewed_count(self, topic_id: str | None = None) -> int:
         """获取待审核数量"""
         summary = self.get_review_summary(topic_id)
         return summary["pending"]
 
     def get_review_log(
         self,
-        topic_id: Optional[str] = None,
-        gse_id: Optional[str] = None,
+        topic_id: str | None = None,
+        gse_id: str | None = None,
         limit: int = 20,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """获取审核操作日志
 
         Args:

@@ -7,15 +7,12 @@ from __future__ import annotations
 
 import csv
 import json
-import io
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 from loguru import logger
 
 from sra_search.data_store.database import Database, get_database
 from sra_search.metadata_extractor.models import DatasetRecord
-
 
 # 可导出字段列表
 EXPORTABLE_FIELDS = [
@@ -30,21 +27,21 @@ EXPORTABLE_FIELDS = [
 class Exporter:
     """灵活导出引擎"""
 
-    def __init__(self, db: Optional[Database] = None):
+    def __init__(self, db: Database | None = None):
         self.db = db or get_database()
 
     def export(
         self,
         output_path: str,
         format: str = "tsv",
-        fields: Optional[List[str]] = None,
-        topic: Optional[str] = None,
-        review_status: Optional[str] = None,
-        availability: Optional[str] = None,
-        access_type: Optional[str] = None,
-        min_samples: Optional[int] = None,
-        granularity: Optional[str] = None,
-        organism: Optional[str] = None,
+        fields: list[str] | None = None,
+        topic: str | None = None,
+        review_status: str | None = None,
+        availability: str | None = None,
+        access_type: str | None = None,
+        min_samples: int | None = None,
+        granularity: str | None = None,
+        organism: str | None = None,
         limit: int = 10000,
     ) -> int:
         """导出数据集到文件
@@ -112,7 +109,7 @@ class Exporter:
         logger.info(f"Exported {len(datasets)} datasets to {output_path} (format={format})")
         return len(datasets)
 
-    def _resolve_topic_name(self, topic_name: str) -> Optional[str]:
+    def _resolve_topic_name(self, topic_name: str) -> str | None:
         """根据主题名称查找 topic_id"""
         topics = self.db.list_topics()
         for t in topics:
@@ -122,8 +119,8 @@ class Exporter:
 
     def _export_json(
         self,
-        datasets: List[DatasetRecord],
-        fields: List[str],
+        datasets: list[DatasetRecord],
+        fields: list[str],
         output_path: Path,
     ) -> None:
         """导出为 JSON"""
@@ -141,8 +138,8 @@ class Exporter:
 
     def _export_tabular(
         self,
-        datasets: List[DatasetRecord],
-        fields: List[str],
+        datasets: list[DatasetRecord],
+        fields: list[str],
         output_path: Path,
         format: str,
     ) -> None:
@@ -165,8 +162,8 @@ class Exporter:
 
     def _export_plain(
         self,
-        datasets: List[DatasetRecord],
-        fields: List[str],
+        datasets: list[DatasetRecord],
+        fields: list[str],
         output_path: Path,
     ) -> None:
         """导出为纯文本（每行一个值，仅适用于单字段）"""
@@ -185,7 +182,7 @@ class Exporter:
 
     def _export_script(
         self,
-        datasets: List[DatasetRecord],
+        datasets: list[DatasetRecord],
         output_path: Path,
     ) -> None:
         """导出为下载脚本（prefetch + fasterq-dump + wget）

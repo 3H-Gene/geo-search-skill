@@ -5,22 +5,16 @@
 """
 from __future__ import annotations
 
-import re
-from typing import Any, Dict, List, Optional
-
 from sra_search.metadata_extractor.models import DatasetRecord, OmicsGranularity
 from sra_search.schema import (
-    DataType,
     DatasetSchema,
+    DataType,
     GranularityType,
-    PerturbationType,
     SearchResultSchema,
-    _now_iso,
 )
 
-
 # perturbation 检测关键词
-PERTURBATION_KEYWORDS: Dict[str, List[str]] = {
+PERTURBATION_KEYWORDS: dict[str, list[str]] = {
     "CRISPR": ["crispr", "cas9", "sgRNA", "sgrna", "gene editing", "genome editing"],
     "KNOCKOUT": ["knockout", "ko ", " KO ", "deletion", "null mutation"],
     "KNOCKDOWN": ["knockdown", "kd ", " RNAi", "silencing", "mirna", "sirna"],
@@ -33,7 +27,7 @@ PERTURBATION_KEYWORDS: Dict[str, List[str]] = {
 }
 
 
-def detect_perturbation(text: str) -> List[str]:
+def detect_perturbation(text: str) -> list[str]:
     """从文本中检测 perturbation 类型
 
     Args:
@@ -46,7 +40,7 @@ def detect_perturbation(text: str) -> List[str]:
         return []
 
     text_lower = text.lower()
-    detected: List[str] = []
+    detected: list[str] = []
 
     for ptype, keywords in PERTURBATION_KEYWORDS.items():
         for kw in keywords:
@@ -197,7 +191,6 @@ def compute_recency_score(publication_date: str) -> float:
     if not publication_date:
         return 0.0
 
-    import time
     from datetime import datetime, timezone
 
     try:
@@ -361,7 +354,7 @@ class SchemaConverter:
 
     def convert_batch(
         self,
-        records: List[DatasetRecord],
+        records: list[DatasetRecord],
         top_n: int = 50,
     ) -> SearchResultSchema:
         """批量转换并排序
@@ -400,7 +393,7 @@ def record_to_schema(record: DatasetRecord, query: str = "") -> DatasetSchema:
 
 
 def records_to_search_result(
-    records: List[DatasetRecord],
+    records: list[DatasetRecord],
     query: str = "",
     top_n: int = 50,
 ) -> SearchResultSchema:

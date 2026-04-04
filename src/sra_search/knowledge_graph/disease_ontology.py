@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set
+from typing import Any
 
 from loguru import logger
 
@@ -18,17 +18,17 @@ from sra_search.knowledge_graph._paths import ONTOLOGY_DIR as _ONTOLOGY_DIR
 class DiseaseOntology:
     """疾病本体映射器"""
 
-    def __init__(self, data_path: Optional[Path] = None):
-        self._data: Dict[str, Dict[str, Any]] = {}
+    def __init__(self, data_path: Path | None = None):
+        self._data: dict[str, dict[str, Any]] = {}
         self._loaded = False
         self._data_path = data_path or _ONTOLOGY_DIR / "doid_hierarchy.json"
-        self._name_to_canonical: Dict[str, str] = {}
+        self._name_to_canonical: dict[str, str] = {}
 
     def _load(self) -> None:
         if self._loaded:
             return
         try:
-            with open(self._data_path, "r", encoding="utf-8") as f:
+            with open(self._data_path, encoding="utf-8") as f:
                 raw = json.load(f)
             self._data = raw.get("diseases", {})
             for canonical, entry in self._data.items():
@@ -42,7 +42,7 @@ class DiseaseOntology:
             logger.warning(f"Disease ontology not found: {self._data_path}")
             self._loaded = True
 
-    def resolve(self, name: str) -> Optional[Dict[str, Any]]:
+    def resolve(self, name: str) -> dict[str, Any] | None:
         """解析疾病名称到完整条目"""
         self._load()
         canonical = self._name_to_canonical.get(name.strip().lower())
@@ -56,56 +56,56 @@ class DiseaseOntology:
         canonical = self._name_to_canonical.get(name.strip().lower())
         return canonical if canonical else name.strip()
 
-    def get_synonyms(self, name: str) -> List[str]:
+    def get_synonyms(self, name: str) -> list[str]:
         """获取同义词列表"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("synonyms", []))
         return [name]
 
-    def get_related_organs(self, name: str) -> List[str]:
+    def get_related_organs(self, name: str) -> list[str]:
         """获取疾病关联的器官"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("related_organs", []))
         return []
 
-    def get_related_species(self, name: str) -> List[str]:
+    def get_related_species(self, name: str) -> list[str]:
         """获取疾病常见物种"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("related_species", []))
         return []
 
-    def get_search_terms(self, name: str) -> List[str]:
+    def get_search_terms(self, name: str) -> list[str]:
         """获取扩展搜索词"""
         entry = self.resolve(name)
         if entry:
             return list(entry.get("search_terms", []))
         return [name]
 
-    def get_mesh_id(self, name: str) -> Optional[str]:
+    def get_mesh_id(self, name: str) -> str | None:
         """获取 MeSH ID"""
         entry = self.resolve(name)
         if entry:
             return entry.get("mesh_id")
         return None
 
-    def get_doid_id(self, name: str) -> Optional[str]:
+    def get_doid_id(self, name: str) -> str | None:
         """获取 DOID"""
         entry = self.resolve(name)
         if entry:
             return entry.get("doid_id")
         return None
 
-    def get_subtypes(self, name: str) -> Dict[str, str]:
+    def get_subtypes(self, name: str) -> dict[str, str]:
         """获取疾病亚型映射 (缩写 -> 全称)"""
         entry = self.resolve(name)
         if entry:
             return entry.get("subtypes", {})
         return {}
 
-    def find_diseases_by_organ(self, organ: str) -> List[str]:
+    def find_diseases_by_organ(self, organ: str) -> list[str]:
         """查找与给定器官相关的所有疾病"""
         self._load()
         organ_lower = organ.strip().lower()
@@ -120,7 +120,7 @@ class DiseaseOntology:
         self._load()
         return name.strip().lower() in self._name_to_canonical
 
-    def get_all_diseases(self) -> Dict[str, Dict[str, Any]]:
+    def get_all_diseases(self) -> dict[str, dict[str, Any]]:
         """获取所有疾病条目"""
         self._load()
         return dict(self._data)

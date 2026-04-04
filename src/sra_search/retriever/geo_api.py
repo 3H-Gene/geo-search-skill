@@ -13,8 +13,7 @@
 import asyncio
 import os
 from dataclasses import dataclass, field
-from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import aiohttp
 
@@ -35,12 +34,12 @@ class GeoRecord:
     pubmed_id: str = ""
     publication_date: str = ""
     summary: str = ""
-    keywords: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
 
     # 原始数据（可选）
-    raw_data: Dict[str, Any] = field(default_factory=dict)
+    raw_data: dict[str, Any] = field(default_factory=dict)
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "gse_id": self.gse_id,
             "title": self.title,
@@ -65,14 +64,14 @@ class RetrievalResult:
     """检索结果"""
     query: str
     total_count: int = 0
-    records: List[GeoRecord] = field(default_factory=list)
-    error: Optional[str] = None
+    records: list[GeoRecord] = field(default_factory=list)
+    error: str | None = None
     retried: bool = False
 
     def is_success(self) -> bool:
         return self.error is None
 
-    def get_hashes(self) -> List[str]:
+    def get_hashes(self) -> list[str]:
         return [r.compute_hash() for r in self.records]
 
 
@@ -86,9 +85,9 @@ class GeoRetriever:
 
     def __init__(
         self,
-        email: Optional[str] = None,
-        api_key: Optional[str] = None,
-        cache: Optional[QueryCache] = None,
+        email: str | None = None,
+        api_key: str | None = None,
+        cache: QueryCache | None = None,
     ):
         """初始化
 
@@ -223,7 +222,7 @@ class GeoRetriever:
                 return await self._do_search(query, retmax, retry + 1)
             return RetrievalResult(query=query, error=str(e))
 
-    async def _fetch_summaries(self, gse_ids: List[str], session: aiohttp.ClientSession) -> List[GeoRecord]:
+    async def _fetch_summaries(self, gse_ids: list[str], session: aiohttp.ClientSession) -> list[GeoRecord]:
         """批量获取 GSE 摘要信息"""
         records = []
 
@@ -288,7 +287,7 @@ class GeoRetriever:
 
         self._last_request_time = time.time()
 
-    def _deserialize_records(self, data: List[Dict]) -> List[GeoRecord]:
+    def _deserialize_records(self, data: list[dict]) -> list[GeoRecord]:
         """反序列化记录"""
         return [GeoRecord(**r) for r in data]
 

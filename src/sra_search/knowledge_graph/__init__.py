@@ -2,4 +2,5 @@
 
 提供语义扩展、实体识别和搜索词生成功能。
 """
-from sra_search.knowledge_graph.graph import KnowledgeGraph, SemanticQuery
+from sra_search.knowledge_graph.graph import KnowledgeGraph as KnowledgeGraph
+from sra_search.knowledge_graph.graph import SemanticQuery as SemanticQuery

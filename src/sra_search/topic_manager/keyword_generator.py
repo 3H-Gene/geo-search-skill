@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import itertools
-from typing import Dict, List, Optional, Tuple
 
 from loguru import logger
 
@@ -18,7 +17,7 @@ from sra_search.topic_manager.topic import TopicDefinition
 class KeywordGenerator:
     """关键词组合生成器"""
 
-    def __init__(self, kg: Optional[KnowledgeGraph] = None):
+    def __init__(self, kg: KnowledgeGraph | None = None):
         self.kg = kg or KnowledgeGraph()
 
         # 默认组学类型（如果主题未指定）
@@ -29,7 +28,7 @@ class KeywordGenerator:
         ]
 
         # 组合权重（影响搜索优先级）
-        self.weights: Dict[str, float] = {
+        self.weights: dict[str, float] = {
             "disease_omics": 1.0,      # 疾病 x 组学
             "organ_omics": 0.8,        # 器官 x 组学
             "disease_organ": 0.6,      # 疾病 x 器官
@@ -42,7 +41,7 @@ class KeywordGenerator:
         self,
         topic: TopicDefinition,
         max_queries: int = 100,
-    ) -> List[Tuple[str, float]]:
+    ) -> list[tuple[str, float]]:
         """生成关键词组合
 
         Args:
@@ -52,13 +51,12 @@ class KeywordGenerator:
         Returns:
             (搜索词, 权重) 列表，按权重降序排列
         """
-        queries: List[Tuple[str, float]] = []
+        queries: list[tuple[str, float]] = []
 
         # 展开维度中的同义词
         disease_terms = self._expand_terms(topic.diseases, "disease")
         organ_terms = self._expand_terms(topic.organs, "organ")
         omics_terms = self._expand_terms(topic.omics_types, "omics")
-        species_terms = topic.species if topic.species else ["Homo sapiens"]
 
         # 1. 疾病 x 组学类型 (最高优先级)
         queries.extend(self._combine_weighted(
@@ -94,7 +92,7 @@ class KeywordGenerator:
 
         # 去重
         seen: set = set()
-        unique_queries: List[Tuple[str, float]] = []
+        unique_queries: list[tuple[str, float]] = []
         for q, w in queries:
             q_norm = " ".join(q.lower().split())
             if q_norm not in seen:
@@ -114,9 +112,9 @@ class KeywordGenerator:
         logger.info(f"Generated {len(unique_queries)} search queries for topic: {topic.name}")
         return unique_queries
 
-    def _expand_terms(self, terms: List[str], dimension: str) -> List[str]:
+    def _expand_terms(self, terms: list[str], dimension: str) -> list[str]:
         """展开维度中的同义词"""
-        expanded: List[str] = []
+        expanded: list[str] = []
         seen: set = set()
 
         for term in terms:
@@ -152,8 +150,8 @@ class KeywordGenerator:
         return expanded
 
     def _combine_weighted(
-        self, terms_a: List[str], terms_b: List[str], weight: float
-    ) -> List[Tuple[str, float]]:
+        self, terms_a: list[str], terms_b: list[str], weight: float
+    ) -> list[tuple[str, float]]:
         """生成两个维度的笛卡尔积组合"""
         results = []
         for a, b in itertools.product(terms_a, terms_b):

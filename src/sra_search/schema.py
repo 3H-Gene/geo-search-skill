@@ -71,7 +71,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 
 class DataType(str, Enum):
@@ -80,8 +80,8 @@ class DataType(str, Enum):
     microarray = "microarray"
     ATAC_SEQ = "ATAC-seq"
     CHIP_SEQ = "ChIP-seq"
-    scRNA_SEQ = "scRNA-seq"
-    scATAC_SEQ = "scATAC-seq"
+    scRNA_SEQ = "scRNA-seq"  # noqa: N815
+    scATAC_SEQ = "scATAC-seq"  # noqa: N815
     SPATIAL = "spatial"
     PROTEOMICS = "proteomics"
     METAGENOMICS = "metagenomics"
@@ -146,7 +146,7 @@ class DatasetSchema:
     single_cell: bool = False
     granularity: str = GranularityType.UNKNOWN.value
     has_perturbation: bool = False
-    perturbation_types: List[str] = field(default_factory=list)
+    perturbation_types: list[str] = field(default_factory=list)
 
     # === 疾病与组织 ===
     disease: str = ""
@@ -155,12 +155,12 @@ class DatasetSchema:
 
     # === 描述与链接 ===
     summary: str = ""
-    keywords: List[str] = field(default_factory=list)
+    keywords: list[str] = field(default_factory=list)
 
     # === 关联 ID ===
-    pubmed_ids: List[str] = field(default_factory=list)
-    sra_ids: List[str] = field(default_factory=list)
-    bioproject_ids: List[str] = field(default_factory=list)
+    pubmed_ids: list[str] = field(default_factory=list)
+    sra_ids: list[str] = field(default_factory=list)
+    bioproject_ids: list[str] = field(default_factory=list)
 
     # === 元数据 ===
     publication_date: str = ""
@@ -198,7 +198,7 @@ class DatasetSchema:
         raw = json.dumps(fields_to_hash, sort_keys=True, ensure_ascii=False)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:16]
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典（JSON 序列化友好）"""
         self.metadata_hash = self.compute_hash()
         return {
@@ -233,11 +233,11 @@ class DatasetSchema:
             "metadata_hash": self.metadata_hash,
         }
 
-    def to_id_payload(self) -> Dict[str, str]:
+    def to_id_payload(self) -> dict[str, str]:
         """转换为 ID 驱动 payload（与 gse-downloader 解耦）"""
         return {"gse_id": self.gse_id}
 
-    def to_full_payload(self, preferred_format: str = "metadata", include_raw: bool = False) -> Dict[str, Any]:
+    def to_full_payload(self, preferred_format: str = "metadata", include_raw: bool = False) -> dict[str, Any]:
         """转换为结构化 payload（高级接口）"""
         payload = {
             "gse_id": self.gse_id,
@@ -254,7 +254,7 @@ class DatasetSchema:
         return payload
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "DatasetSchema":
+    def from_dict(cls, data: dict[str, Any]) -> DatasetSchema:
         """从字典创建 Schema"""
         return cls(
             gse_id=data.get("gse_id", ""),
@@ -294,13 +294,13 @@ class SearchResultSchema:
     """搜索结果 Schema（支持排序和摘要）"""
     query: str
     total_found: int = 0
-    results: List[DatasetSchema] = field(default_factory=list)
+    results: list[DatasetSchema] = field(default_factory=list)
 
     # === 统计摘要（用于 Agent 决策） ===
-    stats: Dict[str, Any] = field(default_factory=dict)
+    stats: dict[str, Any] = field(default_factory=dict)
 
     # === 扩展查询词（用于调试） ===
-    expanded_queries: List[str] = field(default_factory=list)
+    expanded_queries: list[str] = field(default_factory=list)
 
     # === 元数据 ===
     query_hash: str = ""
@@ -311,7 +311,7 @@ class SearchResultSchema:
         raw = json.dumps({"query": self.query, "timestamp": self.searched_at}, sort_keys=True)
         return hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
 
-    def compute_stats(self) -> Dict[str, Any]:
+    def compute_stats(self) -> dict[str, Any]:
         """计算结果统计"""
         results = self.results
         sc_rna = sum(1 for r in results if r.single_cell)
@@ -329,7 +329,7 @@ class SearchResultSchema:
         }
         return self.stats
 
-    def sort_results(self, top_n: int = 50, weights: Optional[Dict[str, float]] = None) -> List[DatasetSchema]:
+    def sort_results(self, top_n: int = 50, weights: dict[str, float] | None = None) -> list[DatasetSchema]:
         """排序结果（默认使用 relevance + sample_size + recency + quality）"""
         if weights is None:
             weights = {"relevance": 0.4, "recency": 0.2, "quality": 0.2, "sample_size": 0.2}
@@ -355,7 +355,7 @@ class SearchResultSchema:
 
         return self.results
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """转换为字典（JSON 序列化）"""
         self.query_hash = self.compute_hash()
         return {
@@ -368,7 +368,7 @@ class SearchResultSchema:
             "searched_at": self.searched_at,
         }
 
-    def to_summary(self, top_n: int = 10) -> Dict[str, Any]:
+    def to_summary(self, top_n: int = 10) -> dict[str, Any]:
         """生成结果摘要（用于 Agent 决策）"""
         top_results = [r.to_id_payload() for r in self.results[:top_n]]
         return {
@@ -384,7 +384,7 @@ class QueryCacheSchema:
     query_hash: str
     query: str
     total_found: int
-    result_hashes: List[str] = field(default_factory=list)
+    result_hashes: list[str] = field(default_factory=list)
     cached_at: str = field(default_factory=_now_iso)
     expires_at: str = ""
 
@@ -393,13 +393,13 @@ class QueryCacheSchema:
         if not self.expires_at:
             return True
         try:
-            cached = datetime.fromisoformat(self.cached_at)
+            datetime.fromisoformat(self.cached_at)
             expiry = datetime.fromisoformat(self.expires_at)
             return datetime.now(timezone.utc) > expiry
         except (ValueError, TypeError):
             return True
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         return {
             "query_hash": self.query_hash,
             "query": self.query,
@@ -410,7 +410,7 @@ class QueryCacheSchema:
         }
 
     @classmethod
-    def from_dict(cls, data: Dict[str, Any]) -> "QueryCacheSchema":
+    def from_dict(cls, data: dict[str, Any]) -> QueryCacheSchema:
         return cls(
             query_hash=data.get("query_hash", ""),
             query=data.get("query", ""),

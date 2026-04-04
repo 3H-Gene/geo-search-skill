@@ -10,7 +10,6 @@
 - 字段类型强约束
 """
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Set
 
 
 # === 查询意图枚举 ===
@@ -24,7 +23,7 @@ class QueryIntent(str):
 
 
 # === 组学类型映射 ===
-OMICS_KEYWORDS: Dict[str, Set[str]] = {
+OMICS_KEYWORDS: dict[str, set[str]] = {
     "RNA-seq": {"rna-seq", "rna seq", "rnaseq", "transcriptome", "transcriptomics", "mrna", "mrna-seq"},
     "scRNA-seq": {"scrna", "scRNA", "single cell", "single-cell", "10x", "drop-seq", "smart-seq", "cel-seq"},
     "ATAC-seq": {"atac", "atac-seq", "chromatin accessibility", "open chromatin"},
@@ -38,7 +37,7 @@ OMICS_KEYWORDS: Dict[str, Set[str]] = {
 }
 
 # === 物种关键词 ===
-ORGANISM_KEYWORDS: Dict[str, Set[str]] = {
+ORGANISM_KEYWORDS: dict[str, set[str]] = {
     "Homo sapiens": {"human", "humans", "homo sapiens", "patient", "patients"},
     "Mus musculus": {"mouse", "mice", "mus musculus", "murine"},
     "Rattus norvegicus": {"rat", "rats", "rattus norvegicus"},
@@ -48,7 +47,7 @@ ORGANISM_KEYWORDS: Dict[str, Set[str]] = {
 }
 
 # === Perturbation 关键词 ===
-PERTURBATION_KEYWORDS: Dict[str, Set[str]] = {
+PERTURBATION_KEYWORDS: dict[str, set[str]] = {
     "CRISPR": {"crispr", "cas9", "cas12", "genome editing", "gene editing"},
     "knockout": {"knockout", "ko", "knock-out", "null"},
     "knockdown": {"knockdown", "kd", "knock-down", "sirna", "rnai"},
@@ -71,12 +70,12 @@ class ParsedQuery:
     raw_query: str
 
     # 解析出的语义成分
-    disease_terms: List[str] = field(default_factory=list)
-    tissue_terms: List[str] = field(default_factory=list)
+    disease_terms: list[str] = field(default_factory=list)
+    tissue_terms: list[str] = field(default_factory=list)
     organism: str = ""  # "" 表示未指定
     omics_type: str = ""  # "" 表示未指定
     perturbation: bool = False
-    perturbation_types: List[str] = field(default_factory=list)
+    perturbation_types: list[str] = field(default_factory=list)
     single_cell: bool = False
     spatial: bool = False
 
@@ -84,12 +83,12 @@ class ParsedQuery:
     intent: str = QueryIntent.GENERAL
 
     # 原始关键词（未解析为语义的词）
-    raw_keywords: List[str] = field(default_factory=list)
+    raw_keywords: list[str] = field(default_factory=list)
 
     # 原始查询组件（用于后续处理）
-    query_components: List[str] = field(default_factory=list)
+    query_components: list[str] = field(default_factory=list)
 
-    def to_dict(self) -> Dict:
+    def to_dict(self) -> dict:
         """转换为字典（强约束输出）"""
         return {
             "raw_query": self.raw_query,
@@ -186,7 +185,7 @@ class QueryParser:
 
         return result
 
-    def _tokenize(self, text: str) -> List[str]:
+    def _tokenize(self, text: str) -> list[str]:
         """分词"""
         import re
 
@@ -194,7 +193,7 @@ class QueryParser:
         tokens = re.findall(r"\b\w+\b", text.lower())
         return [t for t in tokens if len(t) > 1]
 
-    def _detect_omics_type(self, tokens: List[str]) -> str:
+    def _detect_omics_type(self, tokens: list[str]) -> str:
         """检测组学类型"""
         for omics_type, keywords in self.omics_keywords.items():
             for token in tokens:
@@ -219,7 +218,7 @@ class QueryParser:
         spatial_keywords = {"spatial", "visium", "stereo-seq", "slide-seq", "spatial transcriptomics"}
         return any(kw in query for kw in spatial_keywords)
 
-    def _detect_organism(self, tokens: List[str]) -> str:
+    def _detect_organism(self, tokens: list[str]) -> str:
         """检测物种"""
         for organism, keywords in self.organism_keywords.items():
             for token in tokens:
@@ -227,7 +226,7 @@ class QueryParser:
                     return organism
         return ""
 
-    def _detect_perturbation(self, tokens: List[str]) -> tuple[bool, List[str]]:
+    def _detect_perturbation(self, tokens: list[str]) -> tuple[bool, list[str]]:
         """检测 perturbation 类型"""
         found_types = []
         for pert_type, keywords in self.perturbation_keywords.items():
@@ -238,7 +237,7 @@ class QueryParser:
 
         return bool(found_types), found_types
 
-    def _detect_tissue(self, tokens: List[str]) -> List[str]:
+    def _detect_tissue(self, tokens: list[str]) -> list[str]:
         """检测组织/器官（简化版）"""
         # 常见组织词
         tissue_keywords = {
@@ -248,7 +247,7 @@ class QueryParser:
         }
         return [t for t in tokens if t in tissue_keywords]
 
-    def _detect_disease(self, query: str) -> List[str]:
+    def _detect_disease(self, query: str) -> list[str]:
         """检测疾病（简化版）"""
         # 常见疾病词
         disease_keywords = {
@@ -273,7 +272,7 @@ class QueryParser:
             return QueryIntent.DISEASE
         return QueryIntent.GENERAL
 
-    def _extract_keywords(self, query: str, parsed: ParsedQuery) -> List[str]:
+    def _extract_keywords(self, query: str, parsed: ParsedQuery) -> list[str]:
         """提取原始关键词（排除已解析的语义词）"""
         all_semantic = set()
         all_semantic.update(parsed.disease_terms)

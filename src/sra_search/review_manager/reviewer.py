@@ -8,13 +8,11 @@ from __future__ import annotations
 
 import uuid
 from dataclasses import dataclass
-from typing import List, Optional
 
 from loguru import logger
 
 from sra_search.data_store.database import Database
 from sra_search.metadata_extractor.models import ReviewLogRecord, _now_iso
-
 
 # 合法审核状态
 VALID_STATUSES = {"pending", "approved", "irrelevant", "deleted"}
@@ -86,10 +84,10 @@ class Reviewer:
         self,
         topic_id: str,
         status: str,
-        gse_ids: Optional[List[str]] = None,
-        current_status: Optional[str] = None,
+        gse_ids: list[str] | None = None,
+        current_status: str | None = None,
         note: str = "",
-    ) -> List[ReviewResult]:
+    ) -> list[ReviewResult]:
         """批量标记审核状态
 
         Args:
