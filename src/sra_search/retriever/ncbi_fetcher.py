@@ -119,7 +119,7 @@ def _parse_geo_page(html: str, gse_id: str) -> dict[str, str]:
             if next_td:
                 m = re.search(r"\d+", next_td.get_text())
                 if m:
-                    result["sample_count"] = int(m.group())
+                    result["sample_count"] = str(int(m.group()))
     except Exception:
         pass
 

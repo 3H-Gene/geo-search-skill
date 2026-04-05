@@ -66,7 +66,7 @@ class PubMedSearcher:
         id_list = result.get("esearchresult", {}).get("idlist", [])
         count = result.get("esearchresult", {}).get("count", "0")
         logger.info(f"PubMed search '{term}': found {count} results, returning {len(id_list)}")
-        return id_list
+        return id_list  # type: ignore[no-any-return]
 
     async def fetch_summaries(self, pmids: list[str]) -> list[PubMedResult]:
         """批量获取 PubMed 文献摘要

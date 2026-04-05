@@ -110,7 +110,7 @@ class AbbreviationMapper:
         self._load()
         entry = self.resolve(term)
         if entry:
-            return entry.get("related_organs", [])
+            return entry.get("related_organs", [])  # type: ignore[no-any-return]
         return []
 
     def get_related_diseases(self, term: str) -> list[str]:
@@ -118,7 +118,7 @@ class AbbreviationMapper:
         self._load()
         entry = self.resolve(term)
         if entry:
-            return entry.get("related_diseases", [])
+            return entry.get("related_diseases", [])  # type: ignore[no-any-return]
         return []
 
     def get_all_abbreviations(self) -> dict[str, str]:

@@ -176,7 +176,7 @@ class QueryExpander:
 
         omics_lower = omics_type.lower()
         if omics_lower in omics_data:
-            synonyms = omics_data[omics_lower].get("synonyms", [])
+            synonyms: list[str] = omics_data[omics_lower].get("synonyms", [])
             return [omics_type] + synonyms
 
         return [omics_type]
@@ -194,7 +194,7 @@ class QueryExpander:
             with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
                 self._ontology_cache[filename] = data
-                return data
+                return data  # type: ignore[no-any-return]
         except (OSError, json.JSONDecodeError):
             return None
 

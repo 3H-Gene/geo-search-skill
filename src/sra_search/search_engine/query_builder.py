@@ -131,7 +131,7 @@ class SmartQueryBuilder:
 
         Returns recommended sources and strategies
         """
-        filters = {
+        filters: dict[str, list[str]] = {
             'suggested_sources': [],
             'suggested_databases': []
         }

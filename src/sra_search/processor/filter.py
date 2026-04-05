@@ -18,10 +18,10 @@ from typing import Any
 class FilterRule:
     """过滤规则"""
     field: str  # 要过滤的字段
-    allowed_values: set[str] | None = None  # 允许的值（None 表示不限制）
-    excluded_values: set[str] | None = None  # 排除的值
-    min_value: int | None = None  # 最小值（用于数值字段）
-    max_value: int | None = None  # 最大值
+    allowed_values: set[Any] | None = None  # 允许的值（None 表示不限制）
+    excluded_values: set[Any] | None = None  # 排除的值
+    min_value: float | None = None  # 最小值（用于数值字段）
+    max_value: float | None = None  # 最大值
 
     def matches(self, record: dict[str, Any]) -> bool:
         """检查记录是否匹配规则"""

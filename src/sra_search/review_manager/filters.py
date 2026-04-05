@@ -117,7 +117,7 @@ class ReviewFilters:
     def get_unreviewed_count(self, topic_id: str | None = None) -> int:
         """获取待审核数量"""
         summary = self.get_review_summary(topic_id)
-        return summary["pending"]
+        return int(summary["pending"])
 
     def get_review_log(
         self,

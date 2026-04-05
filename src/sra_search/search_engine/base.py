@@ -47,9 +47,9 @@ class EntrezClient:
 
         # 同步 Entrez（Biopython）配置
         if self.email:
-            Entrez.email = self.email
+            Entrez.email = self.email  # type: ignore[assignment]
         if self.api_key:
-            Entrez.api_key = self.api_key
+            Entrez.api_key = self.api_key  # type: ignore[assignment]
 
     def _params(self, **extra: Any) -> dict[str, str]:
         """构建通用请求参数"""

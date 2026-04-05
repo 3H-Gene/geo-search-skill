@@ -195,8 +195,9 @@ class GeoRetriever:
                     if id_list is None:
                         return RetrievalResult(query=query, total_count=0, records=[])
 
-                    gse_ids = [id_elem.text for id_elem in id_list.findall("Id")]
-                    total_count = int(root.find("Count").text or "0")
+                    gse_ids = [id_elem.text for id_elem in id_list.findall("Id") if id_elem.text]
+                    count_elem = root.find("Count")
+                    total_count = int(count_elem.text or "0") if count_elem is not None else 0
 
                     if not gse_ids:
                         return RetrievalResult(query=query, total_count=0, records=[])

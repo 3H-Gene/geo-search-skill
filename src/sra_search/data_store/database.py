@@ -266,6 +266,7 @@ class Database:
         """获取数据库连接（单例）"""
         if self._conn is None:
             self._connect()
+        assert self._conn is not None
         return self._conn
 
     def _connect(self) -> None:
@@ -535,7 +536,7 @@ class Database:
                 params.append(availability)
 
         cursor.execute(query, params)
-        return cursor.fetchone()[0]
+        return int(cursor.fetchone()[0])
 
     def close(self) -> None:
         """关闭数据库连接"""

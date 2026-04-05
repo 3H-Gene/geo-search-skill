@@ -57,7 +57,7 @@ class QueryCache:
             return {}
         try:
             with open(self.index_file, encoding="utf-8") as f:
-                return json.load(f)
+                return json.load(f)  # type: ignore[no-any-return]
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to load cache index: {e}")
             return {}
@@ -108,7 +108,7 @@ class QueryCache:
 
         try:
             with open(cache_path, encoding="utf-8") as f:
-                return json.load(f)
+                return json.load(f)  # type: ignore[no-any-return]
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Failed to load cache: {e}")
             return None

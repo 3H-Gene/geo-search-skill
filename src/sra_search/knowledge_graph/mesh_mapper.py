@@ -63,7 +63,7 @@ class MeshMapper:
         self._load()
         canonical = self._term_to_canonical.get(term.strip().lower())
         if canonical:
-            return self._canonical_to_entry[canonical]
+            return self._canonical_to_entry[canonical]  # type: ignore[no-any-return]
         return None
 
     def get_synonyms(self, term: str) -> list[str]:
@@ -78,7 +78,7 @@ class MeshMapper:
         self._load()
         entry = self.resolve(term)
         if entry:
-            return entry.get("synonyms", [])
+            return entry.get("synonyms", [])  # type: ignore[no-any-return]
         return [term]
 
     def get_canonical(self, term: str) -> str:

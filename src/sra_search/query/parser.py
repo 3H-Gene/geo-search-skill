@@ -198,13 +198,13 @@ class QueryParser:
         for omics_type, keywords in self.omics_keywords.items():
             for token in tokens:
                 if token in keywords:
-                    return omics_type
+                    return str(omics_type)
 
         # 检查复合词
         for omics_type, keywords in self.omics_keywords.items():
             for kw in keywords:
                 if len(kw) > 5 and kw in " ".join(tokens):
-                    return omics_type
+                    return str(omics_type)
 
         return ""
 
@@ -223,7 +223,7 @@ class QueryParser:
         for organism, keywords in self.organism_keywords.items():
             for token in tokens:
                 if token in keywords:
-                    return organism
+                    return str(organism)
         return ""
 
     def _detect_perturbation(self, tokens: list[str]) -> tuple[bool, list[str]]:

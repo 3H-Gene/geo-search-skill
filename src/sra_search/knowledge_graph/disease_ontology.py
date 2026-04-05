@@ -102,7 +102,7 @@ class DiseaseOntology:
         """获取疾病亚型映射 (缩写 -> 全称)"""
         entry = self.resolve(name)
         if entry:
-            return entry.get("subtypes", {})
+            return entry.get("subtypes", {})  # type: ignore[no-any-return]
         return {}
 
     def find_diseases_by_organ(self, organ: str) -> list[str]:

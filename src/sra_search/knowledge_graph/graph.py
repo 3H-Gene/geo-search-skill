@@ -50,7 +50,7 @@ class KnowledgeGraph:
 
     def resolve_abbreviation(self, term: str) -> dict[str, Any] | None:
         """解析缩写"""
-        return self.abbr.resolve(term)
+        return self.abbr.resolve(term)  # type: ignore[no-any-return]
 
     def expand_keyword(self, keyword: str) -> list[str]:
         """将单个关键词扩展为搜索词列表
@@ -320,20 +320,20 @@ class KnowledgeGraph:
 
     def get_organ_disease_associations(self, organ: str) -> list[str]:
         """获取与器官相关的所有疾病"""
-        return self.disease.find_diseases_by_organ(organ)
+        return self.disease.find_diseases_by_organ(organ)  # type: ignore[no-any-return]
 
     def get_disease_organ_associations(self, disease: str) -> list[str]:
         """获取与疾病相关的所有器官"""
-        return self.disease.get_related_organs(disease)
+        return self.disease.get_related_organs(disease)  # type: ignore[no-any-return]
 
     def standardize_organ(self, name: str) -> str:
         """标准化器官名"""
-        return self.organ.get_canonical(name)
+        return str(self.organ.get_canonical(name))
 
     def standardize_disease(self, name: str) -> str:
         """标准化疾病名"""
-        return self.disease.get_canonical(name)
+        return str(self.disease.get_canonical(name))
 
     def standardize_omics(self, name: str) -> str:
         """标准化组学类型"""
-        return self.omics.standardize(name)
+        return str(self.omics.standardize(name))

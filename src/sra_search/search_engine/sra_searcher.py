@@ -150,7 +150,7 @@ class SRASearcher:
         id_list = result.get("esearchresult", {}).get("idlist", [])
         count = result.get("esearchresult", {}).get("count", "0")
         logger.info(f"SRA search: found {count} results, returning {len(id_list)}")
-        return id_list
+        return id_list  # type: ignore[no-any-return]
 
     async def fetch_summaries(self, uids: list[str]) -> list[SRAResult]:
         """批量获取 SRA 数据集摘要

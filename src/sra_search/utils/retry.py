@@ -48,7 +48,7 @@ def calculate_delay(
     calculated = min(base_delay * (2 ** attempt), max_delay)
     jitter_range = calculated * jitter
     actual = calculated + random.uniform(-jitter_range, jitter_range)
-    return max(0.1, actual)
+    return float(max(0.1, actual))
 
 
 def with_retry(

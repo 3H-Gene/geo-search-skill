@@ -70,7 +70,7 @@ class OrganOntology:
         """获取形容词形式 (lung -> pulmonary)"""
         entry = self.resolve(name)
         if entry:
-            return entry.get("adjective", "")
+            return str(entry.get("adjective", ""))
         return ""
 
     def get_uberon_id(self, name: str) -> str | None:

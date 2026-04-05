@@ -137,7 +137,7 @@ class SearchAggregator:
             return []
 
         # 并发等待所有任务
-        results_list = await asyncio.gather(*tasks, return_exceptions=True)
+        results_list: list[list[DatasetSearchResult] | BaseException] = await asyncio.gather(*tasks, return_exceptions=True)  # type: ignore[assignment]
 
         # 合并结果（按 gse_id 去重）
         seen_gse_ids: set = set()
@@ -145,12 +145,12 @@ class SearchAggregator:
         source_raw_counts: dict[str, int] = {}
         for i, results in enumerate(results_list):
             source = source_labels[i] if i < len(source_labels) else "unknown"
-            if isinstance(results, Exception):
+            if isinstance(results, BaseException):
                 logger.error(f"Source {source} failed: {results}")
                 continue
             if results:
-                source_raw_counts[source] = len(results)
-                for r in results:
+                source_raw_counts[source] = len(results)  # type: ignore[arg-type]
+                for r in results:  # type: ignore[union-attr]
                     # 去重：同一 GSE ID 只保留第一个
                     gse_key = r.dataset.gse_id
                     if gse_key not in seen_gse_ids:

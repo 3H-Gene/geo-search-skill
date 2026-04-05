@@ -154,7 +154,7 @@ class BioAwareRanker:
             scored_records.append(record)
 
         # 按总分排序
-        scored_records.sort(key=lambda x: x.total_score, reverse=True)
+        scored_records.sort(key=lambda x: x["total_score"], reverse=True)
 
         # 截取 top N
         if top_n is not None and top_n > 0:
