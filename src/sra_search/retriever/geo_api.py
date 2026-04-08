@@ -226,6 +226,7 @@ class GeoRetriever:
     async def _fetch_summaries(self, gse_ids: list[str], session: aiohttp.ClientSession) -> list[GeoRecord]:
         """批量获取 GSE 摘要信息"""
         records = []
+        seen_accessions: set[str] = set()  # 用于去重，防止同一 GSE 从不同 UID 转换后重复
 
         # 分批处理（每次最多 200 个）
         batch_size = 200
@@ -257,18 +258,40 @@ class GeoRetriever:
                             continue
 
                         item = result[gse_id]
+
+                        # 优先使用 esummary 返回的 accession 字段（真实 GSE 编号）
+                        # GEO esearch 返回的是内部 GDS UID（如 200272217）
+                        # esummary 的 JSON 中 "accession" 字段才是真正的 GSE ID（如 "GSE272217"）
+                        accession = item.get("accession", "")
+                        if accession and accession.startswith("GSE"):
+                            gse_accession = accession
+                        else:
+                            # fallback：GDS UID 减去 200000000 得到 GSE 编号
+                            # 例：200272217 - 200000000 = 272217 → GSE272217
+                            try:
+                                uid_int = int(gse_id)
+                                if uid_int > 200000000:
+                                    gse_num = uid_int - 200000000
+                                    gse_accession = f"GSE{gse_num}"
+                                else:
+                                    gse_accession = f"GSE{gse_id}"
+                            except (ValueError, TypeError):
+                                gse_accession = f"GSE{gse_id}"
+
                         record = GeoRecord(
-                            gse_id=f"GSE{gse_id}",
+                            gse_id=gse_accession,
                             title=item.get("title", ""),
                             organism=item.get("organism", ""),
                             platform=item.get("platform", ""),
                             sample_count=item.get("sampleset", 0),
-                            pubmed_id=item.get("pubmedids", [{}])[0].get("value", ""),
+                            pubmed_id=item.get("pubmedids", [{}])[0].get("value", "") if item.get("pubmedids") else "",
                             publication_date=item.get("pubdate", ""),
                             summary=item.get("summary", ""),
                             keywords=item.get("keywords", "").split(", ") if item.get("keywords") else [],
                         )
-                        records.append(record)
+                        if gse_accession not in seen_accessions:
+                            seen_accessions.add(gse_accession)
+                            records.append(record)
 
             except Exception:
                 continue

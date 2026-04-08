@@ -182,6 +182,9 @@ class SearchAggregator:
                 logger.warning(f"GEO search failed: {result.error}")
                 return []
 
+            # 查询词列表，用于相关性评分
+            query_terms = [t.lower() for t in query.split() if len(t) > 2]
+
             records = []
             for geo_rec in result.records:
                 dataset = DatasetRecord(
@@ -197,10 +200,22 @@ class SearchAggregator:
                     has_gse=True,
                 )
                 dataset.update_hash()
+
+                # 基于标题+摘要对查询词的匹配情况调整分数
+                # 确保完全不相关的结果排名靠后
+                rec_text = (geo_rec.title + " " + geo_rec.summary).lower()
+                matched = sum(1 for t in query_terms if t in rec_text)
+                if query_terms:
+                    relevance_ratio = matched / len(query_terms)
+                    # GEO 直接命中基础分 0.8，按相关性比例加权
+                    geo_score = 0.4 + 0.4 * relevance_ratio
+                else:
+                    geo_score = 0.8
+
                 records.append(DatasetSearchResult(
                     dataset=dataset,
                     match_source=MatchSource.GEO.value,
-                    match_score=0.8,  # GEO 直接命中，分数较高
+                    match_score=geo_score,
                     matched_keyword=query,
                 ))
 
@@ -230,8 +245,17 @@ class SearchAggregator:
                 max_date=max_date,
             )
 
+            # 查询词列表（用于相关性检查）
+            query_terms = [t.lower() for t in query.split() if len(t) > 2]
+
             records = []
             for sra_rec in results:
+                # 对无 GSE 关联的纯 SRA 记录做相关性检查
+                # 避免无关的 SRP 数据集混入结果
+                title_lower = sra_rec.title.lower()
+                matched = sum(1 for t in query_terms if t in title_lower)
+                has_match = (not query_terms) or matched > 0
+
                 # SRA 结果中的 gse_ids 是从 study_alias 提取的
                 gse_ids = sra_rec.gse_ids
 
@@ -256,6 +280,11 @@ class SearchAggregator:
                             matched_keyword=query,
                         ))
                 else:
+                    # 无 GSE 编号：必须通过相关性检查才加入结果
+                    if not has_match:
+                        logger.debug(f"SRA: skipping unrelated SRA-only record {sra_rec.srp_id}: {sra_rec.title[:60]}")
+                        continue
+
                     # 无 GSE 编号，使用 SRP 作为主键
                     # 注意：srp_id 本身已带前缀（如 SRP570109），不要重复拼接
                     # 直接使用 srp_id 作为 gse_id（数据库层需通过前缀判断类型）
@@ -294,12 +323,28 @@ class SearchAggregator:
                 query, retmax, link_to_geo=True
             )
 
+            # 查询词列表，用于相关性检查
+            query_terms = [t.lower() for t in query.split() if len(t) > 2]
+
             records = []
             for pub_rec in pubmed_results:
-                # 从标题中提取 GSE 编号
+                # 相关性检查：论文标题或摘要必须与查询词相关
+                # 避免把无关论文的 GSE 关联也混入结果
+                pub_text = (pub_rec.title + " " + pub_rec.abstract).lower()
+                matched_terms = sum(1 for t in query_terms if t in pub_text)
+                if query_terms and matched_terms == 0:
+                    # 论文与查询词完全无关，跳过
+                    logger.debug(f"PubMed: skipping unrelated paper PMID={pub_rec.pmid}: {pub_rec.title[:60]}")
+                    continue
+
+                # 从标题中提取 GSE 编号（格式为 GSE + 4位以上数字）
                 title_gse_ids = re.findall(r"\bGSE\d{4,}\b", pub_rec.title)
                 # 从 ELink 关联的 GSE 编号
-                linked_gse_ids = pub_rec.gse_ids
+                # 注意：ELink 返回的可能是 GDS 内部数字 UID（如 "100272217"），需要过滤
+                linked_gse_ids = [
+                    g for g in pub_rec.gse_ids
+                    if g.startswith("GSE")  # 只保留格式正确的 GSE ID
+                ]
                 # 合并去重
                 all_gse_ids = list(dict.fromkeys(title_gse_ids + linked_gse_ids))
 

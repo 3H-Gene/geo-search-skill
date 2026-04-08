@@ -13,17 +13,19 @@ from sra_search.schema import (
     SearchResultSchema,
 )
 
-# perturbation 检测关键词
+# perturbation 检测关键词（仅保留明确指示干预实验的词，避免误报）
 PERTURBATION_KEYWORDS: dict[str, list[str]] = {
-    "CRISPR": ["crispr", "cas9", "sgRNA", "sgrna", "gene editing", "genome editing"],
-    "KNOCKOUT": ["knockout", "ko ", " KO ", "deletion", "null mutation"],
-    "KNOCKDOWN": ["knockdown", "kd ", " RNAi", "silencing", "mirna", "sirna"],
-    "DRUG": ["drug", "treatment", "inhibitor", "compound", "therapy", "chemotherapy"],
-    "STIMULATION": ["stimulat", "treatment", "induced", "activate", "treat"],
-    "OVEREXPRESSION": ["overexpress", "oe ", "over-expression", "transgenic", "ectopic"],
-    "SIRNA": ["sirna", "shrna", "rna interference", "rnai"],
-    "CHEMICAL": ["chemical", "toxic", "expose", "pollutant", "stress"],
-    "RADIATION": ["radiation", "irradiat", "uv ", "gamma", "x-ray"],
+    "CRISPR": ["crispr", "cas9", "sgrna", "guide rna", "gene editing", "genome editing", "crispr-cas"],
+    "KNOCKOUT": ["knockout", " ko ", "knock-out", "null mutation", "gene deletion", "gene disruption"],
+    "KNOCKDOWN": ["knockdown", "knock-down", " rnai", "rna interference", "sirna", "shrna"],
+    "DRUG": ["drug treatment", "drug exposure", "inhibitor treatment", "compound treatment",
+             "pharmacological", "chemotherapy", "treated with", "dose response"],
+    "OVEREXPRESSION": ["overexpression", "overexpress", "over-expression", "transgenic", "ectopic expression"],
+    "SIRNA": ["sirna", "shrna", "mirna mimic", "antisense oligonucleotide"],
+    "CHEMICAL": ["chemical exposure", "toxic", "pollutant exposure", "oxidative stress", "genotoxic"],
+    "RADIATION": ["radiation", "irradiation", "gamma irradiation", "uv irradiation", "x-ray irradiation"],
+    "STIMULATION": ["cytokine stimulation", "lps stimulation", "tcr stimulation", "bcr stimulation",
+                    "growth factor stimulation", "ifn stimulation", "tnf stimulation"],
 }
 
 
@@ -157,24 +159,31 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     """
     score = 0.0
 
-    # 查询词在标题中的匹配
     query_terms = query.lower().split()
+    if not query_terms:
+        return 0.0
+
     title_lower = dataset.title.lower()
-    matched = sum(1 for t in query_terms if t in title_lower)
-    if query_terms:
-        score += 0.5 * (matched / len(query_terms))
+    summary_lower = dataset.summary.lower() if dataset.summary else ""
+    keywords_text = " ".join(dataset.keywords).lower()
 
-    # 查询词在摘要/关键词中的匹配
-    summary_keywords = (dataset.summary + " " + " ".join(dataset.keywords)).lower()
-    matched = sum(1 for t in query_terms if t in summary_keywords)
-    if query_terms:
-        score += 0.3 * (matched / len(query_terms))
+    # 1. 标题中的全词精确匹配（权重最高）
+    title_matched = sum(1 for t in query_terms if t in title_lower)
+    score += 0.5 * (title_matched / len(query_terms))
 
-    # 疾病/组织匹配加成
+    # 2. 短语匹配加成（查询词作为短语整体在标题中出现）
+    if query.lower() in title_lower:
+        score += 0.15
+
+    # 3. 摘要/关键词匹配（较低权重）
+    summary_matched = sum(1 for t in query_terms if t in summary_lower or t in keywords_text)
+    score += 0.2 * (summary_matched / len(query_terms))
+
+    # 4. 疾病/组织字段匹配加成
     if dataset.disease and any(t in dataset.disease.lower() for t in query_terms):
         score += 0.1
     if dataset.tissue and any(t in dataset.tissue.lower() for t in query_terms):
-        score += 0.1
+        score += 0.05
 
     return min(score, 1.0)
 
