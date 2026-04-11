@@ -194,6 +194,7 @@ class SearchAggregator:
                     platform=geo_rec.platform,
                     sample_count=geo_rec.sample_count,
                     pubmed_ids=[geo_rec.pubmed_id] if geo_rec.pubmed_id else [],
+                    bioproject_ids=[geo_rec.bioproject_id] if geo_rec.bioproject_id else [],
                     publication_date=geo_rec.publication_date,
                     abstract=geo_rec.summary,
                     keywords=geo_rec.keywords,
@@ -248,63 +249,105 @@ class SearchAggregator:
             # 查询词列表（用于相关性检查）
             query_terms = [t.lower() for t in query.split() if len(t) > 2]
 
-            records = []
+            # ── 第一步：按 GSE ID 聚合同一研究的多个 SRX/SRR ──────────────
+            # SRA EFetch 每个 EXPERIMENT_PACKAGE 只含一个 SRX，sample_count 只是
+            # 该 package 内的 SAMPLE 数（通常为 1）。需要把同一 GSE 的所有 packages
+            # 合并，累加 sample_count，才能得到正确的样本总数。
+            #
+            # 数据结构：
+            #   gse_groups:  gse_id → list[SRAResult]
+            #   srp_singles: srp_id → SRAResult  （无 GSE 关联的纯 SRA 记录）
+            gse_groups: dict[str, list] = {}
+            srp_singles: dict[str, object] = {}
+
             for sra_rec in results:
-                # 对无 GSE 关联的纯 SRA 记录做相关性检查
-                # 避免无关的 SRP 数据集混入结果
-                title_lower = sra_rec.title.lower()
+                if sra_rec.gse_ids:
+                    # 归入第一个 GSE 分组（通常只有一个 GSE）
+                    primary_gse = sra_rec.gse_ids[0]
+                    if primary_gse not in gse_groups:
+                        gse_groups[primary_gse] = []
+                    gse_groups[primary_gse].append(sra_rec)
+                else:
+                    # 无 GSE，以 srp_id 为 key 去重
+                    if sra_rec.srp_id not in srp_singles:
+                        srp_singles[sra_rec.srp_id] = sra_rec
+
+            records: list[DatasetSearchResult] = []
+
+            # ── 第二步：处理有 GSE 关联的聚合组 ─────────────────────────────
+            for gse_id, group in gse_groups.items():
+                # 取第一个 record 作为代表（标题、organism、platform 等）
+                rep = group[0]
+
+                # 累计 sample_count：
+                #   - 收集所有 unique SRX ID（每个 SRX 对应一个样本）
+                #   - 若 SRX 为空，退而使用 run_count 之和
+                all_srx: set[str] = set()
+                total_runs = 0
+                for r in group:
+                    all_srx.update(r.srx_ids)
+                    total_runs += r.run_count
+
+                # SRX 数量是最好的"样本数"代理（每个 SRX = 一个实验/样本）
+                agg_sample_count = len(all_srx) if all_srx else max(
+                    sum(r.sample_count for r in group),
+                    total_runs,
+                )
+
+                # 合并 SRP/SRR/BioProject ID 列表
+                all_srp_ids = list(dict.fromkeys(r.srp_id for r in group))
+                all_srr_ids: list[str] = []
+                all_bp_ids: set[str] = set()
+                for r in group:
+                    all_srr_ids.extend(r.srr_ids)
+                    all_bp_ids.update(r.bioproject_ids)
+
+                dataset = DatasetRecord(
+                    gse_id=gse_id,
+                    title=rep.title,
+                    organism=rep.organism,
+                    platform=rep.platform,
+                    sample_count=agg_sample_count,
+                    sra_ids=all_srp_ids,
+                    bioproject_ids=list(all_bp_ids),
+                    has_gse=True,
+                )
+                dataset.update_hash()
+                records.append(DatasetSearchResult(
+                    dataset=dataset,
+                    match_source=MatchSource.SRA.value,
+                    match_score=0.6,
+                    matched_keyword=query,
+                ))
+
+            # ── 第三步：处理无 GSE 的纯 SRA 记录 ────────────────────────────
+            for srp_id, sra_rec in srp_singles.items():
+                # 无 GSE 编号：必须通过相关性检查才加入结果
+                title_lower = sra_rec.title.lower()  # type: ignore[union-attr]
                 matched = sum(1 for t in query_terms if t in title_lower)
                 has_match = (not query_terms) or matched > 0
 
-                # SRA 结果中的 gse_ids 是从 study_alias 提取的
-                gse_ids = sra_rec.gse_ids
+                if not has_match:
+                    logger.debug(f"SRA: skipping unrelated SRA-only record {srp_id}: {sra_rec.title[:60]}")  # type: ignore[union-attr]
+                    continue
 
-                if gse_ids:
-                    # 有 GSE 编号，创建 DatasetRecord
-                    for gse_id in gse_ids[:3]:  # 最多取3个
-                        dataset = DatasetRecord(
-                            gse_id=gse_id,
-                            title=sra_rec.title,
-                            organism=sra_rec.organism,
-                            platform=sra_rec.platform,
-                            sample_count=sra_rec.sample_count,
-                            sra_ids=[sra_rec.srp_id],
-                            bioproject_ids=sra_rec.bioproject_ids,
-                            has_gse=True,
-                        )
-                        dataset.update_hash()
-                        records.append(DatasetSearchResult(
-                            dataset=dataset,
-                            match_source=MatchSource.SRA.value,
-                            match_score=0.6,
-                            matched_keyword=query,
-                        ))
-                else:
-                    # 无 GSE 编号：必须通过相关性检查才加入结果
-                    if not has_match:
-                        logger.debug(f"SRA: skipping unrelated SRA-only record {sra_rec.srp_id}: {sra_rec.title[:60]}")
-                        continue
-
-                    # 无 GSE 编号，使用 SRP 作为主键
-                    # 注意：srp_id 本身已带前缀（如 SRP570109），不要重复拼接
-                    # 直接使用 srp_id 作为 gse_id（数据库层需通过前缀判断类型）
-                    dataset = DatasetRecord(
-                        gse_id=sra_rec.srp_id,
-                        title=sra_rec.title,
-                        organism=sra_rec.organism,
-                        platform=sra_rec.platform,
-                        sample_count=sra_rec.sample_count,
-                        sra_ids=[sra_rec.srp_id],
-                        bioproject_ids=sra_rec.bioproject_ids,
-                        has_gse=False,
-                    )
-                    dataset.update_hash()
-                    records.append(DatasetSearchResult(
-                        dataset=dataset,
-                        match_source=MatchSource.SRA.value,
-                        match_score=0.4,
-                        matched_keyword=query,
-                    ))
+                dataset = DatasetRecord(
+                    gse_id=srp_id,
+                    title=sra_rec.title,  # type: ignore[union-attr]
+                    organism=sra_rec.organism,  # type: ignore[union-attr]
+                    platform=sra_rec.platform,  # type: ignore[union-attr]
+                    sample_count=sra_rec.sample_count,  # type: ignore[union-attr]
+                    sra_ids=[srp_id],
+                    bioproject_ids=sra_rec.bioproject_ids,  # type: ignore[union-attr]
+                    has_gse=False,
+                )
+                dataset.update_hash()
+                records.append(DatasetSearchResult(
+                    dataset=dataset,
+                    match_source=MatchSource.SRA.value,
+                    match_score=0.4,
+                    matched_keyword=query,
+                ))
 
             return records
 

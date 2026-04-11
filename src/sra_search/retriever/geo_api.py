@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import aiohttp
+from loguru import logger
 
 from sra_search.cache import QueryCache
 
@@ -35,6 +36,7 @@ class GeoRecord:
     publication_date: str = ""
     summary: str = ""
     keywords: list[str] = field(default_factory=list)
+    bioproject_id: str = ""  # GEO esummary 的 bioproject 字段
 
     # 原始数据（可选）
     raw_data: dict[str, Any] = field(default_factory=dict)
@@ -50,6 +52,7 @@ class GeoRecord:
             "publication_date": self.publication_date,
             "summary": self.summary,
             "keywords": self.keywords,
+            "bioproject_id": self.bioproject_id,
         }
 
     def compute_hash(self) -> str:
@@ -248,9 +251,15 @@ class GeoRetriever:
             try:
                 async with session.get(summary_url, params=params) as resp:
                     if resp.status != 200:
+                        logger.warning(f"GEO esummary HTTP {resp.status} for batch {i}")
                         continue
 
-                    data = await resp.json()
+                    # content_type=None: 兼容 NCBI 有时返回 text/html content-type 的情况
+                    try:
+                        data = await resp.json(content_type=None)
+                    except Exception as json_err:
+                        logger.warning(f"GEO esummary JSON parse error: {json_err}")
+                        continue
                     result = data.get("result", {})
 
                     for gse_id in batch:
@@ -281,13 +290,20 @@ class GeoRetriever:
                         record = GeoRecord(
                             gse_id=gse_accession,
                             title=item.get("title", ""),
-                            organism=item.get("organism", ""),
-                            platform=item.get("platform", ""),
-                            sample_count=item.get("sampleset", 0),
-                            pubmed_id=item.get("pubmedids", [{}])[0].get("value", "") if item.get("pubmedids") else "",
-                            publication_date=item.get("pubdate", ""),
+                            # GEO esummary 字段名（已通过 API 实测确认）：
+                            #   taxon      → organism（物种学名）
+                            #   gpl        → platform（GPL 平台编号）
+                            #   n_samples  → sample_count（样品总数）
+                            #   pdat       → publication_date（入库日期）
+                            #   pubmedids  → list[str]（直接是 PMID 字符串，非嵌套对象）
+                            organism=item.get("taxon", ""),
+                            platform=item.get("gpl", ""),
+                            sample_count=int(item.get("n_samples", 0) or 0),
+                            pubmed_id=item.get("pubmedids", [""])[0] if item.get("pubmedids") else "",
+                            publication_date=item.get("pdat", ""),
                             summary=item.get("summary", ""),
-                            keywords=item.get("keywords", "").split(", ") if item.get("keywords") else [],
+                            keywords=[],  # GEO esummary 无 keywords 字段
+                            bioproject_id=item.get("bioproject", ""),
                         )
                         if gse_accession not in seen_accessions:
                             seen_accessions.add(gse_accession)
@@ -312,8 +328,13 @@ class GeoRetriever:
         self._last_request_time = time.time()
 
     def _deserialize_records(self, data: list[dict]) -> list[GeoRecord]:
-        """反序列化记录"""
-        return [GeoRecord(**r) for r in data]
+        """反序列化记录（兼容旧缓存格式）"""
+        records = []
+        for r in data:
+            # 旧缓存可能缺少 bioproject_id 字段，提供默认值
+            r.setdefault("bioproject_id", "")
+            records.append(GeoRecord(**r))
+        return records
 
 
 class FailureHandler:
