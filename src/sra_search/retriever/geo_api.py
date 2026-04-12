@@ -160,6 +160,67 @@ class GeoRetriever:
                 error=str(e),
             )
 
+    async def gse_exists(self, gse_id: str) -> bool:
+        """验证单个 GSE ID 是否在 GEO 数据库中真实存在。
+
+        SRA 元数据的 study_alias 字段是自由文本，任何字符串都可以放进去。
+        此方法通过 esearch 确认 GSE ID 确实存在于 GEO（count > 0）。
+
+        Args:
+            gse_id: GSE 编号，如 "GSE108395887"
+
+        Returns:
+            True if the GSE exists in GEO, False otherwise.
+        """
+        try:
+            params = {
+                "db": "gds",
+                "term": gse_id,
+                "retmax": 1,
+                "email": self.email,
+            }
+            if self.api_key:
+                params["api_key"] = self.api_key
+
+            await self._rate_limit()
+
+            async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(ssl=False)
+            ) as session:
+                async with session.get(
+                    f"{self.BASE_URL}/esearch.fcgi", params=params
+                ) as resp:
+                    if resp.status != 200:
+                        return False
+                    text = await resp.text()
+                    import xml.etree.ElementTree as ET
+
+                    root = ET.fromstring(text)
+                    count_elem = root.find("Count")
+                    if count_elem is None:
+                        return False
+                    return int(count_elem.text or "0") > 0
+        except Exception:
+            # 网络错误时保守处理：不过滤，保留该 GSE
+            return True
+
+    async def filter_valid_gse_ids(self, gse_ids: list[str]) -> list[str]:
+        """批量验证 GSE ID 列表，返回仅存在于 GEO 的 ID。
+
+        Args:
+            gse_ids: GSE 编号列表
+
+        Returns:
+            仅存在于 GEO 的 GSE ID 列表（保持原顺序）
+        """
+        if not gse_ids:
+            return []
+        valid: list[str] = []
+        for gid in gse_ids:
+            if await self.gse_exists(gid):
+                valid.append(gid)
+        return valid
+
     async def _do_search(self, query: str, retmax: int, retry: int = 0) -> RetrievalResult:
         """执行实际搜索（带重试）"""
         max_retries = 3

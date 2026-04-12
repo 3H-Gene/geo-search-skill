@@ -276,6 +276,18 @@ class SearchAggregator:
 
             # ── 第二步：处理有 GSE 关联的聚合组 ─────────────────────────────
             for gse_id, group in gse_groups.items():
+                # SRA study_alias 是自由文本，可能包含虚假 GSE 编号。
+                # 必须验证 GSE 是否在 GEO 中真实存在，否则跳过。
+                if not await self._geo_retriever.gse_exists(gse_id):
+                    logger.debug(
+                        f"SRA: gse_id {gse_id} not found in GEO, "
+                        f"treating as SRA-only record {group[0].srp_id}"
+                    )
+                    # 降为纯 SRA 处理（复用 srp_singles 逻辑）
+                    if group[0].srp_id not in srp_singles:
+                        srp_singles[group[0].srp_id] = group[0]
+                    continue
+
                 # 取第一个 record 作为代表（标题、organism、platform 等）
                 rep = group[0]
 
