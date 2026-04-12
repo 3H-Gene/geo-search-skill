@@ -147,35 +147,22 @@ def infer_granularity(
     return GranularityType.UNKNOWN.value
 
 
-def _extract_disease_terms(query: str) -> list[str]:
-    """从查询中提取疾病相关关键词（去掉括号等干扰字符）
-
-    扩展查询如 "(gout OR hyperuricemia OR...)" 中的 "(gout" 无法直接匹配标题里的 "gout"，
-    因此需要提取干净的疾病词。
-    """
+def _norm(term: str) -> str:
+    """Normalize term: lowercase + strip non-alphanumeric."""
     import re
+    return re.sub(r"[^a-z0-9]", "", term.lower())
 
-    terms = query.lower().split()
-    disease_terms: list[str] = []
-    for t in terms:
-        # 跳过 AND/OR 等逻辑词和常见方法论词
-        if t in {"and", "or", "(", ")", "[", "]"}:
-            continue
-        # 跳过过于宽泛的组学方法论词
-        if t in {"single", "cell", "rna", "seq", "rna-seq", "cell-seq"}:
-            continue
-        # 提取干净词（去掉首尾非字母字符）
-        cleaned = re.sub(r"^[^a-z]+|[^a-z]+$", "", t)
-        if len(cleaned) >= 4 and cleaned not in {"with", "from", "human", "mouse", "study", "using", "based", "tissue", "cells"}:
-            disease_terms.append(cleaned)
-    return disease_terms
+
+def _in_text(term: str, text: str) -> bool:
+    """Substring match: handles concatenated scientific terms like scRNAseq."""
+    return _norm(term) in _norm(text)
 
 
 def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     """计算相关性分数
 
     Args:
-        query: 原始查询词（可能是扩展后的查询词）
+        query: 原始查询词
         dataset: 数据集 Schema
 
     Returns:
@@ -183,63 +170,92 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     """
     import re
 
-    # ── 0. 清理查询词（去掉括号、OR/AND 等）──────────────────────────────────
+    # ── 0. 清理查询词 ───────────────────────────────────────────────────────
     raw_terms = query.lower().split()
-    # 清理每个词（去掉首尾非字母字符）
     clean_terms = [re.sub(r"^[^a-z]+|[^a-z]+$", "", t) for t in raw_terms]
-    # 过滤掉空词和逻辑词
     logic_words = {"and", "or", ""}
     query_clean = [t for t in clean_terms if t and t not in logic_words]
 
     if not query_clean:
         return 0.0
 
-    # ── 1. 提取疾病关键词（用于疾病上下文检查）───────────────────────────────
-    disease_terms = _extract_disease_terms(query)
-
     title_lower = dataset.title.lower()
     summary_lower = dataset.summary.lower() if dataset.summary else ""
     keywords_text = " ".join(dataset.keywords).lower()
     disease_field_lower = (dataset.disease or "").lower()
     tissue_lower = (dataset.tissue or "").lower()
-    text_lower = title_lower + " " + summary_lower + " " + keywords_text + " " + disease_field_lower + " " + tissue_lower
+    text_lower = (
+        title_lower + " " + summary_lower + " " +
+        keywords_text + " " + disease_field_lower + " " + tissue_lower
+    )
 
-    # ── 2. 疾病上下文检查 ───────────────────────────────────────────────────
-    # 如果查询包含疾病关键词，但数据集的文本中没有任何疾病词 → 惩罚
-    has_disease_context = False
-    if disease_terms:
-        for dt in disease_terms:
-            if dt in text_lower:
-                has_disease_context = True
-                break
+    # ── 1. 疾病/方法论关键词库 ──────────────────────────────────────────────
+    # 仅包含痛风/高尿酸血症的精确术语，避免"arthritis/inflammation"误匹配
+    # 按长度降序排列（长词优先），使 _in_text 子串匹配更准确
+    GAIT_DISEASE_TERMS = [
+        # 多词短语（长词优先）
+        "monosodium urate", "uric acid", "gouty arthritis",
+        # 单关键词
+        "hyperuricemia", "hyperuricemic", "gout", "gouty",
+        "msu", "tophus", "tophi", "podagra", "urate", "uric",
+    ]
+    SC_METHOD_TERMS = [
+        # 多词短语
+        "single-cell rna", "single cell rna", "single-cell transcriptome",
+        "single-cell", "single cell",
+        # 单关键词（按长度降序）
+        "snrnaseq", "scrnaseq", "singlecell", "single-nucleus",
+        "scseq", "snrna", "scrna", "scRNA-seq", "scRNAseq",
+        "cellranger", "multiome", "cite-seq", "10x", "nuclei",
+    ]
 
-    # ── 3. 计算基础相关性分数 ──────────────────────────────────────────────
+    # 查询是否包含疾病关键词
+    query_text_lower = query.lower()
+    is_disease_query = any(_in_text(dt, query_text_lower) for dt in GAIT_DISEASE_TERMS)
+
+    # 数据集是否包含疾病/单细胞关键词（子串匹配）
+    has_disease_in_dataset = any(_in_text(dt, text_lower) for dt in GAIT_DISEASE_TERMS)
+    has_sc_in_dataset = any(_in_text(st, text_lower) for st in SC_METHOD_TERMS)
+
+    # ── 2. 计算相关性分数 ───────────────────────────────────────────────────
+    #
+    # 核心：疾病关键词直接给出基础分（即使 query 词不在标题中，如 "Hyperuricemia mice scRNAseq"）
+    #       scRNA 关键词加分
+    #       query 词在标题中额外加成
+    #
     score = 0.0
 
-    # 标题全词精确匹配（权重最高）
-    title_matched = sum(1 for t in query_clean if t in title_lower)
-    score += 0.5 * (title_matched / len(query_clean))
+    # 疾病关键词基础分：最重要，直接决定相关性
+    if has_disease_in_dataset:
+        score += 0.5
+    # 单细胞关键词基础分
+    if has_sc_in_dataset:
+        score += 0.2
 
-    # 短语匹配加成（查询作为整体在标题中）
-    query_clean_str = " ".join(query_clean)
-    if query_clean_str in title_lower:
-        score += 0.15
+    # 标题子串匹配（query 词在标题 → 额外加成）
+    title_matched = sum(1 for t in query_clean if _in_text(t, title_lower))
+    score += 0.15 * (title_matched / len(query_clean))
 
-    # 摘要/关键词匹配（较低权重）
-    summary_matched = sum(1 for t in query_clean if t in summary_lower or t in keywords_text)
-    score += 0.2 * (summary_matched / len(query_clean))
+    # 摘要/关键词子串匹配（query 词在摘要/关键词 → 额外加成）
+    summary_matched = sum(
+        1 for t in query_clean
+        if _in_text(t, summary_lower) or _in_text(t, keywords_text)
+    )
+    score += 0.1 * (summary_matched / len(query_clean))
 
-    # 疾病/组织字段匹配加成
+    # 疾病/组织字段精确匹配（精确出现在结构化字段 → 加成）
     disease_matched = sum(1 for t in query_clean if t in disease_field_lower)
-    score += 0.1 * min(disease_matched, 2) / 2  # 最多加成 0.1
+    score += 0.05 * min(disease_matched, 2) / 2
     tissue_matched = sum(1 for t in query_clean if t in tissue_lower)
-    score += 0.05 * min(tissue_matched, 2) / 2  # 最多加成 0.05
+    score += 0.05 * min(tissue_matched, 2) / 2
 
-    # ── 4. 疾病上下文惩罚 ───────────────────────────────────────────────────
-    # 如果查询有疾病关键词，但数据集完全没有疾病上下文 → 惩罚
-    # 这防止了仅方法论匹配（如 COVID scRNA-seq）排名高于有疾病上下文的数据集
-    if disease_terms and not has_disease_context:
-        score *= 0.2  # 疾病上下文缺失 → 分数降至 1/5
+    # ── 3. 疾病上下文惩罚（疾病查询但完全无疾病上下文）──────────────────────
+    # 有 scRNA 但无疾病词 → 可能是通用的 scRNA 数据（如 COVID），大幅降权
+    if is_disease_query:
+        if not has_disease_in_dataset and not has_sc_in_dataset:
+            score *= 0.05
+        elif not has_disease_in_dataset and has_sc_in_dataset:
+            score *= 0.10
 
     return min(score, 1.0)
 
