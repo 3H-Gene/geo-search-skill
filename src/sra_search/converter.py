@@ -147,43 +147,99 @@ def infer_granularity(
     return GranularityType.UNKNOWN.value
 
 
+def _extract_disease_terms(query: str) -> list[str]:
+    """从查询中提取疾病相关关键词（去掉括号等干扰字符）
+
+    扩展查询如 "(gout OR hyperuricemia OR...)" 中的 "(gout" 无法直接匹配标题里的 "gout"，
+    因此需要提取干净的疾病词。
+    """
+    import re
+
+    terms = query.lower().split()
+    disease_terms: list[str] = []
+    for t in terms:
+        # 跳过 AND/OR 等逻辑词和常见方法论词
+        if t in {"and", "or", "(", ")", "[", "]"}:
+            continue
+        # 跳过过于宽泛的组学方法论词
+        if t in {"single", "cell", "rna", "seq", "rna-seq", "cell-seq"}:
+            continue
+        # 提取干净词（去掉首尾非字母字符）
+        cleaned = re.sub(r"^[^a-z]+|[^a-z]+$", "", t)
+        if len(cleaned) >= 4 and cleaned not in {"with", "from", "human", "mouse", "study", "using", "based", "tissue", "cells"}:
+            disease_terms.append(cleaned)
+    return disease_terms
+
+
 def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     """计算相关性分数
 
     Args:
-        query: 原始查询词
+        query: 原始查询词（可能是扩展后的查询词）
         dataset: 数据集 Schema
 
     Returns:
         0-1 之间的相关性分数
     """
-    score = 0.0
+    import re
 
-    query_terms = query.lower().split()
-    if not query_terms:
+    # ── 0. 清理查询词（去掉括号、OR/AND 等）──────────────────────────────────
+    raw_terms = query.lower().split()
+    # 清理每个词（去掉首尾非字母字符）
+    clean_terms = [re.sub(r"^[^a-z]+|[^a-z]+$", "", t) for t in raw_terms]
+    # 过滤掉空词和逻辑词
+    logic_words = {"and", "or", ""}
+    query_clean = [t for t in clean_terms if t and t not in logic_words]
+
+    if not query_clean:
         return 0.0
+
+    # ── 1. 提取疾病关键词（用于疾病上下文检查）───────────────────────────────
+    disease_terms = _extract_disease_terms(query)
 
     title_lower = dataset.title.lower()
     summary_lower = dataset.summary.lower() if dataset.summary else ""
     keywords_text = " ".join(dataset.keywords).lower()
+    disease_field_lower = (dataset.disease or "").lower()
+    tissue_lower = (dataset.tissue or "").lower()
+    text_lower = title_lower + " " + summary_lower + " " + keywords_text + " " + disease_field_lower + " " + tissue_lower
 
-    # 1. 标题中的全词精确匹配（权重最高）
-    title_matched = sum(1 for t in query_terms if t in title_lower)
-    score += 0.5 * (title_matched / len(query_terms))
+    # ── 2. 疾病上下文检查 ───────────────────────────────────────────────────
+    # 如果查询包含疾病关键词，但数据集的文本中没有任何疾病词 → 惩罚
+    has_disease_context = False
+    if disease_terms:
+        for dt in disease_terms:
+            if dt in text_lower:
+                has_disease_context = True
+                break
 
-    # 2. 短语匹配加成（查询词作为短语整体在标题中出现）
-    if query.lower() in title_lower:
+    # ── 3. 计算基础相关性分数 ──────────────────────────────────────────────
+    score = 0.0
+
+    # 标题全词精确匹配（权重最高）
+    title_matched = sum(1 for t in query_clean if t in title_lower)
+    score += 0.5 * (title_matched / len(query_clean))
+
+    # 短语匹配加成（查询作为整体在标题中）
+    query_clean_str = " ".join(query_clean)
+    if query_clean_str in title_lower:
         score += 0.15
 
-    # 3. 摘要/关键词匹配（较低权重）
-    summary_matched = sum(1 for t in query_terms if t in summary_lower or t in keywords_text)
-    score += 0.2 * (summary_matched / len(query_terms))
+    # 摘要/关键词匹配（较低权重）
+    summary_matched = sum(1 for t in query_clean if t in summary_lower or t in keywords_text)
+    score += 0.2 * (summary_matched / len(query_clean))
 
-    # 4. 疾病/组织字段匹配加成
-    if dataset.disease and any(t in dataset.disease.lower() for t in query_terms):
-        score += 0.1
-    if dataset.tissue and any(t in dataset.tissue.lower() for t in query_terms):
-        score += 0.05
+    # 疾病/组织字段匹配加成
+    disease_matched = sum(1 for t in query_clean if t in disease_field_lower)
+    score += 0.1 * min(disease_matched, 2) / 2  # 最多加成 0.1
+    tissue_matched = sum(1 for t in query_clean if t in tissue_lower)
+    score += 0.05 * min(tissue_matched, 2) / 2  # 最多加成 0.05
+
+    # ── 4. 疾病上下文惩罚 ───────────────────────────────────────────────────
+    # 如果查询有疾病关键词，但数据集完全没有疾病上下文 → 惩罚
+    # 这防止了仅方法论匹配（如 COVID scRNA-seq）排名高于有疾病上下文的数据集
+    if disease_terms and not has_disease_context:
+        score *= 0.2  # 疾病上下文缺失 → 分数降至 1/5
 
     return min(score, 1.0)
 
@@ -208,7 +264,9 @@ def compute_recency_score(publication_date: str) -> float:
             year = int(publication_date)
             pub_date = datetime(year, 1, 1, tzinfo=timezone.utc)
         else:
-            pub_date = datetime.fromisoformat(publication_date.replace("Z", "+00:00"))
+            # 兼容 GEO 格式 "2021/02/04" 和 ISO 格式 "2021-02-04"
+            normalized = publication_date.replace("/", "-").replace("Z", "+00:00")
+            pub_date = datetime.fromisoformat(normalized).replace(tzinfo=timezone.utc)
 
         # 计算年龄（年）
         now = datetime.now(timezone.utc)
