@@ -302,6 +302,12 @@ class SearchResultSchema:
     # === 扩展查询词（用于调试） ===
     expanded_queries: list[str] = field(default_factory=list)
 
+    # === LLM 辅助字段（V2 新增，可选） ===
+    llm_summary: str = ""          # LLM 生成的结果摘要
+    llm_model: str = ""            # 使用的 LLM 模型
+    llm_scored_count: int = 0      # 经 LLM 评分的数据集数量
+    llm_query_intent: dict[str, Any] = field(default_factory=dict)  # LLM 解析的查询意图
+
     # === 元数据 ===
     query_hash: str = ""
     searched_at: str = field(default_factory=_now_iso)
@@ -358,7 +364,7 @@ class SearchResultSchema:
     def to_dict(self) -> dict[str, Any]:
         """转换为字典（JSON 序列化）"""
         self.query_hash = self.compute_hash()
-        return {
+        d: dict[str, Any] = {
             "query": self.query,
             "total_found": self.total_found,
             "results": [r.to_dict() for r in self.results],
@@ -367,6 +373,14 @@ class SearchResultSchema:
             "query_hash": self.query_hash,
             "searched_at": self.searched_at,
         }
+        # 仅当 LLM 功能被使用时才包含相关字段
+        if self.llm_summary or self.llm_model or self.llm_scored_count:
+            d["llm_summary"] = self.llm_summary
+            d["llm_model"] = self.llm_model
+            d["llm_scored_count"] = self.llm_scored_count
+        if self.llm_query_intent:
+            d["llm_query_intent"] = self.llm_query_intent
+        return d
 
     def to_summary(self, top_n: int = 10) -> dict[str, Any]:
         """生成结果摘要（用于 Agent 决策）"""

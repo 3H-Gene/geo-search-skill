@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+from typing import TYPE_CHECKING
+
 from sra_search.metadata_extractor.models import DatasetRecord, OmicsGranularity
 from sra_search.schema import (
     DatasetSchema,
@@ -12,6 +14,9 @@ from sra_search.schema import (
     GranularityType,
     SearchResultSchema,
 )
+
+if TYPE_CHECKING:
+    from sra_search.llm.client import LLMClient
 
 # perturbation 检测关键词（仅保留明确指示干预实验的词，避免误报）
 PERTURBATION_KEYWORDS: dict[str, list[str]] = {
@@ -192,14 +197,14 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     # ── 1. 疾病/方法论关键词库 ──────────────────────────────────────────────
     # 仅包含痛风/高尿酸血症的精确术语，避免"arthritis/inflammation"误匹配
     # 按长度降序排列（长词优先），使 _in_text 子串匹配更准确
-    GAIT_DISEASE_TERMS = [
+    gait_disease_terms = [  # noqa: N806
         # 多词短语（长词优先）
         "monosodium urate", "uric acid", "gouty arthritis",
         # 单关键词
         "hyperuricemia", "hyperuricemic", "gout", "gouty",
         "msu", "tophus", "tophi", "podagra", "urate", "uric",
     ]
-    SC_METHOD_TERMS = [
+    sc_method_terms = [  # noqa: N806
         # 多词短语
         "single-cell rna", "single cell rna", "single-cell transcriptome",
         "single-cell", "single cell",
@@ -211,11 +216,11 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
 
     # 查询是否包含疾病关键词
     query_text_lower = query.lower()
-    is_disease_query = any(_in_text(dt, query_text_lower) for dt in GAIT_DISEASE_TERMS)
+    is_disease_query = any(_in_text(dt, query_text_lower) for dt in gait_disease_terms)
 
     # 数据集是否包含疾病/单细胞关键词（子串匹配）
-    has_disease_in_dataset = any(_in_text(dt, text_lower) for dt in GAIT_DISEASE_TERMS)
-    has_sc_in_dataset = any(_in_text(st, text_lower) for st in SC_METHOD_TERMS)
+    has_disease_in_dataset = any(_in_text(dt, text_lower) for dt in gait_disease_terms)
+    has_sc_in_dataset = any(_in_text(st, text_lower) for st in sc_method_terms)
 
     # ── 2. 计算相关性分数 ───────────────────────────────────────────────────
     #
@@ -480,6 +485,127 @@ def records_to_search_result(
     query: str = "",
     top_n: int = 50,
 ) -> SearchResultSchema:
-    """便捷函数：批量转换并排序"""
+    """便捷函数：批量转换并排序（V1 关键词模式）"""
     converter = SchemaConverter(query)
     return converter.convert_batch(records, top_n=top_n)
+
+
+async def records_to_search_result_with_llm(
+    records: list[DatasetRecord],
+    query: str = "",
+    top_n: int = 50,
+    llm_client: LLMClient | None = None,
+    enable_ranking: bool = True,
+    enable_summary: bool = False,
+    enable_query_analysis: bool = True,
+    llm_top_k: int = 20,
+    llm_concurrency: int = 5,
+) -> SearchResultSchema:
+    """V2 增强版：批量转换 + LLM 语义评分（可选）+ 摘要（可选）
+
+    当 LLM 不可用时，自动回退到 V1 `records_to_search_result()`。
+
+    Args:
+        records: DatasetRecord 列表
+        query: 用户查询词
+        top_n: 返回前 N 个结果
+        llm_client: LLM 客户端，None 则从配置初始化
+        enable_ranking: 是否启用 LLM 语义评分（默认启用，前提是 LLM 可用）
+        enable_summary: 是否生成 LLM 摘要（默认不生成）
+        enable_query_analysis: 是否启用 LLM 查询意图分析（默认启用）
+        llm_top_k: LLM 评分的 top_k（只对前 N 个做 LLM 评分）
+        llm_concurrency: 并发请求数
+
+    Returns:
+        包含排序结果（可能包含 LLM 摘要）的 SearchResultSchema
+    """
+    from loguru import logger
+
+    # ── Step 1: V1 转换（关键词评分 + 基础排序）───────────────────────────
+    converter = SchemaConverter(query)
+    result = converter.convert_batch(records, top_n=top_n * 3)  # 先拿更多，LLM 重排后截取
+
+    # ── Step 2: 获取 LLM 客户端 ──────────────────────────────────────────
+    if llm_client is None:
+        from sra_search.llm.client import LLMClient
+        llm_client = LLMClient.from_config()
+
+    llm_available = llm_client.is_available()
+
+    if not llm_available:
+        # 回退到 V1：直接截取 top_n 返回
+        result.results = result.results[:top_n]
+        return result
+
+    # ── Step 3: LLM 查询意图分析（可选）──────────────────────────────────
+    if enable_query_analysis:
+        from sra_search.llm.query_analyzer import LLMQueryAnalyzer
+        analyzer = LLMQueryAnalyzer(llm_client)
+        intent = await analyzer.analyze(query)
+        if intent:
+            result.llm_query_intent = intent.to_dict()
+            logger.debug(f"LLM query intent: {intent.intent_summary!r}")
+
+    # ── Step 4: LLM 语义评分（可选）──────────────────────────────────────
+    llm_scored = 0
+    if enable_ranking:
+        from sra_search.llm.ranker import LLMRanker
+        settings = None
+        try:
+            from sra_search.config import get_settings
+            settings = get_settings()
+        except Exception:
+            pass
+
+        ttl = settings.llm_cache_ttl_hours if settings else 168
+        ranker = LLMRanker(client=llm_client, cache_ttl_hours=ttl)
+
+        scored_results = await ranker.score_batch(
+            datasets=result.results,
+            query=query,
+            top_k=llm_top_k,
+            concurrency=llm_concurrency,
+        )
+
+        if scored_results:
+            # 用 LLM 分数覆盖 relevance_score，重新排序
+            score_map = {ds.gse_id: score for ds, score in scored_results}
+            for ds in result.results:
+                if ds.gse_id in score_map:
+                    ds.relevance_score = score_map[ds.gse_id]
+
+            # 重新计算 total_score 并排序
+            weights = {"relevance": 0.5, "recency": 0.2, "quality": 0.15, "sample_size": 0.15}
+            for ds in result.results:
+                sample_score = min(ds.sample_count / 1000, 1.0) if ds.sample_count > 0 else 0
+                ds.total_score = (
+                    weights["relevance"] * ds.relevance_score
+                    + weights["recency"] * ds.recency_score
+                    + weights["quality"] * ds.quality_score
+                    + weights["sample_size"] * sample_score
+                )
+            result.results.sort(key=lambda x: x.total_score, reverse=True)
+
+            llm_scored = min(llm_top_k, len(result.results))
+            logger.info(f"LLM reranked {llm_scored} datasets for query: {query!r}")
+        else:
+            logger.warning("LLM ranking returned empty results, keeping V1 order.")
+
+    # 截取 top_n
+    result.results = result.results[:top_n]
+    result.llm_model = llm_client.__class__.__name__  # 记录使用的模型类名
+    result.llm_scored_count = llm_scored
+
+    # ── Step 5: LLM 摘要生成（可选）──────────────────────────────────────
+    if enable_summary and result.results:
+        from sra_search.llm.summarizer import LLMSummarizer
+        summarizer = LLMSummarizer(llm_client)
+        result.llm_summary = await summarizer.summarize(
+            query=query,
+            datasets=result.results,
+            total_found=result.total_found,
+            top_n=min(5, len(result.results)),
+        )
+
+    return result
+

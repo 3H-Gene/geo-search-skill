@@ -82,6 +82,23 @@ def main(verbose: bool = False, config: str | None = None):
 @click.option("--strict-scrna", is_flag=True, default=False,
               help="启用严格 scRNA-seq 过滤（仅 SRA 源，排除 Smart-seq 等低通量方法）")
 @click.option("--save/--no-save", default=True, help="是否保存到数据库")
+# ── LLM 参数（V2 新增）──
+@click.option("--llm/--no-llm", "use_llm", default=None, is_flag=True,
+              help="启用/禁用 LLM 语义评分（需配置 SRA_SEARCH_LLM_API_KEY）")
+@click.option("--llm-provider", default=None, type=str,
+              help="LLM 提供商：openai / anthropic / local（覆盖配置）")
+@click.option("--llm-model", default=None, type=str,
+              help="LLM 模型名称，如 gpt-4o-mini / claude-3-5-haiku-20241022")
+@click.option("--llm-api-key", default=None, type=str, envvar="SRA_SEARCH_LLM_API_KEY",
+              help="LLM API Key（也可通过 SRA_SEARCH_LLM_API_KEY 环境变量设置）")
+@click.option("--llm-base-url", default=None, type=str,
+              help="LLM API 代理地址（如 Ollama 或 OpenAI-compatible endpoint）")
+@click.option("--llm-top-k", default=None, type=int,
+              help="LLM 评分的 top_k（默认 20，只对前 N 个结果做 LLM 评分）")
+@click.option("--summarize", is_flag=True, default=False,
+              help="生成 LLM 自然语言摘要（需要 --llm 或配置 API Key）")
+@click.option("--analyze-query", is_flag=True, default=False,
+              help="显示 LLM 解析的查询意图（调试用）")
 def search(
     keyword: str,
     sources: tuple,
@@ -93,6 +110,14 @@ def search(
     until: str | None,
     strict_scrna: bool,
     save: bool,
+    use_llm: bool | None,
+    llm_provider: str | None,
+    llm_model: str | None,
+    llm_api_key: str | None,
+    llm_base_url: str | None,
+    llm_top_k: int | None,
+    summarize: bool,
+    analyze_query: bool,
 ):
     """关键词搜索数据集
 
@@ -101,15 +126,25 @@ def search(
     - json: 标准 JSON Schema 输出（与 gse-downloader 解耦）
     - id-list: 仅 GSE ID 列表（适合管道处理）
 
+    V2 新增 LLM 辅助功能（可选）：
+    - --llm: 启用 LLM 语义评分，提升结果相关性
+    - --summarize: 生成自然语言摘要
+    - --analyze-query: 显示 LLM 解析的查询意图
+
     示例：
       sra-search search "breast cancer scRNA-seq" --format json --top 20
       sra-search search "gout single cell" --organism human --since 2022/01/01
       sra-search search "liver fibrosis" --sources geo --format id-list
       sra-search search "single cell" --organism mouse --strict-scrna
+      sra-search search "gout single cell" --llm --summarize
+      sra-search search "liver fibrosis" --llm --llm-provider openai --llm-model gpt-4o
     """
     import json
 
-    from sra_search.converter import records_to_search_result
+    from sra_search.converter import (
+        records_to_search_result,
+        records_to_search_result_with_llm,
+    )
     from sra_search.search_engine.aggregator import SearchAggregator
 
     organisms_list = list(organism) if organism else None
@@ -131,7 +166,6 @@ def search(
             )
             return results
         finally:
-            # 关闭 aiohttp session，避免 "Unclosed client session" 警告
             await client.close()
 
     search_results = run_async(_do_search())
@@ -140,13 +174,90 @@ def search(
         click.echo(f"No datasets found for '{keyword}'")
         return
 
-    # 提取 DatasetRecord 列表
     records = [r.dataset for r in search_results]
 
-    # 转换为 Schema 并排序
-    schema_result = records_to_search_result(records, query=keyword, top_n=top)
+    # ── 判断是否启用 LLM ────────────────────────────────────────────────────
+    settings = get_settings()
+    should_use_llm = False
 
-    # 输出
+    # CLI --llm/--no-llm 优先，其次看 settings.llm_enabled
+    if use_llm is True:
+        should_use_llm = True
+    elif use_llm is False:
+        should_use_llm = False
+    elif settings.llm_enabled:
+        should_use_llm = True
+
+    # 如果传入了 api_key / provider，隐式启用 LLM
+    if (llm_api_key or llm_provider) and use_llm is not False:
+        should_use_llm = True
+
+    # ── 转换为 Schema 并排序 ────────────────────────────────────────────────
+    if should_use_llm:
+        # 构建 LLM 客户端（CLI 参数 > 环境变量 > settings）
+        _provider = llm_provider or settings.llm_provider or "openai"
+        _api_key = llm_api_key or settings.llm_api_key or ""
+        _model = llm_model or settings.llm_model or ""
+        _base_url = llm_base_url or settings.llm_base_url or ""
+        _top_k = llm_top_k or settings.llm_top_k
+
+        if not _api_key:
+            click.echo(
+                "\n[WARNING] --llm requested but no API key found. "
+                "Set SRA_SEARCH_LLM_API_KEY or use --llm-api-key.\n"
+                "Falling back to keyword mode.\n",
+                err=True,
+            )
+            schema_result = records_to_search_result(records, query=keyword, top_n=top)
+        else:
+            from sra_search.llm.client import LLMClient
+            llm_client_obj = LLMClient.from_params(
+                provider=_provider,
+                api_key=_api_key,
+                model=_model,
+                base_url=_base_url,
+                timeout=settings.llm_timeout,
+                max_tokens=settings.llm_max_tokens,
+            )
+
+            click.echo(f"\n[LLM] Using {_provider!r} ({_model or 'default model'}) for semantic ranking...", err=True)
+
+            schema_result = run_async(
+                records_to_search_result_with_llm(
+                    records=records,
+                    query=keyword,
+                    top_n=top,
+                    llm_client=llm_client_obj,
+                    enable_ranking=True,
+                    enable_summary=summarize,
+                    enable_query_analysis=analyze_query,
+                    llm_top_k=_top_k,
+                    llm_concurrency=settings.llm_concurrency,
+                )
+            )
+    else:
+        schema_result = records_to_search_result(records, query=keyword, top_n=top)
+
+    # ── 输出查询意图（调试模式）──────────────────────────────────────────────
+    if analyze_query and schema_result.llm_query_intent:
+        intent = schema_result.llm_query_intent
+        click.echo("\n[LLM Query Intent]", err=True)
+        click.echo(f"  Disease:    {intent.get('disease', [])}", err=True)
+        click.echo(f"  Technology: {intent.get('technology', [])}", err=True)
+        click.echo(f"  Organism:   {intent.get('organism', [])}", err=True)
+        click.echo(f"  Tissue:     {intent.get('tissue', [])}", err=True)
+        click.echo(f"  Intent:     {intent.get('intent_summary', '')}", err=True)
+        click.echo("", err=True)
+
+    # ── LLM 摘要输出 ──────────────────────────────────────────────────────
+    if schema_result.llm_summary:
+        click.echo("\n" + "=" * 60)
+        click.echo("[LLM Summary]")
+        click.echo("=" * 60)
+        click.echo(schema_result.llm_summary)
+        click.echo("=" * 60 + "\n")
+
+    # ── 主要输出 ─────────────────────────────────────────────────────────
     if fmt == "json":
         # JSON 结构化输出（标准 Schema）
         output = schema_result.to_dict()
@@ -356,9 +467,9 @@ def show(gse_id: str, changelog: bool, fmt: str):
 def config():
     """查看当前配置"""
     settings = get_settings()
-    click.echo(f"\n{'='*50}")
+    click.echo(f"\n{'='*55}")
     click.echo("  SRA_search Configuration")
-    click.echo(f"{'='*50}")
+    click.echo(f"{'='*55}")
     click.echo(f"  NCBI Email:      {'[OK] ' + settings.ncbi_email if settings.ncbi_email else '[NOT SET]'}")
     click.echo(f"  NCBI API Key:    {'[OK] ' + settings.ncbi_api_key[:8] + '...' if settings.ncbi_api_key else '[NOT SET]'}")
     click.echo(f"  Rate Limit:      {settings.effective_rate_limit} req/s")
@@ -366,12 +477,32 @@ def config():
     click.echo(f"  WAL Mode:        {'Enabled' if settings.db_wal_enabled else 'Disabled'}")
     click.echo(f"  Min Samples:     {settings.availability_min_samples}")
     click.echo(f"  Log Level:       {settings.log_level}")
-    click.echo(f"{'='*50}\n")
+    click.echo(f"  {'─'*51}")
+    click.echo(f"  LLM Provider:    {settings.llm_provider or '[NOT SET]'}")
+    click.echo(f"  LLM Model:       {settings.llm_model or '(default)'}")
+    click.echo(f"  LLM Enabled:     {'Yes' if settings.llm_enabled else 'No'}")
+    if settings.llm_api_key:
+        masked = settings.llm_api_key[:8] + "..." + settings.llm_api_key[-4:]
+        click.echo(f"  LLM API Key:     [OK] {masked}")
+    else:
+        click.echo("  LLM API Key:     [NOT SET]  ← set SRA_SEARCH_LLM_API_KEY to enable")
+    if settings.llm_base_url:
+        click.echo(f"  LLM Base URL:    {settings.llm_base_url}")
+    click.echo(f"  LLM Top-K:       {settings.llm_top_k}")
+    click.echo(f"{'='*55}\n")
 
     if not settings.ncbi_email:
-        click.echo("To configure, set environment variables:")
+        click.echo("To configure NCBI, set environment variables:")
         click.echo("   export SRA_SEARCH_NCBI_EMAIL=your@email.com")
         click.echo("   export SRA_SEARCH_NCBI_API_KEY=your_api_key")
+        click.echo("")
+    if not settings.llm_api_key:
+        click.echo("To enable LLM features (V2), set:")
+        click.echo("   export SRA_SEARCH_LLM_API_KEY=sk-...")
+        click.echo("   export SRA_SEARCH_LLM_PROVIDER=openai   # openai / anthropic / local")
+        click.echo("   export SRA_SEARCH_LLM_MODEL=gpt-4o-mini")
+        click.echo("")
+        click.echo("Then use: sra-search search 'query' --llm --summarize")
 
 
 @main.command()

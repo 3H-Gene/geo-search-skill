@@ -54,6 +54,30 @@ class Settings(BaseSettings):
     # 日志
     log_level: str = "INFO"
 
+    # ── LLM 配置（V2 新增）──────────────────────────────────────────────────
+    # Provider 选择：openai / anthropic / local（ollama）/ 空=禁用
+    llm_provider: str = ""
+    # 默认模型（各 provider 有不同默认值，见 client.py）
+    llm_model: str = ""
+    # API Key（优先读取环境变量 SRA_SEARCH_LLM_API_KEY）
+    llm_api_key: str = ""
+    # OpenAI-compatible 代理地址（如 DeepSeek/vLLM/本地 Ollama）
+    llm_base_url: str = ""
+    # 全局开关（可被 CLI --llm/--no-llm 覆盖）
+    llm_enabled: bool = False
+    # 请求温度（评分用 0.0，摘要用 0.1）
+    llm_temperature: float = 0.0
+    # 摘要最大 token 数
+    llm_max_tokens: int = 2048
+    # 请求超时（秒）
+    llm_timeout: float = 60.0
+    # LLM 评分的 top_k（只对前 N 个做 LLM 评分，节省成本）
+    llm_top_k: int = 20
+    # 并发请求数
+    llm_concurrency: int = 5
+    # 评分缓存有效期（小时），0 = 禁用
+    llm_cache_ttl_hours: int = 168
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         # 解析数据库路径
