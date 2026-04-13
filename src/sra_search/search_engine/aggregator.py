@@ -237,6 +237,10 @@ class SearchAggregator:
     ) -> list[DatasetSearchResult]:
         """搜索 SRA 数据库"""
         try:
+            # 确保 geo_retriever 已初始化（用于 GSE 存在性验证）
+            if self.geo_retriever is None:
+                self.geo_retriever = GeoRetriever()
+
             results = await self.sra_searcher.search_and_fetch(
                 query,
                 retmax,
@@ -278,7 +282,7 @@ class SearchAggregator:
             for gse_id, group in gse_groups.items():
                 # SRA study_alias 是自由文本，可能包含虚假 GSE 编号。
                 # 必须验证 GSE 是否在 GEO 中真实存在，否则跳过。
-                if not await self._geo_retriever.gse_exists(gse_id):
+                if not await self.geo_retriever.gse_exists(gse_id):
                     logger.debug(
                         f"SRA: gse_id {gse_id} not found in GEO, "
                         f"treating as SRA-only record {group[0].srp_id}"

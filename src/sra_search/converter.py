@@ -214,53 +214,58 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
         "cellranger", "multiome", "cite-seq", "10x", "nuclei",
     ]
 
-    # 查询是否包含疾病关键词
+    # 查询是否包含疾病关键词 / scRNA 关键词
     query_text_lower = query.lower()
     is_disease_query = any(_in_text(dt, query_text_lower) for dt in gait_disease_terms)
+    is_sc_query = any(_in_text(st, query_text_lower) for st in sc_method_terms) or (
+        "single" in query_text_lower and "cell" in query_text_lower
+    )
 
     # 数据集是否包含疾病/单细胞关键词（子串匹配）
     has_disease_in_dataset = any(_in_text(dt, text_lower) for dt in gait_disease_terms)
     has_sc_in_dataset = any(_in_text(st, text_lower) for st in sc_method_terms)
+    # 利用已推断的 data_type/single_cell 字段进一步确认
+    is_sc_dataset = dataset.single_cell or has_sc_in_dataset
 
     # ── 2. 计算相关性分数 ───────────────────────────────────────────────────
-    #
-    # 核心：疾病关键词直接给出基础分（即使 query 词不在标题中，如 "Hyperuricemia mice scRNAseq"）
-    #       scRNA 关键词加分
-    #       query 词在标题中额外加成
-    #
     score = 0.0
 
-    # 疾病关键词基础分：最重要，直接决定相关性
+    # ① 疾病关键词命中（最重要）
     if has_disease_in_dataset:
-        score += 0.5
-    # 单细胞关键词基础分
-    if has_sc_in_dataset:
-        score += 0.2
+        score += 0.45
 
-    # 标题子串匹配（query 词在标题 → 额外加成）
+    # ② scRNA 技术类型命中
+    if is_sc_dataset:
+        score += 0.25
+
+    # ③ 标题子串匹配（query 词在标题 → 额外加成）
     title_matched = sum(1 for t in query_clean if _in_text(t, title_lower))
     score += 0.15 * (title_matched / len(query_clean))
 
-    # 摘要/关键词子串匹配（query 词在摘要/关键词 → 额外加成）
+    # ④ 摘要/关键词匹配
     summary_matched = sum(
         1 for t in query_clean
         if _in_text(t, summary_lower) or _in_text(t, keywords_text)
     )
-    score += 0.1 * (summary_matched / len(query_clean))
+    score += 0.10 * (summary_matched / len(query_clean))
 
-    # 疾病/组织字段精确匹配（精确出现在结构化字段 → 加成）
+    # ⑤ 结构化字段精确匹配（disease/tissue 字段）
     disease_matched = sum(1 for t in query_clean if t in disease_field_lower)
     score += 0.05 * min(disease_matched, 2) / 2
-    tissue_matched = sum(1 for t in query_clean if t in tissue_lower)
-    score += 0.05 * min(tissue_matched, 2) / 2
 
-    # ── 3. 疾病上下文惩罚（疾病查询但完全无疾病上下文）──────────────────────
-    # 有 scRNA 但无疾病词 → 可能是通用的 scRNA 数据（如 COVID），大幅降权
+    # ── 3. 惩罚逻辑 ──────────────────────────────────────────────────────────
+
+    # 惩罚A：疾病查询但数据集完全无疾病/scRNA 上下文
     if is_disease_query:
-        if not has_disease_in_dataset and not has_sc_in_dataset:
-            score *= 0.05
-        elif not has_disease_in_dataset and has_sc_in_dataset:
-            score *= 0.10
+        if not has_disease_in_dataset and not is_sc_dataset:
+            score *= 0.05   # 非常低，几乎不相关
+        elif not has_disease_in_dataset and is_sc_dataset:
+            score *= 0.15   # 有 scRNA 但无疾病词，轻度惩罚
+
+    # 惩罚B：scRNA 查询但数据集不是 scRNA（bulk/microarray 等）
+    # 这是当前输出中最大的问题：GSE160308 是 bulk RNA-seq，不应出现在 scRNA 查询结果前列
+    if is_sc_query and not is_sc_dataset:
+        score *= 0.25   # 大幅降权，让 bulk 数据集排名靠后
 
     return min(score, 1.0)
 

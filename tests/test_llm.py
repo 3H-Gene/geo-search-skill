@@ -392,3 +392,128 @@ class TestLLMClientFromConfig:
                 elif k in os.environ:
                     del os.environ[k]
             reset_settings()
+
+    def test_google_provider_created_from_params(self):
+        """from_params 支持 google/gemini provider"""
+        from sra_search.llm.client import LLMClient
+        from sra_search.llm.providers.google_provider import GoogleProvider
+
+        client = LLMClient.from_params(provider="google", api_key="test-key")
+        assert isinstance(client, GoogleProvider)
+        assert client.is_available() is True
+
+    def test_gemini_alias_supported(self):
+        """gemini 是 google 的别名"""
+        from sra_search.llm.client import LLMClient
+        from sra_search.llm.providers.google_provider import GoogleProvider
+
+        client = LLMClient.from_params(provider="gemini", api_key="test-key", model="gemini-2.5-flash")
+        assert isinstance(client, GoogleProvider)
+        assert client.is_available() is True
+
+    def test_unknown_provider_returns_null(self):
+        """未知 provider 返回 NullLLMClient 而非抛出异常"""
+        from sra_search.llm.client import LLMClient
+
+        client = LLMClient.from_params(provider="foobar", api_key="test-key")
+        assert isinstance(client, NullLLMClient)
+        assert client.is_available() is False
+
+    def test_google_provider_no_key_unavailable(self):
+        """空 api_key 时 is_available() = False"""
+        from sra_search.llm.providers.google_provider import GoogleProvider
+
+        p = GoogleProvider(api_key="")
+        assert p.is_available() is False
+
+
+# ── compute_relevance_score 排序回归测试 ─────────────────────────────────────
+
+class TestRelevanceScoreRanking:
+    """验证修改后的排序逻辑正确性（gout single cell 场景）"""
+
+    def _make_ds(
+        self,
+        gse_id: str,
+        title: str,
+        summary: str = "",
+        single_cell: bool = False,
+    ) -> DatasetSchema:
+        ds = DatasetSchema(gse_id=gse_id, title=title, summary=summary)
+        ds.single_cell = single_cell
+        return ds
+
+    def test_sc_gout_beats_bulk_gout(self):
+        """scRNA-seq + gout 数据集应比 bulk RNA-seq + gout 排名高"""
+        from sra_search.converter import compute_relevance_score
+
+        # scRNA-seq + 痛风
+        sc_gout = self._make_ds(
+            "GSE217561",
+            "Single-Cell RNA sequencing reveals blood cell landscape in gout patients",
+            single_cell=True,
+        )
+        # bulk RNA-seq + 痛风（有摘要但不是 scRNA）
+        bulk_gout = self._make_ds(
+            "GSE160308",
+            "In-depth transcriptomic analyses of uric acid metabolism in hyperuricemia",
+            single_cell=False,
+        )
+
+        sc_score = compute_relevance_score("gout single cell", sc_gout)
+        bulk_score = compute_relevance_score("gout single cell", bulk_gout)
+
+        assert sc_score > bulk_score, (
+            f"scRNA+gout ({sc_score:.3f}) should rank above bulk+gout ({bulk_score:.3f})"
+        )
+
+    def test_no_gout_no_sc_scores_very_low(self):
+        """既无痛风词也无 scRNA 的数据集应得分极低"""
+        from sra_search.converter import compute_relevance_score
+
+        unrelated = self._make_ds(
+            "GSE18002",
+            "Paramecium tetraurelia autogamy series",
+            single_cell=False,
+        )
+        score = compute_relevance_score("gout single cell", unrelated)
+        # 无任何关键词匹配，分数应接近 0
+        assert score < 0.05, f"Unrelated dataset should have low score, got {score:.3f}"
+
+    def test_sc_gout_scores_high(self):
+        """scRNA + gout 数据集得分应 >= 0.6"""
+        from sra_search.converter import compute_relevance_score
+
+        sc_gout = self._make_ds(
+            "GSE217561",
+            "Single-Cell RNA sequencing reveals blood cell landscape in gout patients",
+            single_cell=True,
+        )
+        score = compute_relevance_score("gout single cell", sc_gout)
+        assert score >= 0.6, f"scRNA+gout should score >= 0.6, got {score:.3f}"
+
+    def test_bulk_gout_penalized(self):
+        """bulk RNA-seq + 痛风词，因为查询含 single cell，分数应被惩罚"""
+        from sra_search.converter import compute_relevance_score
+
+        bulk_gout = self._make_ds(
+            "GSE160308",
+            "In-depth transcriptomic analyses of hyperuricemia and uric acid gout",
+            single_cell=False,
+        )
+        score = compute_relevance_score("gout single cell", bulk_gout)
+        # 有痛风词，但没有 scRNA → 应惩罚到 0.45 * 0.25 ≈ 0.11
+        assert score < 0.20, f"Bulk+gout with scRNA query should be penalized, got {score:.3f}"
+
+    def test_sc_without_disease_penalized(self):
+        """scRNA-seq 但无痛风词，因为查询含痛风词，应被轻度惩罚"""
+        from sra_search.converter import compute_relevance_score
+
+        sc_no_gout = self._make_ds(
+            "GSE158055",
+            "Large-scale single-cell analysis reveals critical immune cells in COVID-19",
+            single_cell=True,
+        )
+        score = compute_relevance_score("gout single cell", sc_no_gout)
+        # 有 scRNA 但无痛风词 → 中度惩罚
+        assert score < 0.10, f"scRNA without gout should be penalized, got {score:.3f}"

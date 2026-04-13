@@ -126,8 +126,16 @@ class LLMClient(ABC):
                 timeout=timeout,
                 max_tokens=max_tokens,
             )
+        elif provider in ("google", "gemini"):
+            from sra_search.llm.providers.google_provider import GoogleProvider
+            return GoogleProvider(
+                api_key=api_key,
+                model=model or "gemini-2.0-flash",
+                timeout=timeout,
+                max_tokens=max_tokens,
+            )
         else:
-            logger.warning(f"Unknown LLM provider: {provider!r}. Supported: openai/anthropic/local.")
+            logger.warning(f"Unknown LLM provider: {provider!r}. Supported: openai/anthropic/local/google.")
             return NullLLMClient()
 
     @classmethod
@@ -166,6 +174,14 @@ class LLMClient(ABC):
                 api_key=api_key or "ollama",
                 model=model or "llama3.2",
                 base_url=base_url or "http://localhost:11434/v1",
+                timeout=timeout,
+                max_tokens=max_tokens,
+            )
+        elif provider_lc in ("google", "gemini"):
+            from sra_search.llm.providers.google_provider import GoogleProvider
+            return GoogleProvider(
+                api_key=api_key,
+                model=model or "gemini-2.0-flash",
                 timeout=timeout,
                 max_tokens=max_tokens,
             )
