@@ -96,6 +96,46 @@ CREATE TABLE IF NOT EXISTS review_log (
 );
 """
 
+# search_reports 表建表 SQL（搜索报告主表）
+CREATE_SEARCH_REPORTS_TABLE = """
+CREATE TABLE IF NOT EXISTS search_reports (
+    id TEXT PRIMARY KEY,
+    query TEXT NOT NULL,
+    query_hash TEXT NOT NULL,
+    mode TEXT NOT NULL DEFAULT 'v1',
+    sources TEXT DEFAULT '["geo", "sra", "pubmed"]',
+    filters TEXT DEFAULT '{}',
+    total_found INTEGER DEFAULT 0,
+    returned_count INTEGER DEFAULT 0,
+    llm_model TEXT DEFAULT '',
+    searched_at TEXT DEFAULT '',
+    expires_at TEXT DEFAULT '',
+    UNIQUE(query_hash, mode, sources)
+);
+"""
+
+# search_report_items 表建表 SQL（搜索报告结果表）
+CREATE_SEARCH_REPORT_ITEMS_TABLE = """
+CREATE TABLE IF NOT EXISTS search_report_items (
+    id TEXT PRIMARY KEY,
+    report_id TEXT NOT NULL,
+    rank INTEGER DEFAULT 0,
+    gse_id TEXT NOT NULL,
+    relevance_score REAL DEFAULT 0.0,
+    one_sentence_summary TEXT DEFAULT '',
+    sample_grouping TEXT DEFAULT '',
+    cell_count TEXT DEFAULT '',
+    relevance_reason TEXT DEFAULT '',
+    data_type TEXT DEFAULT '',
+    sample_count INTEGER DEFAULT 0,
+    organism TEXT DEFAULT '',
+    tissue TEXT DEFAULT '',
+    platform TEXT DEFAULT '',
+    title TEXT DEFAULT '',
+    FOREIGN KEY (report_id) REFERENCES search_reports(id)
+);
+"""
+
 # 索引
 CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_topic_datasets_topic ON topic_datasets(topic_id);",
@@ -107,6 +147,8 @@ CREATE_INDEXES = [
     "CREATE INDEX IF NOT EXISTS idx_datasets_omics_granularity ON datasets(omics_granularity);",
     "CREATE INDEX IF NOT EXISTS idx_search_history_topic ON search_history(topic_id);",
     "CREATE INDEX IF NOT EXISTS idx_review_log_topic_gse ON review_log(topic_id, gse_id);",
+    "CREATE INDEX IF NOT EXISTS idx_search_reports_query_hash ON search_reports(query_hash);",
+    "CREATE INDEX IF NOT EXISTS idx_search_report_items_report ON search_report_items(report_id);",
 ]
 
 # 所有建表语句
@@ -116,4 +158,6 @@ ALL_TABLES = [
     CREATE_TOPIC_DATASETS_TABLE,
     CREATE_SEARCH_HISTORY_TABLE,
     CREATE_REVIEW_LOG_TABLE,
+    CREATE_SEARCH_REPORTS_TABLE,
+    CREATE_SEARCH_REPORT_ITEMS_TABLE,
 ]

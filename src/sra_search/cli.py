@@ -353,21 +353,55 @@ def search(
         for ds in schema_result.results:
             click.echo(ds.gse_id)
     else:
-        # 表格形式（默认）
-        click.echo(f"\nFound {len(schema_result.results)} datasets for '{keyword}' (sorted by score):\n")
-        click.echo(f"{'Accession':<12} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<40}")
-        click.echo("-" * 87)
-        for ds in schema_result.results:
-            title = ds.title[:37] + "..." if len(ds.title) > 40 else ds.title
-            sc = "Y" if ds.single_cell else "N"
-            pert = "Y" if ds.has_perturbation else "N"
-            # 规范化 ID 展示：移除 SRP: 前缀，用 Accession 列显示类型
-            acc = ds.gse_id
-            if acc.startswith("SRP:") or acc.startswith("ERP:") or acc.startswith("DRP:"):
-                acc = acc.split(":")[1] if ":" in acc else acc
-            # Samples 为 0 显示为 —
-            samples = str(ds.sample_count) if ds.sample_count > 0 else "—"
-            click.echo(f"{acc:<12} {ds.data_type:<12} {sc:<4} {pert:<5} {samples:<8} {title:<40}")
+        # 表格形式（默认）- 检查是否有 LLM 分析结果
+        has_llm_analysis = any(ds.llm_one_sentence_summary for ds in schema_result.results)
+
+        if has_llm_analysis:
+            # LLM 分析表格
+            click.echo(f"\n{'='*120}")
+            click.echo(f"数据集分析报告 - '{keyword}'")
+            click.echo(f"{'='*120}")
+            click.echo(
+                f"{'#':<3} {'Accession':<12} {'物种':<8} {'组织':<8} {'分组':<14} {'细胞':<6} "
+                f"{'平台':<8} {'一句话总结':<40} {'相关性理由':<30}"
+            )
+            click.echo("-" * 120)
+
+            for i, ds in enumerate(schema_result.results, 1):
+                # 规范化 ID 展示
+                acc = ds.gse_id
+                if acc.startswith("SRP:") or acc.startswith("ERP:") or acc.startswith("DRP:"):
+                    acc = acc.split(":")[1] if ":" in acc else acc
+
+                # LLM 分析字段
+                organism = ds.organism[:7] + "…" if len(ds.organism) > 8 else (ds.organism or "NA")
+                tissue = ds.tissue[:7] + "…" if len(ds.tissue) > 8 else (ds.tissue or "NA")
+                sample_group = ds.llm_sample_grouping[:13] + "…" if len(ds.llm_sample_grouping) > 14 else (ds.llm_sample_grouping or "NA")
+                cell_count = ds.llm_cell_count or "NA"
+                platform = ds.platform[:7] + "…" if len(ds.platform) > 8 else (ds.platform or "NA")
+                summary = ds.llm_one_sentence_summary[:38] + "…" if len(ds.llm_one_sentence_summary) > 39 else (ds.llm_one_sentence_summary or "NA")
+                reason = ds.llm_relevance_reason[:29] + "…" if len(ds.llm_relevance_reason) > 30 else (ds.llm_relevance_reason or "-")
+
+                click.echo(
+                    f"{i:<3} {acc:<12} {organism:<8} {tissue:<8} {sample_group:<14} {cell_count:<6} "
+                    f"{platform:<8} {summary:<40} {reason:<30}"
+                )
+        else:
+            # 原始表格（无 LLM 分析）
+            click.echo(f"\nFound {len(schema_result.results)} datasets for '{keyword}' (sorted by score):\n")
+            click.echo(f"{'Accession':<12} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<50}")
+            click.echo("-" * 97)
+            for ds in schema_result.results:
+                title = ds.title[:47] + "..." if len(ds.title) > 50 else ds.title
+                sc = "Y" if ds.single_cell else "N"
+                pert = "Y" if ds.has_perturbation else "N"
+                # 规范化 ID 展示
+                acc = ds.gse_id
+                if acc.startswith("SRP:") or acc.startswith("ERP:") or acc.startswith("DRP:"):
+                    acc = acc.split(":")[1] if ":" in acc else acc
+                # Samples 为 0 显示为 —
+                samples = str(ds.sample_count) if ds.sample_count > 0 else "—"
+                click.echo(f"{acc:<12} {ds.data_type:<12} {sc:<4} {pert:<5} {samples:<8} {title:<50}")
 
         # 统计摘要（区分来源）
         stats = schema_result.compute_stats()
@@ -439,6 +473,53 @@ def search(
         except Exception as e:
             logger.error(f"Database save failed: {e}")
             click.echo(f"\n[ERROR] Failed to save to database: {e}")
+
+        # ── 保存搜索报告 ───────────────────────────────────────────────
+        try:
+            from sra_search.data_store.search_report_service import SearchReportService, SearchReportItem
+            report_service = SearchReportService(db)
+
+            # 确定模式
+            if llm_only:
+                mode = "llm-only"
+            elif should_use_llm:
+                mode = "v1+llm"
+            else:
+                mode = "v1"
+
+            # 构建报告项
+            report_items = []
+            for i, ds in enumerate(schema_result.results, 1):
+                item = SearchReportItem(
+                    rank=i,
+                    gse_id=ds.gse_id,
+                    relevance_score=ds.relevance_score,
+                    one_sentence_summary=ds.llm_one_sentence_summary,
+                    sample_grouping=ds.llm_sample_grouping,
+                    cell_count=ds.llm_cell_count,
+                    relevance_reason=ds.llm_relevance_reason,
+                    data_type=ds.data_type,
+                    sample_count=ds.sample_count,
+                    organism=ds.organism,
+                    tissue=ds.tissue,
+                    platform=ds.platform,
+                    title=ds.title,
+                )
+                report_items.append(item)
+
+            # 保存报告
+            report_id = report_service.save_report(
+                query=keyword,
+                mode=mode,
+                sources=sources_list or ["geo", "sra", "pubmed"],
+                total_found=len(search_results),
+                returned_count=len(schema_result.results),
+                llm_model=schema_result.llm_model,
+                items=report_items,
+            )
+            logger.info(f"[搜索报告] 已保存: {report_id}")
+        except Exception as e:
+            logger.warning(f"[搜索报告] 保存失败: {e}")
 
     # ── 任务完成汇总 ──────────────────────────────────────────────────────
     logger.info("=" * 60)
@@ -1323,6 +1404,100 @@ def update(topic: str | None, update_all: bool, since: str | None, dry_run: bool
     click.echo(f"    Updated: {updated}")
     click.echo(f"    Errors:  {errors}")
     click.echo(f"\n[*] Run 'sra-search check' to verify availability status.")
+
+
+# ── Report 命令组 ──────────────────────────────────────────────────────────
+
+@main.command("report")
+@click.option("--query", "-q", help="搜索关键词")
+@click.option("--list", "list_all", is_flag=True, help="列出所有报告")
+@click.option("--delete", "-d", help="删除指定报告（输入报告 ID）")
+@click.option("--limit", "-n", default=20, type=int, help="列出数量")
+@click.option("--offset", default=0, type=int, help="偏移量")
+def report(query: str | None, list_all: bool, delete: str | None, limit: int, offset: int):
+    """查看和管理搜索报告
+
+    搜索报告保存了每次搜索的关键词、结果和分析，便于回顾和定期更新。
+    """
+    from sra_search.data_store.database import get_database
+    from sra_search.data_store.search_report_service import SearchReportService
+
+    db = get_database()
+    service = SearchReportService(db)
+
+    # 删除报告
+    if delete:
+        success = service.delete_report(delete)
+        if success:
+            click.echo(f"[OK] 已删除报告: {delete}")
+        else:
+            click.echo(f"[ERROR] 删除失败: {delete}")
+        return
+
+    # 列出报告
+    if list_all or not query:
+        reports = service.list_reports(limit=limit, offset=offset)
+        if not reports:
+            click.echo("暂无搜索报告")
+            click.echo("\n执行搜索时会自动保存报告：")
+            click.echo("  sra-search search 'gout single cell' --llm")
+            return
+
+        click.echo(f"\n{'='*100}")
+        click.echo(f"{'搜索报告列表 (最近 ' + str(len(reports)) + ' 条)'}")
+        click.echo(f"{'='*100}")
+        click.echo(f"{'#':<4} {'Query':<30} {'模式':<10} {'数据源':<25} {'结果数':<8} {'时间':<20}")
+        click.echo("-" * 100)
+        for i, r in enumerate(reports, offset + 1):
+            query_str = r.query[:28] + "…" if len(r.query) > 29 else r.query
+            sources_str = ",".join(r.sources)[:23]
+            click.echo(f"{i:<4} {query_str:<30} {r.mode:<10} {sources_str:<25} {r.returned_count:<8} {r.searched_at[:19]:<20}")
+        click.echo("=" * 100)
+        return
+
+    # 查看指定查询的报告
+    saved_report = service.get_report_by_query(query)
+    if not saved_report:
+        click.echo(f"未找到查询词 '{query}' 的报告")
+        click.echo("\n可使用 'sra-search search' 重新搜索来保存报告")
+        return
+
+    click.echo(f"\n{'='*120}")
+    click.echo(f"搜索报告 - '{saved_report.query}'")
+    click.echo(f"{'='*120}")
+    click.echo(f"  模式: {saved_report.mode} | 数据源: {', '.join(saved_report.sources)} | "
+                f"结果数: {saved_report.returned_count}/{saved_report.total_found} | "
+                f"LLM: {saved_report.llm_model or 'N/A'}")
+    click.echo(f"  时间: {saved_report.searched_at}")
+    click.echo(f"{'='*120}")
+
+    if not saved_report.items:
+        click.echo("报告为空")
+        return
+
+    # 显示表格
+    click.echo(
+        f"{'#':<3} {'Accession':<12} {'物种':<8} {'组织':<8} {'分组':<14} {'细胞':<6} "
+        f"{'平台':<8} {'一句话总结':<40} {'相关性理由':<25}"
+    )
+    click.echo("-" * 120)
+
+    for item in saved_report.items:
+        organism = item.organism[:7] + "…" if len(item.organism) > 8 else (item.organism or "NA")
+        tissue = item.tissue[:7] + "…" if len(item.tissue) > 8 else (item.tissue or "NA")
+        sample_group = item.sample_grouping[:13] + "…" if len(item.sample_grouping) > 14 else (item.sample_grouping or "NA")
+        cell_count = item.cell_count or "NA"
+        platform = item.platform[:7] + "…" if len(item.platform) > 8 else (item.platform or "NA")
+        summary = item.one_sentence_summary[:38] + "…" if len(item.one_sentence_summary) > 39 else (item.one_sentence_summary or "NA")
+        reason = item.relevance_reason[:24] + "…" if len(item.relevance_reason) > 25 else (item.relevance_reason or "-")
+
+        click.echo(
+            f"{item.rank:<3} {item.gse_id:<12} {organism:<8} {tissue:<8} {sample_group:<14} {cell_count:<6} "
+            f"{platform:<8} {summary:<40} {reason:<25}"
+        )
+
+    click.echo("=" * 120)
+    click.echo(f"\n提示: 使用 'sra-search search \"{saved_report.query}\" --llm' 重新搜索以更新报告")
 
 
 if __name__ == "__main__":

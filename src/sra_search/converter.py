@@ -720,12 +720,29 @@ async def records_to_search_result_with_llm(
     result.llm_model = llm_client.__class__.__name__  # 记录使用的模型类名
     result.llm_scored_count = llm_scored
 
-    # ── Step 5: LLM 摘要生成（可选）──────────────────────────────────────
+    # ── Step 5: LLM 数据集分析（逐条一句话总结）─────────────────────────
+    logger.info("[Step 2.4] LLM 数据集分析...")
+    from sra_search.llm.dataset_summarizer import LLMDatasetSummarizer
+    summarizer = LLMDatasetSummarizer(llm_client)
+    analyses = await summarizer.summarize_batch_async(
+        datasets=result.results,
+        query=query,
+        concurrency=settings.llm_concurrency if settings else 5,
+    )
+    # 将分析结果填充到各 DatasetSchema
+    for ds, analysis in zip(result.results, analyses):
+        ds.llm_one_sentence_summary = analysis.one_sentence_summary
+        ds.llm_sample_grouping = analysis.sample_grouping
+        ds.llm_cell_count = analysis.cell_count
+        ds.llm_relevance_reason = analysis.relevance_reason
+    logger.info(f"  └─ 数据集分析完成: {len(analyses)} 条")
+
+    # ── Step 6: LLM 整体摘要生成（可选）──────────────────────────────────
     if enable_summary and result.results:
-        logger.info("[Step 2.4] LLM 摘要生成...")
+        logger.info("[Step 2.5] LLM 整体摘要生成...")
         from sra_search.llm.summarizer import LLMSummarizer
-        summarizer = LLMSummarizer(llm_client)
-        result.llm_summary = await summarizer.summarize(
+        summary_summarizer = LLMSummarizer(llm_client)
+        result.llm_summary = await summary_summarizer.summarize(
             query=query,
             datasets=result.results,
             total_found=result.total_found,
@@ -733,7 +750,7 @@ async def records_to_search_result_with_llm(
         )
         logger.info("  └─ 摘要生成完成")
 
-    logger.info(f"[Step 2.5] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
+    logger.info(f"[Step 2.6] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
 
     return result
 
