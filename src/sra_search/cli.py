@@ -266,7 +266,7 @@ def search(
                 )
             )
             click.echo(
-                f"[LLM] Done — returned {len(schema_result.datasets)} ranked results.",
+                f"[LLM] Done — returned {len(schema_result.results)} ranked results.",
                 err=True,
             )
     else:
