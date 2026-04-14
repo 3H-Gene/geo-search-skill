@@ -40,32 +40,46 @@ class GoogleProvider(LLMClient):
     # ── 初始化 ───────────────────────────────────────────────────────────
 
     def _get_client(self) -> Any:
-        """懒加载 google.generativeai 客户端"""
+        """懒加载 Gemini 客户端（优先新版 google-genai SDK）"""
         if self._client is not None:
             return self._client
 
-        # 尝试 google-generativeai（新版 google-genai SDK）
-        try:
-            import google.generativeai as genai  # type: ignore[import-untyped]
-            genai.configure(api_key=self._api_key)
-            self._client = genai
-            self._use_openai_compat = False
-            logger.debug(f"GoogleProvider: using google-generativeai SDK, model={self._model}")
-            return self._client
-        except ImportError:
-            pass
-
-        # 尝试新版 google-genai（google.genai）
+        # ① 优先：新版 google-genai SDK（google.genai，官方推荐）
         try:
             import google.genai as genai  # type: ignore[import-untyped]
             self._client = genai.Client(api_key=self._api_key)
             self._use_openai_compat = False
-            logger.debug(f"GoogleProvider: using google-genai SDK, model={self._model}")
+            logger.info(
+                f"[LLM] GoogleProvider connected: google-genai SDK | "
+                f"model={self._model} | API key OK"
+            )
             return self._client
         except ImportError:
             pass
 
-        # 回退：openai 库 + Google OpenAI-compatible 端点
+        # ② 降级：旧版 google-generativeai SDK（已废弃，触发 FutureWarning）
+        try:
+            import warnings  # noqa: PLC0415
+
+            import google.generativeai as genai  # type: ignore[import-untyped]
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore", FutureWarning)
+                genai.configure(api_key=self._api_key)
+            self._client = genai
+            self._use_openai_compat = False
+            logger.warning(
+                "[LLM] GoogleProvider: using deprecated google-generativeai SDK. "
+                "Please upgrade: pip install 'google-genai>=1.0'"
+            )
+            logger.info(
+                f"[LLM] GoogleProvider connected: google-generativeai SDK (deprecated) | "
+                f"model={self._model} | API key OK"
+            )
+            return self._client
+        except ImportError:
+            pass
+
+        # ③ 最终降级：openai 库 + Google OpenAI-compatible 端点
         try:
             from openai import AsyncOpenAI  # type: ignore[import-untyped]
             self._client = AsyncOpenAI(
@@ -74,16 +88,17 @@ class GoogleProvider(LLMClient):
             )
             self._use_openai_compat = True
             logger.info(
-                "GoogleProvider: google-generativeai not installed, "
-                "falling back to OpenAI-compatible endpoint for Gemini."
+                f"[LLM] GoogleProvider connected: OpenAI-compat endpoint | "
+                f"model={self._model} | API key OK "
+                f"(install google-genai for native SDK support)"
             )
             return self._client
         except ImportError:
             pass
 
         raise RuntimeError(
-            "GoogleProvider requires either 'google-generativeai' or 'openai' package. "
-            "Install with: pip install google-generativeai  OR  pip install openai"
+            "GoogleProvider requires 'google-genai' or 'openai' package. "
+            "Install with: pip install google-genai  OR  pip install openai"
         )
 
     def is_available(self) -> bool:
@@ -129,11 +144,12 @@ class GoogleProvider(LLMClient):
         temperature: float,
         max_tokens: int,
     ) -> str | None:
-        """通过 google-generativeai SDK 发送请求"""
+        """通过 google-genai / google-generativeai SDK 发送请求"""
         import asyncio as _asyncio
+        import warnings
 
         def _sync_call() -> str | None:
-            # google-generativeai 是同步 SDK，在线程池中运行
+            # google SDK 是同步接口，在线程池中运行
             try:
                 # 检查是新版 google-genai（有 aio 属性）还是旧版
                 if hasattr(client, "aio"):
@@ -144,7 +160,6 @@ class GoogleProvider(LLMClient):
                         temperature=temperature,
                         max_output_tokens=max_tokens,
                     )
-                    # 同步调用
                     resp = client.models.generate_content(
                         model=model,
                         contents=prompt,
@@ -152,17 +167,19 @@ class GoogleProvider(LLMClient):
                     )
                     return resp.text
                 else:
-                    # 旧版 google.generativeai
+                    # 旧版 google.generativeai（已废弃，压制 FutureWarning）
                     generation_config = {
                         "temperature": temperature,
                         "max_output_tokens": max_tokens,
                     }
-                    m = client.GenerativeModel(
-                        model_name=model,
-                        system_instruction=system,
-                        generation_config=generation_config,  # type: ignore[arg-type]
-                    )
-                    resp = m.generate_content(prompt)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore", FutureWarning)
+                        m = client.GenerativeModel(
+                            model_name=model,
+                            system_instruction=system,
+                            generation_config=generation_config,  # type: ignore[arg-type]
+                        )
+                        resp = m.generate_content(prompt)
                     return resp.text
             except Exception as e:
                 logger.warning(f"GoogleProvider genai call error: {e}")

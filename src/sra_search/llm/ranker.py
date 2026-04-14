@@ -181,6 +181,12 @@ class LLMRanker:
         # 调用 LLM（只调未缓存的）
         llm_responses: list[str | None] = []
         if prompts:
+            cache_hits = len(cached_scores)
+            logger.info(
+                f"[LLM] Ranking {len(prompts)} datasets "
+                f"({cache_hits} from cache, {len(remaining)} use V1 score) "
+                f"| query={query!r}"
+            )
             try:
                 llm_responses = await self.client.abatch_chat(
                     prompts=prompts,
@@ -189,10 +195,16 @@ class LLMRanker:
                     max_tokens=16,  # 分数只需要 "0.850" 这样的字符
                     concurrency=concurrency,
                 )
-                logger.debug(f"LLM scored {len(prompts)} datasets for query: {query!r}")
+                logger.info(
+                    f"[LLM] Ranking complete: {len(prompts)} scores received"
+                )
             except Exception as e:
-                logger.warning(f"LLM batch scoring failed: {e}. Falling back to V1.")
+                logger.warning(f"[LLM] Batch scoring failed: {e}. Falling back to V1.")
                 return []
+        else:
+            logger.info(
+                f"[LLM] All {len(cached_scores)} scores from cache, skipping API call"
+            )
 
         # 聚合结果
         results: list[tuple[DatasetSchema, float]] = []

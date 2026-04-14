@@ -220,7 +220,12 @@ def search(
                 max_tokens=settings.llm_max_tokens,
             )
 
-            click.echo(f"\n[LLM] Using {_provider!r} ({_model or 'default model'}) for semantic ranking...", err=True)
+            _effective_model = _model or llm_client_obj.__class__.DEFAULT_MODEL if hasattr(llm_client_obj.__class__, "DEFAULT_MODEL") else (_model or "default")
+            click.echo(
+                f"\n[LLM] Provider={_provider!r} model={_effective_model!r} | "
+                f"API key OK | Ranking {min(len(records), _top_k)} datasets...",
+                err=True,
+            )
 
             schema_result = run_async(
                 records_to_search_result_with_llm(
@@ -234,6 +239,10 @@ def search(
                     llm_top_k=_top_k,
                     llm_concurrency=settings.llm_concurrency,
                 )
+            )
+            click.echo(
+                f"[LLM] Done — returned {len(schema_result.datasets)} ranked results.",
+                err=True,
             )
     else:
         schema_result = records_to_search_result(records, query=keyword, top_n=top)
