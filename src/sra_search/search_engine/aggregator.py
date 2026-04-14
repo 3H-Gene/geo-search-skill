@@ -174,7 +174,10 @@ class SearchAggregator:
 
         # 计算总分统计
         total_raw = sum(source_raw_counts.values())
-        sc_count = sum(1 for r in all_results if r.dataset.single_cell)
+        sc_count = sum(
+            1 for r in all_results
+            if r.dataset.omics_granularity == "single_cell"
+        )
         avg_score = sum(r.match_score for r in all_results) / len(all_results) if all_results else 0
 
         logger.info("[Step 4] 检索完成汇总:")
