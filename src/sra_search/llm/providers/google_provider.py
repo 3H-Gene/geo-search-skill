@@ -155,6 +155,7 @@ class GoogleProvider(LLMClient):
                 if hasattr(client, "aio"):
                     # 新版 google.genai.Client
                     import google.genai.types as gtypes  # type: ignore[import-untyped]
+
                     config = gtypes.GenerateContentConfig(
                         system_instruction=system or "",
                         temperature=temperature,
@@ -165,7 +166,22 @@ class GoogleProvider(LLMClient):
                         contents=prompt,
                         config=config,
                     )
-                    return resp.text
+                    # 检查是否有有效内容（避免 finish_reason=MAX_TOKENS/RECITATION 等导致空响应）
+                    if resp.candidates:
+                        cand = resp.candidates[0]
+                        if cand.finish_reason and cand.finish_reason.name in (
+                            "STOP",
+                            "MAX_TOKENS",
+                        ):
+                            # 即使是 MAX_TOKENS，只要 content 不为空就有部分结果
+                            if cand.content and cand.content.parts:
+                                return cand.content.parts[0].text
+                        # 其他 finish_reason（安全、版权等）：返回空字符串由上层解析
+                        logger.warning(
+                            f"[LLM] finish_reason={cand.finish_reason.name} "
+                            f"for model={model}, returning None"
+                        )
+                    return None
                 else:
                     # 旧版 google.generativeai（已废弃，压制 FutureWarning）
                     generation_config = {

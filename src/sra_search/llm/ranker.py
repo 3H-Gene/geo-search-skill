@@ -202,7 +202,7 @@ class LLMRanker:
                             prompt=p,
                             system=_RANKER_SYSTEM_PROMPT,
                             temperature=0.0,
-                            max_tokens=16,
+                            max_tokens=64,  # 浮点数 0.850 约需 ~10 tokens，64 留足余量
                         )
                         for p in batch_prompts
                     ]
