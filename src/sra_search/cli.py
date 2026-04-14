@@ -181,15 +181,31 @@ def search(
         finally:
             await client.close()
 
+    # ── 阶段 1: 多源检索 ─────────────────────────────────────────────────────
+    logger.info("=" * 60)
+    logger.info("阶段 1/3: 多源检索")
+    logger.info("=" * 60)
+
     search_results = run_async(_do_search())
 
     if not search_results:
         click.echo(f"No datasets found for '{keyword}'")
         return
 
+    # 统计各源数据
+    source_stats = {}
+    for r in search_results:
+        src = r.match_source
+        source_stats[src] = source_stats.get(src, 0) + 1
+
+    logger.info(
+        f"[检索完成] 共获取 {len(search_results)} 条唯一记录，"
+        f"来源分布: {source_stats}"
+    )
+
     records = [r.dataset for r in search_results]
 
-    # ── 判断是否启用 LLM ────────────────────────────────────────────────────
+    # ── 判断运行模式 ────────────────────────────────────────────────────────
     settings = get_settings()
     should_use_llm = False
 
@@ -205,7 +221,12 @@ def search(
     if (llm_api_key or llm_provider) and use_llm is not False:
         should_use_llm = True
 
-    # ── 转换为 Schema 并排序 ────────────────────────────────────────────────
+    # ── 阶段 2: Schema 转换与排序 ──────────────────────────────────────────
+    logger.info("=" * 60)
+    logger.info("阶段 2/3: Schema 转换与排序")
+    logger.info("=" * 60)
+
+    # 输出模式提示
     if should_use_llm or llm_only:
         # 构建 LLM 客户端（CLI 参数 > 环境变量 > settings）
         _provider = llm_provider or settings.llm_provider or "openai"
@@ -216,12 +237,11 @@ def search(
         _min_rel = llm_min_relevance if llm_min_relevance is not None else 0.0
 
         if not _api_key:
-            click.echo(
-                "\n[WARNING] --llm/--llm-only requested but no API key found. "
-                "Set SRA_SEARCH_LLM_API_KEY or use --llm-api-key.\n"
-                "Falling back to keyword mode.\n",
-                err=True,
+            logger.warning(
+                "[模式提示] LLM 模式请求但未配置 API Key，"
+                "自动降级为 V1 关键词模式"
             )
+            logger.info(f"[V1 模式] 转换 {len(records)} 条记录为 Schema...")
             schema_result = records_to_search_result(records, query=keyword, top_n=top)
         else:
             from sra_search.llm.client import LLMClient
@@ -240,15 +260,28 @@ def search(
             if llm_only:
                 _mode_desc = f"LLM-only (min_relevance={_min_rel}, score_all=True)"
                 _score_all = True
+                logger.info(
+                    f"[模式提示] 运行模式: 纯 LLM 模式\n"
+                    f"  - 提供商: {_provider} | 模型: {_effective_model}\n"
+                    f"  - 参数: min_relevance={_min_rel}, score_all=True\n"
+                    f"  - 特点: 对所有结果做 LLM 语义评分（忽略 V1 预过滤）"
+                )
             else:
                 _mode_desc = f"V1+LLM (top_k={_top_k}, min_relevance={_min_rel})"
                 _score_all = False
+                logger.info(
+                    f"[模式提示] 运行模式: V1 + LLM 辅助模式\n"
+                    f"  - 提供商: {_provider} | 模型: {_effective_model}\n"
+                    f"  - 参数: top_k={_top_k}, min_relevance={_min_rel}, concurrency={settings.llm_concurrency}\n"
+                    f"  - 特点: V1 关键词预过滤 → LLM 语义重排（推荐）"
+                )
 
-            click.echo(
-                f"\n[LLM] Provider={_provider!r} model={_effective_model!r} | "
-                f"API key OK | Mode: {_mode_desc}...",
-                err=True,
-            )
+            logger.info(f"  - 输入记录数: {len(records)}")
+            logger.info("-" * 60)
+
+            # 记录输入数量
+            input_count = len(records)
+            logger.info(f"[Step 2.1] V1 关键词转换: {input_count} 条记录 → Schema")
 
             schema_result = run_async(
                 records_to_search_result_with_llm(
@@ -265,12 +298,15 @@ def search(
                     llm_score_all=_score_all,
                 )
             )
-            click.echo(
-                f"[LLM] Done — returned {len(schema_result.results)} ranked results.",
-                err=True,
-            )
+
+            # 输出 LLM 处理结果统计
+            llm_scored = schema_result.llm_scored_count
+            logger.info(f"[Step 2.2] LLM 语义评分: {llm_scored}/{input_count} 条记录完成评分")
+            logger.info(f"[Step 2.3] 最终排序: {len(schema_result.results)} 条记录 (top={top})")
     else:
+        logger.info(f"[V1 模式] 转换 {len(records)} 条记录为 Schema...")
         schema_result = records_to_search_result(records, query=keyword, top_n=top)
+        logger.info(f"[V1 模式] 完成: {len(schema_result.results)} 条记录排序完成")
 
     # ── 输出查询意图（调试模式）──────────────────────────────────────────────
     if analyze_query and schema_result.llm_query_intent:
@@ -290,6 +326,22 @@ def search(
         click.echo("=" * 60)
         click.echo(schema_result.llm_summary)
         click.echo("=" * 60 + "\n")
+
+    # ── 阶段 3: 结果输出 ──────────────────────────────────────────────────
+    logger.info("=" * 60)
+    logger.info("阶段 3/3: 结果输出")
+    logger.info("=" * 60)
+
+    # 计算统计信息
+    stats = schema_result.compute_stats()
+    sc_count = stats.get("scRNA_seq", 0)
+    pert_count = stats.get("with_perturbation", 0)
+
+    logger.info(f"[输出统计]")
+    logger.info(f"  - 输出格式: {fmt}")
+    logger.info(f"  - 单细胞数据集: {sc_count} 条 ({sc_count/len(schema_result.results)*100:.1f}%）")
+    logger.info(f"  - 含扰动实验: {pert_count} 条")
+    logger.info(f"  - 平均 relevance score: {sum(r.relevance_score for r in schema_result.results)/len(schema_result.results):.3f}" if schema_result.results else "  - 平均 relevance score: N/A")
 
     # ── 主要输出 ─────────────────────────────────────────────────────────
     if fmt == "json":
@@ -383,9 +435,22 @@ def search(
                     logger.error(f"Save error for {r.gse_id}: {e}")
             conn.commit()
             click.echo(f"\n[SAVED] {flushed} datasets to database" + (f" ({errors} errors)" if errors else ""))
+            logger.info(f"[数据存储] 写入数据库: {flushed} 条记录")
         except Exception as e:
             logger.error(f"Database save failed: {e}")
             click.echo(f"\n[ERROR] Failed to save to database: {e}")
+
+    # ── 任务完成汇总 ──────────────────────────────────────────────────────
+    logger.info("=" * 60)
+    logger.info("[任务完成] 搜索结果汇总")
+    logger.info("=" * 60)
+    logger.info(f"  查询词: {keyword}")
+    logger.info(f"  模式: {'V1 关键词模式' if not should_use_llm and not llm_only else ('V1+LLM 模式' if not llm_only else 'LLM-only 模式')}")
+    logger.info(f"  检索数据源: {sources_list or ['geo', 'sra', 'pubmed']}")
+    logger.info(f"  获取记录数: {len(search_results)}")
+    logger.info(f"  输出记录数: {len(schema_result.results)} (top={top})")
+    logger.info(f"  单细胞数据集: {sc_count} 条 ({sc_count/len(schema_result.results)*100:.1f}%)" if schema_result.results else "  单细胞数据集: 0 条")
+    logger.info("=" * 60)
 
 
 @main.command("list")

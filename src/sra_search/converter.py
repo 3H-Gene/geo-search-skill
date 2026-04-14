@@ -629,8 +629,11 @@ async def records_to_search_result_with_llm(
     from loguru import logger
 
     # ── Step 1: V1 转换（关键词评分 + 基础排序）───────────────────────────
+    logger.info("[Step 2.1] V1 关键词转换开始...")
     converter = SchemaConverter(query)
+    raw_count = len(records)
     result = converter.convert_batch(records, top_n=top_n * 3)  # 先拿更多，LLM 重排后截取
+    logger.info(f"  └─ V1 转换完成: {raw_count} 条记录 → {len(result.results)} 条 Schema")
 
     # ── Step 2: 获取 LLM 客户端 ──────────────────────────────────────────
     if llm_client is None:
@@ -641,21 +644,24 @@ async def records_to_search_result_with_llm(
 
     if not llm_available:
         # 回退到 V1：直接截取 top_n 返回
+        logger.warning("[Step 2.2-2.5] LLM 不可用，自动降级为 V1 模式")
         result.results = result.results[:top_n]
         return result
 
     # ── Step 3: LLM 查询意图分析（可选）──────────────────────────────────
     if enable_query_analysis:
+        logger.info("[Step 2.2] LLM 查询意图分析...")
         from sra_search.llm.query_analyzer import LLMQueryAnalyzer
         analyzer = LLMQueryAnalyzer(llm_client)
         intent = await analyzer.analyze(query)
         if intent:
             result.llm_query_intent = intent.to_dict()
-            logger.debug(f"LLM query intent: {intent.intent_summary!r}")
+            logger.info(f"  └─ 查询意图: {intent.intent_summary}")
 
     # ── Step 4: LLM 语义评分（可选）──────────────────────────────────────
     llm_scored = 0
     if enable_ranking:
+        logger.info("[Step 2.3] LLM 语义评分...")
         from sra_search.llm.ranker import LLMRanker
         settings = None
         try:
@@ -666,6 +672,9 @@ async def records_to_search_result_with_llm(
 
         ttl = settings.llm_cache_ttl_hours if settings else 168
         ranker = LLMRanker(client=llm_client, cache_ttl_hours=ttl)
+
+        logger.info(f"  ├─ 参数: top_k={llm_top_k}, concurrency={llm_concurrency}, min_relevance={llm_min_relevance}")
+        logger.info(f"  ├─ 待评分数据集: {len(result.results)} 条")
 
         scored_results = await ranker.score_batch(
             datasets=result.results,
@@ -696,17 +705,24 @@ async def records_to_search_result_with_llm(
             result.results.sort(key=lambda x: x.total_score, reverse=True)
 
             llm_scored = min(llm_top_k, len(result.results))
-            logger.info(f"LLM reranked {llm_scored} datasets for query: {query!r}")
+            # 计算分数提升统计
+            top_score = result.results[0].relevance_score if result.results else 0
+            avg_score = sum(r.relevance_score for r in result.results[:llm_scored]) / llm_scored if llm_scored > 0 else 0
+            logger.info(f"  └─ LLM 评分完成: {llm_scored} 条记录完成评分")
+            logger.info(f"     - Top1 relevance: {top_score:.3f}")
+            logger.info(f"     - 平均 relevance: {avg_score:.3f}")
         else:
-            logger.warning("LLM ranking returned empty results, keeping V1 order.")
+            logger.warning("  └─ LLM 评分返回空，保持 V1 排序")
 
     # 截取 top_n
+    original_count = len(result.results)
     result.results = result.results[:top_n]
     result.llm_model = llm_client.__class__.__name__  # 记录使用的模型类名
     result.llm_scored_count = llm_scored
 
     # ── Step 5: LLM 摘要生成（可选）──────────────────────────────────────
     if enable_summary and result.results:
+        logger.info("[Step 2.4] LLM 摘要生成...")
         from sra_search.llm.summarizer import LLMSummarizer
         summarizer = LLMSummarizer(llm_client)
         result.llm_summary = await summarizer.summarize(
@@ -715,6 +731,9 @@ async def records_to_search_result_with_llm(
             total_found=result.total_found,
             top_n=min(5, len(result.results)),
         )
+        logger.info("  └─ 摘要生成完成")
+
+    logger.info(f"[Step 2.5] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
 
     return result
 

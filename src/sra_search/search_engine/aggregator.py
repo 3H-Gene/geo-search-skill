@@ -102,11 +102,13 @@ class SearchAggregator:
         if sources is None:
             sources = ["geo", "sra", "pubmed"]
 
-        # 构建优化查询
+        # ── Step 1: 查询优化 ────────────────────────────────────────────────
         optimized_query = self._build_optimized_query(keyword)
-        logger.info(f"Optimized query: '{keyword}' -> '{optimized_query}'")
+        logger.info(f"[Step 1] 查询优化: '{keyword}' -> '{optimized_query}'")
 
-        # 并发执行各数据源检索
+        # ── Step 2: 并发多源检索 ───────────────────────────────────────────
+        logger.info(f"[Step 2] 启动 {len(sources)} 个数据源并发检索: {sources}")
+
         tasks = []
         source_labels = []
 
@@ -139,30 +141,49 @@ class SearchAggregator:
         # 并发等待所有任务
         results_list: list[list[DatasetSearchResult] | BaseException] = await asyncio.gather(*tasks, return_exceptions=True)  # type: ignore[assignment]
 
-        # 合并结果（按 gse_id 去重）
-        seen_gse_ids: set = set()
-        all_results: list[DatasetSearchResult] = []
+        # ── Step 3: 各源结果统计 ───────────────────────────────────────────
         source_raw_counts: dict[str, int] = {}
+        failed_sources: list[str] = []
         for i, results in enumerate(results_list):
             source = source_labels[i] if i < len(source_labels) else "unknown"
             if isinstance(results, BaseException):
-                logger.error(f"Source {source} failed: {results}")
+                logger.warning(f"  [{source}] 检索失败: {type(results).__name__}")
+                failed_sources.append(source)
                 continue
             if results:
                 source_raw_counts[source] = len(results)  # type: ignore[arg-type]
-                for r in results:  # type: ignore[union-attr]
-                    # 去重：同一 GSE ID 只保留第一个
-                    gse_key = r.dataset.gse_id
-                    if gse_key not in seen_gse_ids:
-                        seen_gse_ids.add(gse_key)
-                        all_results.append(r)
+                logger.info(f"  [{source}] 获取 {len(results)} 条原始记录")
 
-        # 按 score 降序排序
+        # ── Step 4: 合并去重 ───────────────────────────────────────────────
+        logger.info("[Step 3] 合并去重...")
+        seen_gse_ids: set = set()
+        all_results: list[DatasetSearchResult] = []
+        for i, results in enumerate(results_list):
+            source = source_labels[i] if i < len(source_labels) else "unknown"
+            if isinstance(results, BaseException) or not results:
+                continue
+            for r in results:
+                # 去重：同一 GSE ID 只保留第一个
+                gse_key = r.dataset.gse_id
+                if gse_key not in seen_gse_ids:
+                    seen_gse_ids.add(gse_key)
+                    all_results.append(r)
+
+        # ── Step 4: 排序与汇总 ─────────────────────────────────────────────
         all_results.sort(key=lambda x: x.match_score, reverse=True)
 
-        # 汇总日志：各源原始命中数 + 合并后数量
-        raw_parts = [f"{src}:{cnt}" for src, cnt in source_raw_counts.items()]
-        logger.info(f"Source raw hits: [{', '.join(raw_parts)}] → merged: {len(all_results)} unique records")
+        # 计算总分统计
+        total_raw = sum(source_raw_counts.values())
+        sc_count = sum(1 for r in all_results if r.dataset.single_cell)
+        avg_score = sum(r.match_score for r in all_results) / len(all_results) if all_results else 0
+
+        logger.info("[Step 4] 检索完成汇总:")
+        logger.info(f"  ├─ 各源原始命中: {source_raw_counts}")
+        logger.info(f"  ├─ 合并后总数: {len(all_results)} 条 (去重率: {(1 - len(all_results)/total_raw)*100:.1f}%)" if total_raw > 0 else f"  ├─ 合并后总数: {len(all_results)} 条")
+        logger.info(f"  ├─ 单细胞数据集: {sc_count} 条")
+        logger.info(f"  └─ 平均匹配分数: {avg_score:.3f}")
+        if failed_sources:
+            logger.warning(f"  └─ 失败数据源: {failed_sources}")
 
         return all_results
 
