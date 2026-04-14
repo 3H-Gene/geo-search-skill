@@ -720,8 +720,106 @@ async def records_to_search_result_with_llm(
     result.llm_model = llm_client.__class__.__name__  # 记录使用的模型类名
     result.llm_scored_count = llm_scored
 
-    # ── Step 5: LLM 数据集分析（逐条一句话总结）─────────────────────────
-    logger.info("[Step 2.4] LLM 数据集分析...")
+    # ── Step 5: 补全缺失元数据（对摘要为空的 SRA-only 记录做 GEO 丰富化）────
+    logger.info("[Step 2.4] 元数据补全...")
+    try:
+        from sra_search.retriever.geo_api import GeoRetriever
+        settings_obj = None
+        try:
+            from sra_search.config import get_settings
+            settings_obj = get_settings()
+        except Exception:
+            pass
+        email = settings_obj.ncbi_email if settings_obj else "sra-search@example.com"
+        api_key = getattr(settings_obj, "ncbi_api_key", None) if settings_obj else None
+        geo_api = GeoRetriever(email=email, api_key=api_key)
+
+        # 找出需要补全的记录：摘要为空 且 有 sra_ids（可能是 SRA-only 记录）
+        needs_enrichment: list[tuple[int, DatasetSchema]] = []
+        for idx, ds in enumerate(result.results):
+            if not ds.summary and ds.sra_ids:
+                needs_enrichment.append((idx, ds))
+
+        if needs_enrichment:
+            logger.info(f"  ├─ 发现 {len(needs_enrichment)} 条记录需要元数据补全...")
+            # 通过 ELink 从 BioProject 找关联 GSE，再用 esummary 取元数据
+            import aiohttp as _aiohttp
+
+            # 用 SRP ID 作为 BioProject ID 查 ELink
+            gse_ids_found: dict[str, str] = {}  # srp_id → gse_id
+
+            async with _aiohttp.ClientSession(
+                connector=_aiohttp.TCPConnector(ssl=False)
+            ) as sess:
+                for _, ds in needs_enrichment:
+                    srp = ds.sra_ids[0] if ds.sra_ids else ""
+                    if not srp:
+                        continue
+                    try:
+                        params = {
+                            "db": "gds",        # 目标库：GEO
+                            "dbfrom": "bioproject",  # 源库：BioProject（SRP 编号也是 BioProject ID）
+                            "id": srp,
+                            "retmode": "json",
+                            "email": email,
+                        }
+                        if api_key:
+                            params["api_key"] = api_key
+                        await asyncio.sleep(0.2)  # NCBI rate limit
+                        async with sess.get(
+                            "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/elink.fcgi",
+                            params=params,
+                        ) as resp:
+                            if resp.status == 200:
+                                import xml.etree.ElementTree as ET
+                                text = await resp.text()
+                                root = ET.fromstring(text)
+                                for link_set_db in root.iter("LinkSetDb"):
+                                    for link in link_set_db.iter("Link"):
+                                        gse = (link.find("Id") or type(link, (), {"text": ""})()).text or ""
+                                        if gse.startswith("GSE"):
+                                            gse_ids_found[srp] = gse
+                                            break
+                    except Exception:
+                        pass
+
+                # 获取 GEO esummary 批量元数据
+                gse_list = list(set(gse_ids_found.values()))
+                if gse_list:
+                    geo_records = await geo_api._fetch_summaries(gse_list, sess)
+                    geo_map = {rec.gse_id: rec for rec in geo_records}
+
+                    for _, ds in needs_enrichment:
+                        srp = ds.sra_ids[0] if ds.sra_ids else ""
+                        gse = gse_ids_found.get(srp, "")
+                        if gse and gse in geo_map:
+                            rec = geo_map[gse]
+                            # 补全缺失字段
+                            if not ds.summary and rec.summary:
+                                ds.summary = rec.summary
+                            if not ds.organism and rec.organism:
+                                ds.organism = rec.organism
+                            if not ds.platform and rec.platform:
+                                ds.platform = rec.platform
+                            if ds.sample_count == 0 and rec.sample_count > 0:
+                                ds.sample_count = rec.sample_count
+                            if not ds.publication_date and rec.publication_date:
+                                ds.publication_date = rec.publication_date
+                            if rec.keywords:
+                                ds.keywords = rec.keywords
+
+            enriched_count = sum(
+                1 for idx, ds in needs_enrichment
+                if ds.summary
+            )
+            logger.info(f"  └─ 元数据补全完成: {enriched_count}/{len(needs_enrichment)} 条成功")
+        else:
+            logger.info("  └─ 所有记录均有元数据，无需补全")
+    except Exception as e:
+        logger.warning(f"  └─ 元数据补全失败（不影响后续流程）: {e}")
+
+    # ── Step 6: LLM 数据集分析（逐条一句话总结）─────────────────────────
+    logger.info("[Step 2.5] LLM 数据集分析...")
     from sra_search.llm.dataset_summarizer import LLMDatasetSummarizer
     summarizer = LLMDatasetSummarizer(llm_client)
     analyses = await summarizer.summarize_batch_async(
@@ -737,9 +835,9 @@ async def records_to_search_result_with_llm(
         ds.llm_relevance_reason = analysis.relevance_reason
     logger.info(f"  └─ 数据集分析完成: {len(analyses)} 条")
 
-    # ── Step 6: LLM 整体摘要生成（可选）──────────────────────────────────
+    # ── Step 7: LLM 整体摘要生成（可选）──────────────────────────────────
     if enable_summary and result.results:
-        logger.info("[Step 2.5] LLM 整体摘要生成...")
+        logger.info("[Step 2.6] LLM 整体摘要生成...")
         from sra_search.llm.summarizer import LLMSummarizer
         summary_summarizer = LLMSummarizer(llm_client)
         result.llm_summary = await summary_summarizer.summarize(
@@ -750,7 +848,7 @@ async def records_to_search_result_with_llm(
         )
         logger.info("  └─ 摘要生成完成")
 
-    logger.info(f"[Step 2.6] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
+    logger.info(f"[Step 2.7] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
 
     return result
 

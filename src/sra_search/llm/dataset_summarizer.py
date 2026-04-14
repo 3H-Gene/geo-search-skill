@@ -233,7 +233,7 @@ class LLMDatasetSummarizer:
 
         # 快速提取：细胞数和样本分组（优先用正则，减少 LLM 调用）
         cell_count = self._extract_cell_count(dataset)
-        sample_grouping = self._extract_sample_grouping(dataset.summary) if dataset.summary else None
+        sample_grouping = self._extract_sample_grouping(dataset) if dataset.summary else None
 
         # 如果元数据已提供细胞数，直接使用
         # 注意：现有元数据可能没有细胞数字段，这里做扩展字段的兼容
