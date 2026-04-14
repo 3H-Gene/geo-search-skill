@@ -56,6 +56,7 @@ geo-search-skill   →   gse-downloader   →   downstream analysis
 - **多源联合检索** — 同时检索 GEO、SRA、PubMed、BioProject，结果自动去重合并
 - **知识图谱扩展** — 自动展开疾病同义词（gout → hyperuricemia, uric acid...）、器官、组学类型
 - **元数据提取** — 标准化提取疾病、器官、组学类型、物种、样本数等字段
+- **LLM 语义排序**（可选）— 调用 OpenAI / Anthropic / Google Gemini / Ollama 对结果做语义二次排序，并生成自然语言摘要
 - **数据集审核** — 支持 pending / approved / irrelevant / deleted 审核状态管理
 - **可用性检查** — 自动验证数据集在 NCBI 的可用性
 - **数据导出** — 支持 JSON / TSV 格式导出
@@ -71,6 +72,12 @@ geo-search-skill   →   gse-downloader   →   downstream analysis
 pip install "git+https://github.com/3H-Gene/geo-search-skill.git"
 ```
 
+如需 LLM 语义排序功能，安装时加上 `[llm]` 可选依赖：
+
+```bash
+pip install "sra-search[llm] @ git+https://github.com/3H-Gene/geo-search-skill.git"
+```
+
 ### 方式二：使用 Conda/Mamba（推荐 HPC/生产环境）
 
 ```bash
@@ -79,6 +86,8 @@ cd geo-search-skill
 mamba env create -f environment.yml
 conda activate sra_search
 pip install .
+# 可选：安装 LLM 依赖
+pip install ".[llm]"
 ```
 
 ### 方式三：开发者模式
@@ -87,6 +96,8 @@ pip install .
 git clone https://github.com/3H-Gene/geo-search-skill.git
 cd geo-search-skill
 pip install -e ".[dev]"
+# 可选：安装 LLM 依赖
+pip install -e ".[dev,llm]"
 ```
 
 ### 验证安装
@@ -125,6 +136,78 @@ sra-search search "breast cancer scRNA-seq" --format json --top 20
 # 仅输出 GSE ID 列表（适合管道处理）
 sra-search search "liver fibrosis" --format id-list
 ```
+
+### LLM 语义排序（可选，V2 功能）
+
+LLM 功能完全可选，不配置时自动退回到关键词模式，不影响基础功能。
+
+#### 第 1 步：配置 LLM Provider
+
+**方式 A：环境变量（推荐，适合长期使用）**
+
+```bash
+# 选择一种 Provider 配置即可
+
+# OpenAI（GPT-4o-mini / GPT-4o）
+export SRA_SEARCH_LLM_PROVIDER=openai
+export SRA_SEARCH_LLM_API_KEY=sk-...
+export SRA_SEARCH_LLM_MODEL=gpt-4o-mini        # 默认值
+
+# Anthropic（Claude）
+export SRA_SEARCH_LLM_PROVIDER=anthropic
+export SRA_SEARCH_LLM_API_KEY=sk-ant-...
+export SRA_SEARCH_LLM_MODEL=claude-3-5-haiku-20241022
+
+# Google Gemini
+export SRA_SEARCH_LLM_PROVIDER=google
+export SRA_SEARCH_LLM_API_KEY=AIza...
+export SRA_SEARCH_LLM_MODEL=gemini-2.0-flash   # 默认值
+
+# 本地 Ollama（无需 API Key）
+export SRA_SEARCH_LLM_PROVIDER=local
+export SRA_SEARCH_LLM_MODEL=llama3.2
+# export SRA_SEARCH_LLM_BASE_URL=http://localhost:11434/v1  # 默认值
+```
+
+**方式 B：CLI 参数（适合临时使用）**
+
+```bash
+sra-search search "gout single cell" \
+  --llm \
+  --llm-provider google \
+  --llm-api-key AIza... \
+  --llm-model gemini-2.5-flash
+```
+
+#### 第 2 步：使用 LLM 功能
+
+```bash
+# 启用 LLM 语义排序
+sra-search search "gout single cell" --llm
+
+# 启用 LLM 排序 + 生成自然语言摘要
+sra-search search "gout single cell" --llm --summarize
+
+# 显示 LLM 解析的查询意图（调试用）
+sra-search search "gout single cell" --llm --analyze-query
+
+# 只对前 10 个结果做 LLM 评分（节省 Token）
+sra-search search "gout single cell" --llm --llm-top-k 10
+```
+
+#### 全部 LLM 相关环境变量
+
+| 变量 | 默认值 | 说明 |
+|------|--------|------|
+| `SRA_SEARCH_LLM_PROVIDER` | `""` | Provider：`openai` / `anthropic` / `google` / `local` |
+| `SRA_SEARCH_LLM_API_KEY` | `""` | API Key（空时禁用 LLM） |
+| `SRA_SEARCH_LLM_MODEL` | `""` | 模型名，空时使用各 Provider 默认值 |
+| `SRA_SEARCH_LLM_BASE_URL` | `""` | 代理地址（Ollama / vLLM 等） |
+| `SRA_SEARCH_LLM_ENABLED` | `false` | 全局开关（可被 `--llm` / `--no-llm` 覆盖） |
+| `SRA_SEARCH_LLM_TOP_K` | `20` | 只对前 N 个结果做 LLM 评分 |
+| `SRA_SEARCH_LLM_TEMPERATURE` | `0.0` | 温度参数 |
+| `SRA_SEARCH_LLM_MAX_TOKENS` | `2048` | 最大 Token 数 |
+| `SRA_SEARCH_LLM_TIMEOUT` | `60.0` | 请求超时（秒） |
 
 ### 输出格式说明
 
@@ -242,6 +325,8 @@ RNA-Seq、scRNA-Seq、snRNA-Seq、ATAC-Seq、ChIP-Seq、Hi-C、WGS、WES、Methy
 - 必须配置 NCBI 邮箱（`SRA_SEARCH_NCBI_EMAIL`），否则 NCBI E-utilities 请求可能被拒绝
 - 推荐申请 [NCBI API Key](https://www.ncbi.nlm.nih.gov/account/)，可将速率限制从 3 次/秒提升至 10 次/秒
 - 默认请求频率遵守 NCBI 使用规范，请勿手动提高速率
+- LLM 功能为纯可选项，未配置 API Key 时自动回退到关键词排序模式，不影响基础搜索
+- 使用 LLM 功能前需安装 `[llm]` 可选依赖（`pip install "sra-search[llm]"`），并至少配置 `SRA_SEARCH_LLM_PROVIDER` 和 `SRA_SEARCH_LLM_API_KEY`
 
 ---
 
