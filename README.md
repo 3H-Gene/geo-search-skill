@@ -263,7 +263,7 @@ sra-search config
 ## 目录结构
 
 ```
-geo-search-skill/
+sra-search/
 ├── data/
 │   └── ontologies/              # 本体知识库（v1.1）
 │       ├── doid_hierarchy.json  # 疾病本体（DOID）
@@ -274,32 +274,46 @@ geo-search-skill/
 │   └── ontology_audit_report.md # 本体审核报告
 ├── src/
 │   └── sra_search/              # 核心包
-│       ├── query/               # 查询处理 pipeline
-│       │   ├── parser.py        # 结构化查询解析器
-│       │   └── expander.py     # 本体知识扩展器
-│       ├── retriever/           # 检索层
-│       │   └── geo_api.py      # GEO API 封装 + 失败处理
-│       ├── processor/           # 结果处理 pipeline
-│       │   ├── filter.py       # 多维度结果过滤器
-│       │   └── ranking.py      # Bio-aware 排序器
-│       ├── schema.py           # 标准输出 Schema（强约束协议）
+│       ├── cli.py              # 命令行入口
+│       ├── config.py           # 配置管理
+│       ├── schema.py           # 标准输出 Schema
 │       ├── converter.py        # 数据转换器
 │       ├── cache.py            # 查询缓存
-│       ├── knowledge_graph/    # 知识图谱（疾病/器官/组学扩展）
+│       ├── query/              # 查询处理 pipeline
+│       │   ├── parser.py       # 结构化查询解析器
+│       │   └── expander.py     # 本体知识扩展器
+│       ├── retriever/          # 检索层
+│       │   ├── geo_api.py      # GEO API 封装
+│       │   └── ncbi_fetcher.py # NCBI HTML 爬取 fallback
+│       ├── processor/          # 结果处理 pipeline
+│       │   ├── filter.py       # 多维度结果过滤器
+│       │   └── ranking.py      # Bio-aware 排序器
 │       ├── search_engine/      # 多源检索引擎
+│       ├── knowledge_graph/    # 知识图谱（疾病/器官/组学扩展）
 │       ├── metadata_extractor/ # 元数据提取与标准化
 │       ├── topic_manager/      # 主题管理
 │       ├── review_manager/     # 审核管理
 │       ├── data_store/         # SQLite 数据存储（WAL 模式）
 │       ├── availability_checker/ # 可用性验证
-│       ├── cli.py              # 命令行入口
-│       └── config.py           # 配置管理
-├── tests/                       # 测试套件
-├── geo-search/                  # AI Skill（WorkBuddy/OpenClaw）
-│   ├── SKILL.md
-│   └── scripts/geo_search.py
-├── environment.yml              # Conda 环境配置
-├── pyproject.toml               # 项目构建配置
+│       ├── llm/                # LLM 辅助功能（V2）
+│       │   ├── client.py      # LLM 客户端
+│       │   ├── ranker.py      # 语义排序器
+│       │   ├── summarizer.py  # 摘要生成器
+│       │   ├── query_analyzer.py # 查询意图分析
+│       │   └── providers/     # Provider 实现
+│       │       ├── openai_provider.py
+│       │       ├── google_provider.py
+│       │       ├── anthropic_provider.py
+│       │       └── ollama_provider.py
+│       └── utils/             # 工具模块
+│           ├── logger.py      # 日志配置
+│           ├── rate_limiter.py # 速率限制
+│           └── retry.py       # 重试机制
+├── tests/                      # 测试套件
+├── geo-search/                 # geo-search AI Skill（旧版 WorkBuddy）
+├── sra-search/                 # sra-search AI Skill（新版 WorkBuddy）
+├── environment.yml             # Conda 环境配置
+├── pyproject.toml              # 项目构建配置
 └── README.md
 ```
 
