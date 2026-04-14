@@ -58,9 +58,11 @@ geo-search-skill   →   gse-downloader   →   downstream analysis
 - **元数据提取** — 标准化提取疾病、器官、组学类型、物种、样本数等字段
 - **LLM 语义排序**（可选）— 调用 OpenAI / Anthropic / Google Gemini / Ollama 对结果做语义二次排序，并生成自然语言摘要
 - **数据集审核** — 支持 pending / approved / irrelevant / deleted 审核状态管理
-- **可用性检查** — 自动验证数据集在 NCBI 的可用性
-- **数据导出** — 支持 JSON / TSV 格式导出
+- **可用性检查** — 自动验证 SRA 数据集在 NCBI 的可用性（public / dbGaP controlled / withdrawn）
+- **数据导出** — 支持 JSON / TSV / CSV / Plain Text / Shell Script 五种格式
 - **速率限制** — 默认 3 次/秒，配置 API Key 后自动提升至 10 次/秒
+- **ID 转换** — GSE ↔ SRP ↔ BioProject ↔ BioSample 编号互转
+- **主题管理** — 主题式搜索，支持创建/查看/搜索/删除研究主题
 
 ---
 
@@ -216,6 +218,10 @@ sra-search search "gout single cell" --llm --llm-top-k 10
 | `table` | 表格形式（默认） | 交互式浏览 |
 | `json` | 标准 JSON Schema 输出 | 程序集成、API |
 | `id-list` | 仅 GSE ID 列表 | 管道处理、外部工具调用 |
+| `csv` | CSV 格式文件 | Excel 分析 |
+| `tsv` | TSV 格式文件 | Tab-separated 数据 |
+| `plain` | 纯文本格式 | 快速预览 |
+| `script` | Shell 下载脚本 | 配合 gse-downloader 批量下载 |
 
 ### 查看搜索结果
 
@@ -240,6 +246,76 @@ sra-search list --limit 50 --offset 100
 
 ```bash
 sra-search show GSE123456
+```
+
+### 主题管理
+
+```bash
+# 创建新主题（自动解析疾病/器官/组学维度）
+sra-search topic new "gout single cell"
+
+# 列出所有主题
+sra-search topic list
+
+# 查看主题详情和生成的关键词
+sra-search topic show "gout single cell"
+
+# 对主题执行搜索
+sra-search topic search "gout single cell" --top 30
+
+# 删除主题（保留关联的数据集）
+sra-search topic delete "gout single cell"
+```
+
+### ID 转换
+
+```bash
+# GSE → SRA Study
+sra-search convert GSE123456
+
+# SRP → GEO Datasets
+sra-search convert SRP123456 --to gds
+
+# SRR → 父级 SRA Study（上游追溯）
+sra-search convert SRR789012 --to sra
+
+# 查询所有可用目标类型
+sra-search convert GSE123456 --all-targets
+```
+
+### 数据集可用性检查
+
+```bash
+# 检查单个数据集
+sra-search check GSE123456
+
+# 检查某主题下所有数据集
+sra-search check --topic "gout single cell"
+
+# 检查所有未验证的数据集
+sra-search check --all
+
+# 重新检查所有数据集
+sra-search check --all --recheck
+
+# 自定义最小样本数阈值
+sra-search check --all --min-samples 10
+```
+
+### 元数据更新
+
+```bash
+# 更新某主题的数据集
+sra-search update --topic "gout single cell"
+
+# 更新所有数据集
+sra-search update --all
+
+# 只更新2024年以来的数据
+sra-search update --all --since 2024-01-01
+
+# 预览模式（不实际执行）
+sra-search update --all --dry-run
 ```
 
 ### 查看当前配置
@@ -294,7 +370,8 @@ sra-search/
 │       ├── topic_manager/      # 主题管理
 │       ├── review_manager/     # 审核管理
 │       ├── data_store/         # SQLite 数据存储（WAL 模式）
-│       ├── availability_checker/ # 可用性验证
+│       ├── availability_checker/ # SRA 可用性验证
+│       ├── id_converter/        # NCBI 编号转换（GSE↔SRP↔BioProject）
 │       ├── llm/                # LLM 辅助功能（V2）
 │       │   ├── client.py      # LLM 客户端
 │       │   ├── ranker.py      # 语义排序器

@@ -539,21 +539,380 @@ def config():
         click.echo("Then use: sra-search search 'query' --llm --summarize")
 
 
-@main.command()
+# ── Topic 子命令组 ──────────────────────────────────────────────────────────
+
+@main.group("topic")
+def topic_group():
+    """主题管理：创建、查看、删除研究主题"""
+    pass
+
+
+@topic_group.command("new")
 @click.argument("name")
 @click.option("--description", "-d", default="", help="主题描述")
 @click.option("--keywords", "-k", default="", help="额外关键词（逗号分隔）")
-def topic(name: str, description: str, keywords: str):
-    """主题式搜索（开发中）"""
-    click.echo(f"Topic search '{name}' is under development.")
-    click.echo("Currently, use 'sra-search search' for keyword-based search.")
+@click.option("--species", "-s", multiple=True, help="物种筛选（可多选），如 --species human")
+@click.option("--omics", "-o", multiple=True,
+              type=click.Choice(["scRNA-seq", "bulk RNA-seq", "spatial transcriptomics",
+                                 "ATAC-seq", "ChIP-seq", "proteomics", "GWAS",
+                                 "WGS", "WES", "Ribo-seq", "single-cell multi-omics"]),
+              help="组学类型筛选（可多选）")
+def topic_new(name: str, description: str, keywords: str, species: tuple, omics: tuple):
+    """创建新主题（自动解析疾病/器官/组学维度）"""
+    from sra_search.data_store.database import Database
+    from sra_search.topic_manager.topic import TopicParser, TopicDefinition
+    from sra_search.topic_manager.keyword_generator import KeywordGenerator
+    from sra_search.metadata_extractor.models import TopicRecord
+    from datetime import datetime, timezone
+    import uuid
+
+    click.echo(f"[*] Creating topic: {name}")
+
+    # 解析主题
+    parser = TopicParser()
+    extra_kw = [k.strip() for k in keywords.split(",") if k.strip()] if keywords else []
+
+    # 如果用户指定了物种/组学，优先使用
+    if species or omics:
+        definition = parser.parse_from_dimensions(
+            name=name,
+            diseases=[name],  # 把 name 当作疾病关键词
+            description=description or name,
+            omics_types=list(omics) if omics else None,
+            species=list(species) if species else ["Homo sapiens"],
+        )
+    else:
+        definition = parser.parse(name, extra_kw)
+
+    # 生成关键词
+    kg = KeywordGenerator()
+    queries = kg.generate(definition, max_queries=50)
+
+    # 保存到数据库
+    db = Database()
+    now = datetime.now(timezone.utc).isoformat()
+    topic_record = TopicRecord(
+        topic_id=definition.topic_id,
+        name=definition.name,
+        description=description or definition.description,
+        keywords_used=[q[0] for q in queries],
+        created_at=now,
+        last_searched_at=None,
+    )
+
+    async def save_topic():
+        await db.insert_topic(topic_record)
+        await db.stop_write_queue()
+
+    asyncio.run(save_topic())
+
+    # 输出摘要
+    click.echo(f"\n[+] Topic created successfully!")
+    click.echo(f"\n=== Topic: {name} ===")
+    click.echo(f"  ID:        {definition.topic_id[:8]}...")
+    click.echo(f"  Diseases:  {', '.join(definition.diseases) or '-'}")
+    click.echo(f"  Organs:    {', '.join(definition.organs) or '-'}")
+    click.echo(f"  Omics:     {', '.join(definition.omics_types) or '-'}")
+    click.echo(f"  Species:   {', '.join(definition.species)}")
+    click.echo(f"\n  Keywords generated: {len(queries)}")
+    click.echo("\n  Top 10 search queries:")
+    for q, weight in queries[:10]:
+        bar = "█" * int(weight * 10)
+        click.echo(f"    [{bar:<10}] {q}")
+
+    if len(queries) > 10:
+        click.echo(f"    ... and {len(queries) - 10} more (use 'sra-search topic show {name}' to see all)")
+
+    click.echo(f"\n  Next: sra-search topic search {name}  # 执行主题搜索")
+
+
+@topic_group.command("list")
+def topic_list():
+    """列出所有已保存的主题"""
+    from sra_search.data_store.database import Database
+
+    db = Database()
+    topics = db.list_topics()
+
+    if not topics:
+        click.echo("[*] No topics found. Create one with: sra-search topic new <name>")
+        return
+
+    click.echo(f"\n=== Topics ({len(topics)} total) ===\n")
+    table = [["#", "Name", "Created", "Last Searched", "Keywords"]]
+    for i, t in enumerate(topics, 1):
+        created = t.created_at[:10] if t.created_at else "-"
+        last = t.last_searched_at[:10] if t.last_searched_at else "Never"
+        kw_count = len(t.keywords_used) if t.keywords_used else 0
+        table.append([
+            str(i),
+            t.name,
+            created,
+            last,
+            f"{kw_count} keywords",
+        ])
+
+    col_widths = [max(len(str(row[i])) for row in table) for i in range(len(table[0]))]
+    for row in table:
+        click.echo("  ".join(str(cell).ljust(w) for cell, w in zip(row, col_widths)))
+
+
+@topic_group.command("show")
+@click.argument("name")
+@click.option("--keywords", "-k", is_flag=True, help="显示所有生成的关键词")
+def topic_show(name: str, keywords: bool):
+    """显示主题详情"""
+    from sra_search.data_store.database import Database
+    from sra_search.topic_manager.topic import TopicParser
+    from sra_search.topic_manager.keyword_generator import KeywordGenerator
+
+    db = Database()
+    topic_record = db.get_topic_by_name(name)
+
+    if not topic_record:
+        click.echo(f"[!] Topic '{name}' not found.")
+        return
+
+    # 重新解析获取最新状态
+    parser = TopicParser()
+    definition = parser.parse(name)
+
+    kg = KeywordGenerator()
+    queries = kg.generate(definition, max_queries=200)
+    kw_list = [q[0] for q in queries]
+
+    click.echo(f"\n=== Topic: {name} ===")
+    click.echo(f"  ID:          {topic_record.topic_id}")
+    click.echo(f"  Description: {topic_record.description or '-'}")
+    click.echo(f"  Diseases:    {', '.join(definition.diseases) or '-'}")
+    click.echo(f"  Organs:      {', '.join(definition.organs) or '-'}")
+    click.echo(f"  Omics:       {', '.join(definition.omics_types) or '-'}")
+    click.echo(f"  Species:     {', '.join(definition.species)}")
+    click.echo(f"  Created:     {topic_record.created_at[:19] if topic_record.created_at else '-'}")
+    click.echo(f"  Last search: {topic_record.last_searched_at[:19] if topic_record.last_searched_at else 'Never'}")
+
+    # 统计
+    from sra_search.review_manager.filters import ReviewFilters
+    filters = ReviewFilters(db)
+    summary = filters.get_review_summary(topic_record.topic_id)
+    total = summary["pending"] + summary["approved"] + summary["irrelevant"]
+
+    click.echo(f"\n  === Statistics ===")
+    click.echo(f"  Datasets found:  {total}")
+    click.echo(f"  Pending review:  {summary['pending']}")
+    click.echo(f"  Approved:         {summary['approved']}")
+    click.echo(f"  Irrelevant:       {summary['irrelevant']}")
+
+    if keywords:
+        click.echo(f"\n  === Keywords ({len(kw_list)}) ===")
+        for q, weight in queries:
+            bar = "█" * int(weight * 10)
+            click.echo(f"    [{bar:<10}] {q}")
+    else:
+        click.echo(f"\n  Keywords generated: {len(kw_list)}")
+        click.echo("  Top 10:")
+        for q, weight in queries[:10]:
+            click.echo(f"    [{weight:.2f}] {q}")
+        if len(queries) > 10:
+            click.echo(f"    ... use --keywords to see all {len(queries)} keywords")
+
+
+@topic_group.command("search")
+@click.argument("name")
+@click.option("--top", "-t", default=30, type=int, help="返回前 N 个结果")
+@click.option("--organism", "-o", multiple=True, help="生物体过滤（可多选）")
+@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "id-list"]),
+              default="table", help="输出格式")
+@click.option("--llm/--no-llm", "use_llm", default=None, is_flag=True,
+              help="使用 LLM 语义排序")
+def topic_search(name: str, top: int, organism: tuple, fmt: str, use_llm: bool | None):
+    """对指定主题执行搜索（使用主题生成的关键词）"""
+    from sra_search.data_store.database import Database
+    from sra_search.topic_manager.topic import TopicParser
+    from sra_search.topic_manager.keyword_generator import KeywordGenerator
+    from sra_search.search_engine.aggregator import Aggregator
+    from sra_search.metadata_extractor.models import TopicDatasetRelation, SearchHistoryRecord
+    from datetime import datetime, timezone
+    import uuid
+
+    db = Database()
+    topic_record = db.get_topic_by_name(name)
+
+    if not topic_record:
+        click.echo(f"[!] Topic '{name}' not found.")
+        return
+
+    # 生成关键词
+    parser = TopicParser()
+    definition = parser.parse(name)
+    kg = KeywordGenerator()
+    queries = kg.generate(definition, max_queries=100)
+
+    click.echo(f"[*] Topic: {name}")
+    click.echo(f"[*] Generated {len(queries)} search queries")
+
+    # 执行聚合搜索（使用第一个高权重关键词作为主查询）
+    # 后续可以改为批量执行所有关键词
+    top_query = queries[0][0] if queries else name
+    click.echo(f"[*] Running search with: '{top_query}' ...\n")
+
+    async def run_search():
+        agg = Aggregator()
+        organisms_filter = list(organism) if organism else definition.species
+        results = await agg.search(
+            query=top_query,
+            top_k=top,
+            organisms=organisms_filter,
+        )
+        await agg.close()
+        return results
+
+    results = asyncio.run(run_search())
+
+    if not results:
+        click.echo("[*] No results found.")
+        return
+
+    click.echo(f"[+] Found {len(results)} results")
+
+    # 转换并保存到数据库（同步批量写入）
+    async def save_results():
+        for rec in results:
+            ds_record = rec.to_dataset_record()
+            await db.upsert_dataset(ds_record)
+
+            td_relation = TopicDatasetRelation(
+                id=str(uuid.uuid4()),
+                topic_id=topic_record.topic_id,
+                gse_id=ds_record.gse_id,
+                match_keyword=top_query,
+                match_source="topic_search",
+                match_score=rec.relevance_score,
+                review_status="pending",
+                review_note="",
+                reviewed_at=None,
+                added_at=datetime.now(timezone.utc).isoformat(),
+            )
+            await db.insert_topic_dataset(td_relation)
+
+        await db.insert_search_history(SearchHistoryRecord(
+            id=str(uuid.uuid4()),
+            topic_id=topic_record.topic_id,
+            search_time=datetime.now(timezone.utc).isoformat(),
+            keyword_used=top_query,
+            results_count=len(results),
+        ))
+
+        conn = db.get_connection()
+        conn.execute(
+            "UPDATE topics SET last_searched_at = ? WHERE topic_id = ?",
+            (datetime.now(timezone.utc).isoformat(), topic_record.topic_id),
+        )
+        conn.commit()
+
+        await db.stop_write_queue()
+
+    asyncio.run(save_results())
+
+    # 输出结果
+    if fmt == "json":
+        import json
+        click.echo(json.dumps([r.model_dump() for r in results], indent=2, ensure_ascii=False))
+    elif fmt == "id-list":
+        for r in results:
+            click.echo(r.gse_id)
+    else:
+        _print_search_table(results, top)
+
+
+@topic_group.command("delete")
+@click.argument("name")
+@click.option("--force", "-f", is_flag=True, help="跳过确认直接删除")
+def topic_delete(name: str, force: bool):
+    """删除主题（不删除关联的数据集）"""
+    from sra_search.data_store.database import Database
+
+    db = Database()
+    topic_record = db.get_topic_by_name(name)
+
+    if not topic_record:
+        click.echo(f"[!] Topic '{name}' not found.")
+        return
+
+    if not force:
+        click.confirm(f"Delete topic '{name}'? (Datasets will be kept)", abort=True)
+
+    conn = db.get_connection()
+    # 删除主题-数据集关联
+    conn.execute("DELETE FROM topic_datasets WHERE topic_id = ?", (topic_record.topic_id,))
+    # 删除主题
+    conn.execute("DELETE FROM topics WHERE topic_id = ?", (topic_record.topic_id,))
+    conn.commit()
+
+    click.echo(f"[+] Topic '{name}' deleted.")
 
 
 @main.command()
 @click.argument("accession")
-def convert(accession: str):
-    """编号转换（开发中）"""
-    click.echo(f"ID conversion for '{accession}' is under development.")
+@click.option("--to", "-t", "target_db",
+              type=click.Choice(["sra", "gds", "bioproject", "biosample", "pubmed"]),
+              default="sra",
+              help="目标数据库（默认: sra）")
+@click.option("--all-targets", is_flag=True, help="查询所有可用目标类型")
+@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json"]),
+              default="table", help="输出格式")
+def convert(accession: str, target_db: str, all_targets: bool, fmt: str):
+    """NCBI 编号转换（GSE ↔ SRP ↔ BioProject 等）"""
+    from sra_search.id_converter import NCBIConverter, detect_accession_type
+
+    acc_type = detect_accession_type(accession)
+    if acc_type is None:
+        click.echo(f"[!] Unknown accession format: {accession}", err=True)
+        click.echo("    Supported: GSE, GSM, SRP/ERP/DRP, SRX, SRR, PRJNA, PRJEB, BioSample")
+        return
+
+    click.echo(f"[*] Detected: {accession} ({acc_type})\n")
+
+    if all_targets:
+        # 查询所有目标类型
+        targets_to_query = ["sra", "gds", "bioproject", "biosample", "pubmed"]
+    else:
+        targets_to_query = [target_db]
+
+    async def run_conversion():
+        import aiohttp
+        converter = NCBIConverter()
+        results = []
+
+        async with aiohttp.ClientSession() as session:
+            for tdb in targets_to_query:
+                result = await converter.convert(accession, tdb, session)
+                results.append(result)
+
+        return results
+
+    conversion_results = asyncio.run(run_conversion())
+
+    if fmt == "json":
+        import json
+        click.echo(json.dumps([{
+            "source": r.source,
+            "source_type": r.source_type,
+            "target_type": r.target_type,
+            "targets": r.targets,
+            "note": r.note,
+        } for r in conversion_results], indent=2, ensure_ascii=False))
+    else:
+        for r in conversion_results:
+            color = "green" if r.targets else "yellow"
+            click.echo(click.style(f"  → {r.target_type.upper():12} ", fg=color) +
+                       (f"{', '.join(r.targets)}" if r.targets else click.style(r.note, fg="red")))
+        click.echo("")
+        click.echo("Usage examples:")
+        click.echo(f"  sra-search convert GSE123456 --to sra         # GSE → SRA Study")
+        click.echo(f"  sra-search convert SRP123456 --to gds         # SRP → GEO Datasets")
+        click.echo(f"  sra-search convert SRR789012 --to sra         # SRR → parent SRA Study")
+        click.echo(f"  sra-search convert GSE123456 --all-targets    # 查询所有目标类型")
 
 
 @main.command()
@@ -561,26 +920,344 @@ def convert(accession: str):
 @click.option("--topic", "-t", help="检查某主题下所有数据集")
 @click.option("--all", "check_all", is_flag=True, help="检查全部未验证数据集")
 @click.option("--recheck", is_flag=True, help="重新检查已有状态的数据集")
-def check(gse_id: str | None, topic: str | None, check_all: bool, recheck: bool):
-    """数据集可用性检查（开发中）"""
+@click.option("--min-samples", default=3, help="最小样本数阈值（默认3）")
+@click.option("--format", "-f", "fmt", default="table", type=click.Choice(["table", "json"]), help="输出格式")
+def check(gse_id: str | None, topic: str | None, check_all: bool, recheck: bool, min_samples: int, fmt: str):
+    """数据集可用性检查（SRA/BioProject）"""
+    asyncio.run(_check_async(gse_id, topic, check_all, recheck, min_samples, fmt))
+
+
+async def _check_async(
+    gse_id: str | None,
+    topic: str | None,
+    check_all: bool,
+    recheck: bool,
+    min_samples: int,
+    fmt: str,
+) -> None:
+    """执行可用性检查的异步逻辑"""
+    from sra_search.availability_checker.sra_checker import SraChecker
+    from sra_search.data_store.database import Database
+    from sra_search.utils.rate_limiter import RateLimiter
+
+    db = Database()
+    checker = SraChecker(RateLimiter(rate=3.0))
+    results: list[dict] = []
+
+    # 统计信息
+    stats = {"total": 0, "available": 0, "restricted": 0, "unavailable": 0, "unverified": 0}
+
+    # 收集待检查的数据集
+    datasets_to_check: list[tuple[str, str, list[str]]] = []  # (gse_id, title, sra_ids)
+
     if gse_id:
-        click.echo(f"Availability check for '{gse_id}' is under development.")
+        # 单个数据集检查
+        record = db.get_dataset(gse_id)
+        if not record:
+            click.echo(f"[!] Dataset '{gse_id}' not found in database.", err=True)
+            click.echo("    Run 'sra-search search' first to fetch the dataset.")
+            return
+        sra_ids = record.sra_ids or []
+        if not sra_ids:
+            click.echo(f"[!] Dataset '{gse_id}' has no SRA IDs. Nothing to check.")
+            return
+        datasets_to_check.append((gse_id, record.title or "", sra_ids))
+        stats["total"] = 1
+
     elif topic:
-        click.echo(f"Batch check for topic '{topic}' is under development.")
-    elif check_all or recheck:
-        click.echo("Full availability check is under development.")
+        # 主题下所有数据集
+        topic_record = db.get_topic_by_name(topic)
+        if not topic_record:
+            click.echo(f"[!] Topic '{topic}' not found. Use 'sra-search list' to see available topics.")
+            return
+
+        topic_datasets = db.get_topic_datasets(topic_record.topic_id)
+        if not topic_datasets:
+            click.echo(f"[!] No datasets found under topic '{topic}'.")
+            return
+
+        for td in topic_datasets:
+            td_gse_id = td.get("gse_id", "")
+            record = db.get_dataset(td_gse_id)
+            if not record:
+                continue
+            sra_ids = record.sra_ids or []
+            if sra_ids and (not record.availability_status or recheck or record.availability_status == "unverified"):
+                datasets_to_check.append((td_gse_id, record.title or "", sra_ids))
+        stats["total"] = len(datasets_to_check)
+
+    elif check_all:
+        # 全量检查未验证的数据集
+        if recheck:
+            # 检查所有有 SRA ID 的数据集
+            all_datasets = db.list_datasets(limit=10000)
+        else:
+            # 只检查未验证的
+            all_datasets = db.list_datasets(availability="unverified", limit=10000)
+
+        for record in all_datasets:
+            sra_ids = record.sra_ids or []
+            if sra_ids:
+                datasets_to_check.append((record.gse_id, record.title or "", sra_ids))
+        stats["total"] = len(datasets_to_check)
+
     else:
         click.echo("Use: sra-search check <GSE_ID> [--topic TOPIC] [--all] [--recheck]")
+        click.echo("")
+        click.echo("Examples:")
+        click.echo("  sra-search check GSE123456          # 检查单个数据集")
+        click.echo("  sra-search check --topic gout      # 检查某主题下所有数据集")
+        click.echo("  sra-search check --all             # 检查所有未验证的数据集")
+        click.echo("  sra-search check --all --recheck   # 重新检查所有数据集")
+        return
+
+    if not datasets_to_check:
+        click.echo("[*] No datasets to check.")
+        return
+
+    click.echo(f"[*] Checking {stats['total']} dataset(s)...\n")
+
+    # 进度显示
+    import sys
+    progress = click.progressbar(
+        length=stats["total"],
+        label="  Checking",
+        show_eta=True,
+    )
+
+    import aiohttp
+    async with aiohttp.ClientSession() as session:
+        for gse_id, title, sra_ids in datasets_to_check:
+            progress.update(1)
+
+            # 获取第一个 SRP 进行检查
+            srp_id = next((sid for sid in sra_ids if sid.startswith(("SRP", "ERP", "DRP"))), None)
+            if not srp_id:
+                continue
+
+            # 调用 SRA 检查器
+            check_result = await checker.check_srp(srp_id, session, min_samples)
+
+            # 更新数据库
+            now = _now_iso()
+            conn = db.get_connection()
+            conn.execute("""
+                UPDATE datasets SET
+                    availability_status = ?,
+                    availability_note = ?,
+                    access_type = ?,
+                    availability_checked_at = ?
+                WHERE gse_id = ?
+            """, (
+                check_result.status,
+                check_result.note,
+                check_result.access_type,
+                now,
+                gse_id,
+            ))
+            conn.commit()
+
+            # 记录结果
+            result_entry = {
+                "gse_id": gse_id,
+                "title": title[:50] + "..." if len(title) > 50 else title,
+                "srp_id": srp_id,
+                "status": check_result.status,
+                "access_type": check_result.access_type,
+                "sample_count": check_result.sample_count,
+                "note": check_result.note,
+            }
+            results.append(result_entry)
+
+            # 更新统计
+            if check_result.status in stats:
+                stats[check_result.status] += 1
+
+    progress.finish()
+    click.echo("")
+
+    # 输出结果
+    if fmt == "json":
+        import json
+        click.echo(json.dumps({"stats": stats, "results": results}, indent=2, ensure_ascii=False))
+    else:
+        _print_check_results(results, stats)
+
+
+def _print_check_results(results: list[dict], stats: dict) -> None:
+    """格式化输出检查结果"""
+    if not results:
+        click.echo("[*] No results to display.")
+        return
+
+    # 统计摘要
+    click.echo("=== 检查摘要 ===")
+    click.echo(f"  Total:      {stats['total']}")
+    click.echo(f"  Available: {stats['available']}  \u2713")
+    click.echo(f"  Restricted: {stats['restricted']}  \u26d4")
+    click.echo(f"  Unavailable: {stats['unavailable']}  \u2717")
+    click.echo(f"  Unverified: {stats['unverified']}  \u2317")
+    click.echo("")
+
+    # 结果表格
+    table = [
+        ["GSE ID", "SRP ID", "Status", "Access", "Samples", "Note"]
+    ]
+    status_colors = {
+        "available": "green",
+        "restricted": "yellow",
+        "unavailable": "red",
+        "unverified": "cyan",
+    }
+
+    for r in results:
+        status_text = r["status"]
+        if r["status"] == "available" and r["note"]:
+            status_text += "*"  # 带*表示样本数低
+        table.append([
+            r["gse_id"],
+            r["srp_id"],
+            status_text,
+            r["access_type"],
+            str(r["sample_count"]),
+            r["note"][:40] if r["note"] else "-",
+        ])
+
+    col_widths = [max(len(str(row[i])) for row in table) for i in range(len(table[0]))]
+    header = "  ".join(str(h).ljust(w) for h, w in zip(table[0], col_widths))
+    click.echo(click.style(header, bold=True))
+    click.echo("  ".join("-" * w for w in col_widths))
+
+    for row in table[1:]:
+        status_idx = 2
+        status_val = row[status_idx]
+        color = status_colors.get(status_val.replace("*", ""), None)
+        row_str = "  ".join(str(cell).ljust(w) for cell, w in zip(row, col_widths))
+        if color:
+            click.echo(click.style(row_str, fg=color))
+        else:
+            click.echo(row_str)
+
+    if any("*" in r["status"] for r in results):
+        click.echo("\n* = Low sample count (below --min-samples threshold)")
 
 
 @main.command()
-@click.option("--topic", "-t", help="更新指定主题")
-def update(topic: str | None):
-    """手动触发更新（开发中）"""
+@click.option("--topic", "-t", help="更新指定主题下的数据集")
+@click.option("--all", "update_all", is_flag=True, help="更新所有数据集的元数据")
+@click.option("--since", default=None, help="只更新指定日期之后的数据（YYYY-MM-DD）")
+@click.option("--dry-run", is_flag=True, help="仅显示将要更新的数据集，不实际执行")
+def update(topic: str | None, update_all: bool, since: str | None, dry_run: bool):
+    """更新数据集元数据（BioProject / GEO / SRA）"""
+    from sra_search.data_store.database import Database
+    from datetime import datetime
+
+    if not topic and not update_all:
+        click.echo("Use: sra-search update --topic <name>  OR  sra-search update --all")
+        click.echo("")
+        click.echo("Examples:")
+        click.echo("  sra-search update --topic gout        # 更新某主题的数据集")
+        click.echo("  sra-search update --all              # 更新所有数据集")
+        click.echo("  sra-search update --all --since 2024-01-01  # 只更新2024年以来的")
+        click.echo("  sra-search update --all --dry-run    # 预览模式（不实际更新）")
+        return
+
+    db = Database()
+    datasets_to_update: list[tuple[str, str]] = []  # (gse_id, title)
+
     if topic:
-        click.echo(f"Update for topic '{topic}' is under development.")
-    else:
-        click.echo("Full update is under development.")
+        topic_record = db.get_topic_by_name(topic)
+        if not topic_record:
+            click.echo(f"[!] Topic '{topic}' not found.")
+            return
+        topic_datasets = db.get_topic_datasets(topic_record.topic_id)
+        for td in topic_datasets:
+            datasets_to_update.append((td.get("gse_id", ""), td.get("title", "")))
+
+    elif update_all:
+        # 获取所有数据集
+        all_datasets = db.list_datasets(limit=10000)
+        for rec in all_datasets:
+            # 日期过滤
+            if since:
+                try:
+                    since_dt = datetime.strptime(since, "%Y-%m-%d")
+                    if rec.publication_date:
+                        pub_dt = datetime.strptime(rec.publication_date[:10], "%Y-%m-%d")
+                        if pub_dt < since_dt:
+                            continue
+                except ValueError:
+                    pass
+            datasets_to_update.append((rec.gse_id, rec.title or ""))
+
+    if not datasets_to_update:
+        click.echo("[*] No datasets to update.")
+        return
+
+    click.echo(f"[*] Found {len(datasets_to_update)} dataset(s) to update\n")
+
+    if dry_run:
+        click.echo("=== Dry Run - Will update the following ===\n")
+        for gse_id, title in datasets_to_update[:20]:
+            click.echo(f"  {gse_id}  {title[:50]}")
+        if len(datasets_to_update) > 20:
+            click.echo(f"\n  ... and {len(datasets_to_update) - 20} more")
+        click.echo(f"\n[*] Run without --dry-run to actually update.")
+        return
+
+    # 实际更新逻辑
+    async def do_update():
+        import aiohttp
+        from sra_search.retriever.geo_api import GeoRetriever
+        from sra_search.search_engine.aggregator import Aggregator
+
+        updated = 0
+        errors = 0
+        total = len(datasets_to_update)
+
+        progress = click.progressbar(
+            length=total, label="  Updating", show_eta=True
+        )
+
+        async with aiohttp.ClientSession() as session:
+            for gse_id, title in datasets_to_update:
+                progress.update(1)
+                try:
+                    # 重新获取 GEO 元数据
+                    geo = GeoRetriever(session)
+                    metadata = await geo.get_metadata(gse_id)
+
+                    if metadata:
+                        now = _now_iso()
+                        conn = db.get_connection()
+                        conn.execute("""
+                            UPDATE datasets SET
+                                title = COALESCE(NULLIF(?, ''), title),
+                                sample_count = CASE WHEN ? > 0 THEN ? ELSE sample_count END,
+                                last_updated = ?,
+                                availability_status = 'unverified'
+                            WHERE gse_id = ?
+                        """, (
+                            metadata.get("title") or title,
+                            metadata.get("n_samples", 0),
+                            metadata.get("n_samples", 0),
+                            now,
+                            gse_id,
+                        ))
+                        conn.commit()
+                        updated += 1
+                except Exception:
+                    errors += 1
+
+        progress.finish()
+        return updated, errors
+
+    updated, errors = asyncio.run(do_update())
+
+    click.echo(f"\n[+] Update complete:")
+    click.echo(f"    Updated: {updated}")
+    click.echo(f"    Errors:  {errors}")
+    click.echo(f"\n[*] Run 'sra-search check' to verify availability status.")
 
 
 if __name__ == "__main__":
