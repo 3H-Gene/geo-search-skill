@@ -72,7 +72,17 @@ class AnthropicProvider(LLMClient):
         except ImportError:
             return None
         except Exception as e:
-            logger.warning(f"Anthropic achat error: {type(e).__name__}: {e}")
+            exc_type = type(e).__name__
+            if "RateLimitError" in exc_type or "429" in str(e):
+                logger.warning(f"Anthropic rate limited (429): {e}. Consider reducing concurrency.")
+            elif "AuthenticationError" in exc_type or "401" in str(e) or "BadAPIKey" in exc_type:
+                logger.error(f"Anthropic auth failed (401/BadAPIKey): {e}. Check API key.")
+            elif "Timeout" in exc_type:
+                logger.warning(f"Anthropic timeout: {e}")
+            elif "APIConnectionError" in exc_type:
+                logger.warning(f"Anthropic connection error: {e}")
+            else:
+                logger.warning(f"Anthropic achat error: {exc_type}: {e}")
             return None
 
     async def abatch_chat(

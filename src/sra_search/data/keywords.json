@@ -1,0 +1,42 @@
+{
+  "disease_terms": {
+    "description": "疾病/条件关键词库（按长度降序排列以确保长词优先匹配）",
+    "terms": [
+      "monosodium urate",
+      "uric acid",
+      "gouty arthritis",
+      "hyperuricemia",
+      "hyperuricemic",
+      "gouty",
+      "gout",
+      "msu",
+      "tophus",
+      "tophi",
+      "podagra",
+      "urate",
+      "uric"
+    ]
+  },
+  "sc_method_terms": {
+    "description": "单细胞测序技术关键词库（按长度降序排列）",
+    "terms": [
+      "single-cell rna",
+      "single cell rna",
+      "single-cell transcriptome",
+      "single-cell",
+      "single cell",
+      "snrnaseq",
+      "scrnaseq",
+      "singlecell",
+      "single-nucleus",
+      "scseq",
+      "snrna",
+      "scrna",
+      "cellranger",
+      "multiome",
+      "cite-seq",
+      "10x",
+      "nuclei"
+    ]
+  }
+}

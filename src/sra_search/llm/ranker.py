@@ -103,8 +103,9 @@ def _parse_score(text: str | None) -> float | None:
     try:
         score = float(matches[0])
         # 如果 LLM 给出了 0-100 的分数（偶尔会误输出）：
-        # 仅当分数明显大于 1（>=2）时才做 /100 缩放，避免误伤边界值（如 1.5）
-        if score >= 2.0:
+        # 任何 > 1.0 的数字都是 0-100 范围的输出，需要 /100 缩放到 0-1 范围
+        # 边界值如 1.0 保持不变（视为 1.0）
+        if score > 1.0:
             score = score / 100.0
         return max(0.0, min(1.0, score))
     except ValueError:
@@ -245,7 +246,17 @@ class LLMRanker:
                         await asyncio.sleep(0)  # yield 让 loguru 写日志
                 logger.info(f"[LLM] Ranking complete: {total} scores received")
             except Exception as e:
-                logger.warning(f"[LLM] Batch scoring failed: {e}. Falling back to V1.")
+                exc_type = type(e).__name__
+                if "RateLimitError" in exc_type:
+                    logger.warning(f"[LLM] Batch scoring rate limited: {e}. Consider retry later.")
+                elif "AuthenticationError" in exc_type or "401" in str(e):
+                    logger.error(f"[LLM] Batch scoring auth failed: {e}. Check API key.")
+                elif "Timeout" in exc_type:
+                    logger.warning(f"[LLM] Batch scoring timeout: {e}")
+                elif "APIConnectionError" in exc_type:
+                    logger.warning(f"[LLM] Batch scoring connection error: {e}")
+                else:
+                    logger.warning(f"[LLM] Batch scoring failed: {exc_type}: {e}")
                 return []
         else:
             logger.info(

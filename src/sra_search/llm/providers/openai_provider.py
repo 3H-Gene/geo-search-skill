@@ -81,7 +81,18 @@ class OpenAIProvider(LLMClient):
         except ImportError:
             return None
         except Exception as e:
-            logger.warning(f"OpenAI achat error: {type(e).__name__}: {e}")
+            exc_type = type(e).__name__
+            # 分层异常处理：不同类型不同日志级别和处理策略
+            if "RateLimitError" in exc_type or "429" in str(e):
+                logger.warning(f"OpenAI rate limited (429): {e}. Consider reducing concurrency.")
+            elif "AuthenticationError" in exc_type or "401" in str(e) or "BadAPIKey" in exc_type:
+                logger.error(f"OpenAI auth failed (401/BadAPIKey): {e}. Check API key.")
+            elif "Timeout" in exc_type:
+                logger.warning(f"OpenAI timeout: {e}")
+            elif "APIConnectionError" in exc_type:
+                logger.warning(f"OpenAI connection error: {e}")
+            else:
+                logger.warning(f"OpenAI achat error: {exc_type}: {e}")
             return None
 
     async def abatch_chat(

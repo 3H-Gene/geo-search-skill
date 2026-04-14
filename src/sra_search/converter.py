@@ -5,7 +5,11 @@
 """
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import TYPE_CHECKING
+
+from loguru import logger
 
 from sra_search.metadata_extractor.models import DatasetRecord, OmicsGranularity
 from sra_search.schema import (
@@ -17,6 +21,114 @@ from sra_search.schema import (
 
 if TYPE_CHECKING:
     from sra_search.llm.client import LLMClient
+
+
+# ── 关键词库（从 keywords.json 加载，支持运行时覆盖）──────────────────────────
+
+# 默认硬编码值（确保 keywords.json 不存在时仍能工作）
+_DEFAULT_DISEASE_TERMS: list[str] = [
+    # 多词短语（长词优先）
+    "monosodium urate", "uric acid", "gouty arthritis",
+    # 单关键词
+    "hyperuricemia", "hyperuricemic", "gout", "gouty",
+    "msu", "tophus", "tophi", "podagra", "urate", "uric",
+]
+
+_DEFAULT_SC_METHOD_TERMS: list[str] = [
+    # 多词短语
+    "single-cell rna", "single cell rna", "single-cell transcriptome",
+    "single-cell", "single cell",
+    # 单关键词（按长度降序）
+    "snrnaseq", "scrnaseq", "singlecell", "single-nucleus",
+    "scseq", "snrna", "scrna", "scRNA-seq", "scRNAseq",
+    "cellranger", "multiome", "cite-seq", "10x", "nuclei",
+]
+
+# 模块级运行时覆盖（可通过 set_keywords() 修改）
+_disease_terms: list[str] = _DEFAULT_DISEASE_TERMS
+_sc_method_terms: list[str] = _DEFAULT_SC_METHOD_TERMS
+_keywords_loaded = False
+
+
+def _load_keywords() -> None:
+    """从 keywords.json 懒加载关键词库（仅首次调用时加载）"""
+    global _disease_terms, _sc_method_terms, _keywords_loaded
+    if _keywords_loaded:
+        return
+
+    try:
+        # 查找 keywords.json（与 data/ontologies/ 同级的 data/ 目录）
+        candidates = [
+            Path(__file__).resolve().parent / "data" / "keywords.json",
+            Path(__file__).resolve().parent.parent.parent / "data" / "keywords.json",
+            Path.cwd() / "data" / "keywords.json",
+        ]
+        for path in candidates:
+            if path.is_file():
+                with open(path, encoding="utf-8") as f:
+                    data = json.load(f)
+
+                disease_data = data.get("disease_terms", {})
+                if isinstance(disease_data, dict):
+                    _disease_terms = disease_data.get("terms", _DEFAULT_DISEASE_TERMS)
+                elif isinstance(disease_data, list):
+                    _disease_terms = disease_data
+
+                sc_data = data.get("sc_method_terms", {})
+                if isinstance(sc_data, dict):
+                    _sc_method_terms = sc_data.get("terms", _DEFAULT_SC_METHOD_TERMS)
+                elif isinstance(sc_data, list):
+                    _sc_method_terms = sc_data
+
+                _keywords_loaded = True
+                logger.info(
+                    f"[converter] Loaded keywords from {path.name}: "
+                    f"{len(_disease_terms)} disease terms, "
+                    f"{len(_sc_method_terms)} sc_method terms"
+                )
+                return
+        logger.debug("[converter] keywords.json not found, using defaults")
+    except Exception as e:
+        logger.warning(f"[converter] Failed to load keywords.json: {e}, using defaults")
+
+    _keywords_loaded = True
+
+
+def get_disease_terms() -> list[str]:
+    """获取疾病关键词列表（懒加载）"""
+    _load_keywords()
+    return _disease_terms
+
+
+def get_sc_method_terms() -> list[str]:
+    """获取单细胞技术关键词列表（懒加载）"""
+    _load_keywords()
+    return _sc_method_terms
+
+
+def set_keywords(
+    disease_terms: list[str] | None = None,
+    sc_method_terms: list[str] | None = None,
+) -> None:
+    """运行时覆盖关键词库（优先级高于 keywords.json）
+
+    用于在测试或动态配置场景下注入自定义关键词。
+
+    Args:
+        disease_terms: 新的疾病关键词列表，None 表示保持当前值
+        sc_method_terms: 新的单细胞技术关键词列表，None 表示保持当前值
+    """
+    global _disease_terms, _sc_method_terms
+    if disease_terms is not None:
+        _disease_terms = disease_terms
+        logger.info(f"[converter] Disease terms overridden with {len(disease_terms)} terms")
+    if sc_method_terms is not None:
+        _sc_method_terms = sc_method_terms
+        logger.info(f"[converter] SC method terms overridden with {len(sc_method_terms)} terms")
+
+
+# 触发懒加载（converter.py 被 import 时自动加载）
+_load_keywords()
 
 # perturbation 检测关键词（仅保留明确指示干预实验的词，避免误报）
 PERTURBATION_KEYWORDS: dict[str, list[str]] = {
@@ -194,35 +306,21 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
         keywords_text + " " + disease_field_lower + " " + tissue_lower
     )
 
-    # ── 1. 疾病/方法论关键词库 ──────────────────────────────────────────────
+    # ── 1. 疾病/方法论关键词库（从 keywords.json 加载，支持运行时覆盖）──────
     # 仅包含痛风/高尿酸血症的精确术语，避免"arthritis/inflammation"误匹配
     # 按长度降序排列（长词优先），使 _in_text 子串匹配更准确
-    gait_disease_terms = [  # noqa: N806
-        # 多词短语（长词优先）
-        "monosodium urate", "uric acid", "gouty arthritis",
-        # 单关键词
-        "hyperuricemia", "hyperuricemic", "gout", "gouty",
-        "msu", "tophus", "tophi", "podagra", "urate", "uric",
-    ]
-    sc_method_terms = [  # noqa: N806
-        # 多词短语
-        "single-cell rna", "single cell rna", "single-cell transcriptome",
-        "single-cell", "single cell",
-        # 单关键词（按长度降序）
-        "snrnaseq", "scrnaseq", "singlecell", "single-nucleus",
-        "scseq", "snrna", "scrna", "scRNA-seq", "scRNAseq",
-        "cellranger", "multiome", "cite-seq", "10x", "nuclei",
-    ]
+    disease_terms = get_disease_terms()  # noqa: N806
+    sc_method_terms = get_sc_method_terms()  # noqa: N806
 
     # 查询是否包含疾病关键词 / scRNA 关键词
     query_text_lower = query.lower()
-    is_disease_query = any(_in_text(dt, query_text_lower) for dt in gait_disease_terms)
+    is_disease_query = any(_in_text(dt, query_text_lower) for dt in disease_terms)
     is_sc_query = any(_in_text(st, query_text_lower) for st in sc_method_terms) or (
         "single" in query_text_lower and "cell" in query_text_lower
     )
 
     # 数据集是否包含疾病/单细胞关键词（子串匹配）
-    has_disease_in_dataset = any(_in_text(dt, text_lower) for dt in gait_disease_terms)
+    has_disease_in_dataset = any(_in_text(dt, text_lower) for dt in disease_terms)
     has_sc_in_dataset = any(_in_text(st, text_lower) for st in sc_method_terms)
     # 利用已推断的 data_type/single_cell 字段进一步确认
     is_sc_dataset = dataset.single_cell or has_sc_in_dataset

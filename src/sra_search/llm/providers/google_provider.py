@@ -132,7 +132,17 @@ class GoogleProvider(LLMClient):
                     client, prompt, system, effective_model, temperature, max_tokens
                 )
         except Exception as e:
-            logger.warning(f"GoogleProvider.achat error ({effective_model}): {e}")
+            exc_type = type(e).__name__
+            if "RateLimitError" in exc_type or "429" in str(e):
+                logger.warning(f"GoogleProvider rate limited (429): {e}")
+            elif "AuthenticationError" in exc_type or "401" in str(e) or "BadAPIKey" in exc_type:
+                logger.error(f"GoogleProvider auth failed (401/BadAPIKey): {e}. Check API key.")
+            elif "Timeout" in exc_type:
+                logger.warning(f"GoogleProvider timeout: {e}")
+            elif "APIConnectionError" in exc_type:
+                logger.warning(f"GoogleProvider connection error: {e}")
+            else:
+                logger.warning(f"GoogleProvider.achat error ({effective_model}): {exc_type}: {e}")
             return None
 
     async def _achat_genai(
@@ -198,7 +208,17 @@ class GoogleProvider(LLMClient):
                         resp = m.generate_content(prompt)
                     return resp.text
             except Exception as e:
-                logger.warning(f"GoogleProvider genai call error: {e}")
+                exc_type = type(e).__name__
+                if "RateLimitError" in exc_type or "429" in str(e):
+                    logger.warning(f"GoogleProvider genai call rate limited (429): {e}")
+                elif "AuthenticationError" in exc_type or "401" in str(e):
+                    logger.error(f"GoogleProvider genai auth failed (401): {e}. Check API key.")
+                elif "Timeout" in exc_type:
+                    logger.warning(f"GoogleProvider genai call timeout: {e}")
+                elif "APIConnectionError" in exc_type:
+                    logger.warning(f"GoogleProvider genai connection error: {e}")
+                else:
+                    logger.warning(f"GoogleProvider genai call error: {exc_type}: {e}")
                 return None
 
         loop = _asyncio.get_event_loop()

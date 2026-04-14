@@ -122,5 +122,13 @@ class LLMSummarizer:
             )
             return result or ""
         except Exception as e:
-            logger.warning(f"LLM summarize failed: {e}")
+            exc_type = type(e).__name__
+            if "RateLimitError" in exc_type:
+                logger.warning(f"LLM summarize rate limited: {e}")
+            elif "AuthenticationError" in exc_type or "401" in str(e):
+                logger.error(f"LLM summarize auth failed: {e}. Check API key.")
+            elif "Timeout" in exc_type:
+                logger.warning(f"LLM summarize timeout: {e}")
+            else:
+                logger.warning(f"LLM summarize failed: {exc_type}: {e}")
             return ""

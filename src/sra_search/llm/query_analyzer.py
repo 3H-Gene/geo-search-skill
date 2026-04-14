@@ -154,5 +154,13 @@ class LLMQueryAnalyzer:
             return intent
 
         except Exception as e:
-            logger.warning(f"LLM query analysis failed: {e}")
+            exc_type = type(e).__name__
+            if "RateLimitError" in exc_type:
+                logger.warning(f"LLM query analysis rate limited: {e}")
+            elif "AuthenticationError" in exc_type or "401" in str(e):
+                logger.error(f"LLM query analysis auth failed: {e}. Check API key.")
+            elif "Timeout" in exc_type:
+                logger.warning(f"LLM query analysis timeout: {e}")
+            else:
+                logger.warning(f"LLM query analysis failed: {exc_type}: {e}")
             return None

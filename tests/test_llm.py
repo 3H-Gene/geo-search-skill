@@ -152,10 +152,11 @@ class TestParseScore:
     def test_no_number(self):
         assert _parse_score("no score here") is None
 
-    def test_clamped_to_1(self):
-        # 大于 1 且小于 100（如"1.5"）→ 不按 100 缩放，直接 clamp 到 1.0
+    def test_0_to_100_scale_divide(self):
+        # 大于 1.0 的数（LLM 误输出 0-100 范围）→ 除以 100 缩放到 0-1 范围
+        # 示例："1.5" → 0.015（1.5/100）
         score = _parse_score("1.5")
-        assert score == pytest.approx(1.0)
+        assert score == pytest.approx(0.015)
 
 
 # ── LLMRanker ─────────────────────────────────────────────────────────────────

@@ -204,7 +204,7 @@ class SearchAggregator:
 
                 # 基于标题+摘要对查询词的匹配情况调整分数
                 # 确保完全不相关的结果排名靠后
-                rec_text = (geo_rec.title + " " + geo_rec.summary).lower()
+                rec_text = (geo_rec.title + " " + (geo_rec.summary or "")).lower()
                 matched = sum(1 for t in query_terms if t in rec_text)
                 if query_terms:
                     relevance_ratio = matched / len(query_terms)
