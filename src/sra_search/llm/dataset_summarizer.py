@@ -240,13 +240,15 @@ class LLMDatasetSummarizer:
 
         # 构建 prompt
         prompt = self._build_prompt(dataset, query)
+        # 合并 system + user 为单个 prompt
+        full_prompt = f"{self.SYSTEM_PROMPT}\n\n{prompt}"
 
         try:
-            response = await self.client.acall(
-                system=self.SYSTEM_PROMPT,
-                user=prompt,
+            response = await self.client.achat(
+                prompt=full_prompt,
+                system=None,
                 temperature=0.3,
-                max_tokens=300,
+                max_tokens=512,
             )
 
             analysis = self._parse_response(response, dataset.gse_id)
