@@ -181,23 +181,40 @@ class LLMRanker:
         # 调用 LLM（只调未缓存的）
         llm_responses: list[str | None] = []
         if prompts:
+            import asyncio
+
             cache_hits = len(cached_scores)
+            total = len(prompts)
             logger.info(
-                f"[LLM] Ranking {len(prompts)} datasets "
+                f"[LLM] Ranking {total} datasets "
                 f"({cache_hits} from cache, {len(remaining)} use V1 score) "
-                f"| query={query!r}"
+                f"| concurrency={concurrency} | query={query!r}"
             )
             try:
-                llm_responses = await self.client.abatch_chat(
-                    prompts=prompts,
-                    system=_RANKER_SYSTEM_PROMPT,
-                    temperature=0.0,
-                    max_tokens=16,  # 分数只需要 "0.850" 这样的字符
-                    concurrency=concurrency,
-                )
-                logger.info(
-                    f"[LLM] Ranking complete: {len(prompts)} scores received"
-                )
+                # 分批并发调用，每批后 yield 让事件循环处理进度日志
+                batch_size = concurrency
+                llm_responses = [None] * total
+                for batch_start in range(0, total, batch_size):
+                    batch_end = min(batch_start + batch_size, total)
+                    batch_prompts = prompts[batch_start:batch_end]
+                    batch_tasks = [
+                        self.client.achat(
+                            prompt=p,
+                            system=_RANKER_SYSTEM_PROMPT,
+                            temperature=0.0,
+                            max_tokens=16,
+                        )
+                        for p in batch_prompts
+                    ]
+                    batch_results = await asyncio.gather(*batch_tasks)
+                    for j, result in enumerate(batch_results):
+                        llm_responses[batch_start + j] = result
+                    if batch_end < total:
+                        logger.info(
+                            f"[LLM] Progress: {batch_end}/{total} scored..."
+                        )
+                        await asyncio.sleep(0)  # yield 让 loguru 写日志
+                logger.info(f"[LLM] Ranking complete: {total} scores received")
             except Exception as e:
                 logger.warning(f"[LLM] Batch scoring failed: {e}. Falling back to V1.")
                 return []

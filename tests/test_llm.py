@@ -47,18 +47,21 @@ def _make_mock_client(responses: list[str | None]) -> Any:
     mock = MagicMock()
     mock.is_available.return_value = True
 
-    # abatch_chat 返回 responses 列表
-    async def _batch_chat(prompts, **kwargs):
-        # 按需截取/补全
-        return [responses[i] if i < len(responses) else None for i in range(len(prompts))]
+    # achat：每个 mock 实例独立管理调用计数
+    _achat_count = [0]  # list 闭包避免 nonlocal
 
-    mock.abatch_chat = _batch_chat
-
-    # achat 返回第一个响应
     async def _chat(prompt, **kwargs):
-        return responses[0] if responses else None
+        idx = _achat_count[0]
+        _achat_count[0] = idx + 1
+        return responses[idx] if idx < len(responses) else None
 
     mock.achat = _chat
+
+    # abatch_chat 也走 _chat（保持兼容）
+    async def _batch_chat(prompts, **kwargs):
+        return [await _chat(p) for p in prompts]
+
+    mock.abatch_chat = _batch_chat
     return mock
 
 

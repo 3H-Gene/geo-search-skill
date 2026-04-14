@@ -58,13 +58,13 @@ class GoogleProvider(LLMClient):
             pass
 
         # ② 降级：旧版 google-generativeai SDK（已废弃，触发 FutureWarning）
+        # 必须在 import 前压制，否则 import 本身的 warning 不会被 with 捕获
         try:
             import warnings  # noqa: PLC0415
 
+            warnings.filterwarnings("ignore", category=FutureWarning)
             import google.generativeai as genai  # type: ignore[import-untyped]
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore", FutureWarning)
-                genai.configure(api_key=self._api_key)
+            genai.configure(api_key=self._api_key)
             self._client = genai
             self._use_openai_compat = False
             logger.warning(
