@@ -505,6 +505,8 @@ async def records_to_search_result_with_llm(
     enable_query_analysis: bool = True,
     llm_top_k: int = 20,
     llm_concurrency: int = 5,
+    llm_min_relevance: float = 0.0,
+    llm_score_all: bool = False,
 ) -> SearchResultSchema:
     """V2 增强版：批量转换 + LLM 语义评分（可选）+ 摘要（可选）
 
@@ -518,8 +520,10 @@ async def records_to_search_result_with_llm(
         enable_ranking: 是否启用 LLM 语义评分（默认启用，前提是 LLM 可用）
         enable_summary: 是否生成 LLM 摘要（默认不生成）
         enable_query_analysis: 是否启用 LLM 查询意图分析（默认启用）
-        llm_top_k: LLM 评分的 top_k（只对前 N 个做 LLM 评分）
+        llm_top_k: LLM 评分的 top_k（只对前 N 个通过 min_relevance 过滤的数据集评分）
         llm_concurrency: 并发请求数
+        llm_min_relevance: relevance_score >= 此值才送 LLM 评分（默认 0，即全部送评）
+        llm_score_all: 若 True，忽略 top_k 限制，对所有通过 min_relevance 的数据集评分
 
     Returns:
         包含排序结果（可能包含 LLM 摘要）的 SearchResultSchema
@@ -570,6 +574,8 @@ async def records_to_search_result_with_llm(
             query=query,
             top_k=llm_top_k,
             concurrency=llm_concurrency,
+            min_relevance=llm_min_relevance,
+            score_all=llm_score_all,
         )
 
         if scored_results:

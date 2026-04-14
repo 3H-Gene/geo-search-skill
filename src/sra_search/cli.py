@@ -84,7 +84,12 @@ def main(verbose: bool = False, config: str | None = None):
 @click.option("--save/--no-save", default=True, help="是否保存到数据库")
 # ── LLM 参数（V2 新增）──
 @click.option("--llm/--no-llm", "use_llm", default=None, is_flag=True,
-              help="启用/禁用 LLM 语义评分（需配置 SRA_SEARCH_LLM_API_KEY）")
+              help="V1+LLM 模式：V1 预过滤后 LLM 重排（需配置 API Key）。"
+                   "需与 --llm-only 互斥）")
+@click.option("--llm-only", is_flag=True, default=False,
+              help="纯 LLM 模式：对所有结果做 LLM 语义评分（不经过 V1 预过滤，不限 top_k）")
+@click.option("--llm-min-relevance", default=None, type=float,
+              help="LLM 评分最低相关性阈值（默认 0.0，仅 relevance_score >= 此值的结果送 LLM）")
 @click.option("--llm-provider", default=None, type=str,
               help="LLM 提供商：openai / anthropic / local（覆盖配置）")
 @click.option("--llm-model", default=None, type=str,
@@ -111,6 +116,8 @@ def search(
     strict_scrna: bool,
     save: bool,
     use_llm: bool | None,
+    llm_only: bool,
+    llm_min_relevance: float | None,
     llm_provider: str | None,
     llm_model: str | None,
     llm_api_key: str | None,
@@ -126,7 +133,11 @@ def search(
     - json: 标准 JSON Schema 输出（与 gse-downloader 解耦）
     - id-list: 仅 GSE ID 列表（适合管道处理）
 
-    V2 新增 LLM 辅助功能（可选）：
+    V2 LLM 辅助功能（三种模式）：
+    - (default, 无 flag): 纯 V1 关键词模式
+    - --llm: V1 预过滤 + LLM 重排（推荐，默认 top_k=20）
+    - --llm-only: 纯 LLM 模式，对所有结果评分（忽略 V1 预过滤，不限 top_k）
+    - --summarize: 生成自然语言摘要
     - --llm: 启用 LLM 语义评分，提升结果相关性
     - --summarize: 生成自然语言摘要
     - --analyze-query: 显示 LLM 解析的查询意图
@@ -138,6 +149,8 @@ def search(
       sra-search search "single cell" --organism mouse --strict-scrna
       sra-search search "gout single cell" --llm --summarize
       sra-search search "liver fibrosis" --llm --llm-provider openai --llm-model gpt-4o
+      sra-search search "covid single cell" --llm-only  # 纯 LLM 模式，不限 top_k
+      sra-search search "gout" --llm --llm-min-relevance 0.05  # 跳过 V1 零相关结果
     """
     import json
 
@@ -193,17 +206,18 @@ def search(
         should_use_llm = True
 
     # ── 转换为 Schema 并排序 ────────────────────────────────────────────────
-    if should_use_llm:
+    if should_use_llm or llm_only:
         # 构建 LLM 客户端（CLI 参数 > 环境变量 > settings）
         _provider = llm_provider or settings.llm_provider or "openai"
         _api_key = llm_api_key or settings.llm_api_key or ""
         _model = llm_model or settings.llm_model or ""
         _base_url = llm_base_url or settings.llm_base_url or ""
         _top_k = llm_top_k or settings.llm_top_k
+        _min_rel = llm_min_relevance if llm_min_relevance is not None else 0.0
 
         if not _api_key:
             click.echo(
-                "\n[WARNING] --llm requested but no API key found. "
+                "\n[WARNING] --llm/--llm-only requested but no API key found. "
                 "Set SRA_SEARCH_LLM_API_KEY or use --llm-api-key.\n"
                 "Falling back to keyword mode.\n",
                 err=True,
@@ -221,9 +235,18 @@ def search(
             )
 
             _effective_model = _model or llm_client_obj.__class__.DEFAULT_MODEL if hasattr(llm_client_obj.__class__, "DEFAULT_MODEL") else (_model or "default")
+
+            # 模式描述
+            if llm_only:
+                _mode_desc = f"LLM-only (min_relevance={_min_rel}, score_all=True)"
+                _score_all = True
+            else:
+                _mode_desc = f"V1+LLM (top_k={_top_k}, min_relevance={_min_rel})"
+                _score_all = False
+
             click.echo(
                 f"\n[LLM] Provider={_provider!r} model={_effective_model!r} | "
-                f"API key OK | Ranking {min(len(records), _top_k)} datasets...",
+                f"API key OK | Mode: {_mode_desc}...",
                 err=True,
             )
 
@@ -238,6 +261,8 @@ def search(
                     enable_query_analysis=analyze_query,
                     llm_top_k=_top_k,
                     llm_concurrency=settings.llm_concurrency,
+                    llm_min_relevance=_min_rel,
+                    llm_score_all=_score_all,
                 )
             )
             click.echo(

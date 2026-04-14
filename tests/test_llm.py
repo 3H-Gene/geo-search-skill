@@ -249,6 +249,64 @@ class TestLLMRanker:
         high_scored = [s for _, s in results if s >= 0.6]
         assert len(high_scored) >= 2
 
+    def test_min_relevance_skips_zero_score(self):
+        """relevance_score == 0 的数据集被 min_relevance=0.01 过滤，跳过 LLM 评分"""
+        datasets = [
+            _make_dataset("GSE001", relevance_score=0.45),
+            _make_dataset("GSE002", relevance_score=0.0),   # 被过滤
+            _make_dataset("GSE003", relevance_score=0.12),
+        ]
+        # 只需要 mock 两个 LLM 调用（GSE001 + GSE003）
+        mock_client = _make_mock_client(["0.900", "0.400"])
+        ranker = LLMRanker(client=mock_client)
+
+        results = asyncio.get_event_loop().run_until_complete(
+            ranker.score_batch(datasets, "query", top_k=10, min_relevance=0.01)
+        )
+        assert len(results) == 3
+        # GSE002 使用 V1 分数 0.0
+        gse002_result = next(s for ds, s in results if ds.gse_id == "GSE002")
+        assert gse002_result == 0.0
+
+    def test_score_all_bypasses_top_k(self):
+        """score_all=True 时，所有通过 min_relevance 的数据集都做 LLM 评分"""
+        datasets = [
+            _make_dataset(f"GSE{i:03d}", relevance_score=0.5)
+            for i in range(10)
+        ]
+        mock_client = _make_mock_client(["0.950"] * 10)
+        ranker = LLMRanker(client=mock_client)
+
+        results = asyncio.get_event_loop().run_until_complete(
+            ranker.score_batch(datasets, "query", top_k=3, score_all=True)
+        )
+        # 所有 10 个数据集都在结果中
+        assert len(results) == 10
+        # score_all=True 时，remaining 为空，全部用 LLM 分数
+        llm_scores = [s for ds, s in results]
+        assert all(s > 0.9 for s in llm_scores)
+
+    def test_min_relevance_and_top_k_combined(self):
+        """min_relevance + top_k 同时生效：先过滤，再取 top_k"""
+        datasets = [
+            _make_dataset("GSE001", relevance_score=0.8),
+            _make_dataset("GSE002", relevance_score=0.5),
+            _make_dataset("GSE003", relevance_score=0.3),  # min_relevance=0.4 过滤掉
+            _make_dataset("GSE004", relevance_score=0.9),
+        ]
+        mock_client = _make_mock_client(["0.800", "0.900"])
+        ranker = LLMRanker(client=mock_client)
+
+        results = asyncio.get_event_loop().run_until_complete(
+            ranker.score_batch(
+                datasets, "query", top_k=2, min_relevance=0.4
+            )
+        )
+        assert len(results) == 4
+        # GSE003 被 min_relevance=0.4 过滤，用 V1 分数 0.3
+        gse003 = next(s for ds, s in results if ds.gse_id == "GSE003")
+        assert gse003 == 0.3
+
 
 # ── LLMSummarizer ──────────────────────────────────────────────────────────────
 

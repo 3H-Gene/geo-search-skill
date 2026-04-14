@@ -24,32 +24,34 @@ if TYPE_CHECKING:
 
 # ── 评分 Prompt ──────────────────────────────────────────────────────────────
 
-_RANKER_SYSTEM_PROMPT = """You are a bioinformatics expert who evaluates the relevance of genomics/transcriptomics datasets.
-Your task is to score how relevant a dataset is to a user's search query.
-Always respond with ONLY a decimal number between 0.000 and 1.000 (e.g., "0.850").
-Do not include any explanation or other text."""
+_RANKER_SYSTEM_PROMPT = """You are a biomedical research data curator specializing in genomics and transcriptomics datasets.
+Your job is to score how relevant a dataset is to a research query. Output ONLY a decimal between 0.000 and 1.000 (e.g., "0.850"). No explanation, no markdown, no extra text."""
 
-_RANKER_USER_TEMPLATE = """Rate the relevance of this dataset to the user's query.
+_RANKER_USER_TEMPLATE = """Rate the relevance of this dataset to the research query.
 
-USER QUERY: {query}
+RESEARCH QUERY: {query}
 
-DATASET TITLE: {title}
-
-DATASET SUMMARY: {summary}
-
-ADDITIONAL INFO:
+DATASET METADATA:
+- Title: {title}
+- Summary: {summary}
 - Organism: {organism}
-- Data type: {data_type}
+- Data type: {data_type}   (scRNA-seq > RNA-seq > microarray for single-cell queries)
 - Granularity: {granularity}
-- Disease/condition: {disease}
-- Tissue/organ: {tissue}
-- Has perturbation: {has_perturbation}
+- Disease/Condition: {disease}
+- Tissue/Organ: {tissue}
+- Perturbation: {has_perturbation}{perturbation_types}
+- Sample count: {sample_count} samples
+- Year: {year}
+- Keywords: {keywords}
 
-Consider:
-1. Does the dataset study the disease/condition in the query?
-2. Does the sequencing method/platform match? (e.g., if query asks for single-cell, single-cell data scores higher)
-3. Does the organism match?
-4. Does the tissue/cell type match?
+SCORING GUIDELINES:
+1. Disease match (most important): Does the dataset study the same disease/condition?
+2. Technology match: scRNA-seq queries should heavily favor single-cell datasets
+3. Biological specificity: tissue/organ/cell-type alignment with query
+4. Perturbation context: datasets with clear experimental perturbation > observational
+5. Sample size: larger cohorts (>100 samples) more valuable for discovery research
+6. Recency: prefer newer datasets (>2018) for current methods relevance
+7. Keywords: topically relevant keywords in title/summary boost score
 
 Output ONLY a number between 0.000 and 1.000."""
 
@@ -59,6 +61,17 @@ def _build_rank_prompt(query: str, dataset: DatasetSchema) -> str:
     summary = dataset.summary or ""
     if len(summary) > 500:
         summary = summary[:500] + "..."
+
+    perturbation_types_str = ""
+    if dataset.perturbation_types:
+        perturbation_types_str = " (" + ", ".join(dataset.perturbation_types) + ")"
+
+    # 从 publication_date 提年份
+    year = "unknown"
+    if dataset.publication_date:
+        year = dataset.publication_date[:4]
+
+    keywords_str = ", ".join(dataset.keywords[:10]) if dataset.keywords else "none"
 
     return _RANKER_USER_TEMPLATE.format(
         query=query,
@@ -70,6 +83,10 @@ def _build_rank_prompt(query: str, dataset: DatasetSchema) -> str:
         disease=dataset.disease or "unknown",
         tissue=dataset.tissue or dataset.organ or "unknown",
         has_perturbation="Yes" if dataset.has_perturbation else "No",
+        perturbation_types=perturbation_types_str,
+        sample_count=dataset.sample_count or 0,
+        year=year,
+        keywords=keywords_str,
     )
 
 
@@ -143,27 +160,37 @@ class LLMRanker:
         query: str,
         top_k: int = 20,
         concurrency: int = 5,
+        min_relevance: float = 0.0,
+        score_all: bool = False,
     ) -> list[tuple[DatasetSchema, float]]:
         """批量 LLM 语义评分。
-
-        仅对 top_k 个数据集做 LLM 评分（节省成本）。
-        失败时返回空列表，调用方应回退到 V1 评分。
 
         Args:
             datasets: 候选数据集列表（已经过 V1 初步排序）
             query: 用户查询词
             top_k: 最多对前 top_k 个数据集做 LLM 评分
             concurrency: 并发请求数
+            min_relevance: 仅对 relevance_score >= 此值的数据集做 LLM 评分（默认 0）
+            score_all: 若 True，忽略 top_k 限制，对所有通过 min_relevance 的数据集评分
 
         Returns:
-            (dataset, llm_score) 列表，按分数降序排列
+            (dataset, llm_score) 列表，按分数降序排列。
+            未通过 min_relevance 的数据集用 V1 分数兜底。
         """
         if not self.is_available() or not datasets:
             return []
 
-        # 只评前 top_k 个，减少成本
-        candidates = datasets[:top_k]
-        remaining = datasets[top_k:]
+        # ── 预过滤 + 候选集选择 ────────────────────────────────────────────────
+        # 1. min_relevance 过滤：relevance_score == 0 的数据集跳过 LLM（节省 token）
+        candidates = [ds for ds in datasets if ds.relevance_score >= min_relevance]
+
+        # 2. score_all=False 时：只评前 top_k 个（节省成本）；score_all=True 时评全部
+        if not score_all and len(candidates) > top_k:
+            candidates = candidates[:top_k]
+
+        # 3. 剩余的（未进入 LLM 评分）用 V1 分数保底
+        scored_ids = {ds.gse_id for ds in candidates}
+        remaining = [ds for ds in datasets if ds.gse_id not in scored_ids]
 
         prompts: list[str] = []
         hit_indices: list[int] = []     # 需要调用 LLM 的下标
@@ -185,9 +212,11 @@ class LLMRanker:
 
             cache_hits = len(cached_scores)
             total = len(prompts)
+            skipped = len(datasets) - len(candidates)
             logger.info(
                 f"[LLM] Ranking {total} datasets "
-                f"({cache_hits} from cache, {len(remaining)} use V1 score) "
+                f"({cache_hits} from cache, {skipped} skipped by min_relevance={min_relevance}, "
+                f"{len(remaining)} use V1 score) "
                 f"| concurrency={concurrency} | query={query!r}"
             )
             try:
@@ -201,7 +230,7 @@ class LLMRanker:
                         self.client.achat(
                             prompt=p,
                             system=_RANKER_SYSTEM_PROMPT,
-                            temperature=0.0,
+                            temperature=0.2,  # 适度区分度，避免所有相关数据集都输出相似高分
                             max_tokens=64,  # 浮点数 0.850 约需 ~10 tokens，64 留足余量
                         )
                         for p in batch_prompts
