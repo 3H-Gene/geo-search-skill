@@ -9,7 +9,7 @@ from typing import Any
 
 from loguru import logger
 
-from sra_search.llm.client import LLMClient, _gather_with_concurrency
+from sra_search.llm.client import LLMClient, _gather_with_concurrency, llm_debug_prompts
 
 
 class GoogleProvider(LLMClient):
@@ -158,8 +158,23 @@ class GoogleProvider(LLMClient):
         import asyncio as _asyncio
         import warnings
 
+        def _log(msg: str) -> None:
+            if llm_debug_prompts:
+                logger.info(msg)
+            else:
+                logger.debug(msg)
+
         def _sync_call() -> str | None:
             # google SDK 是同步接口，在线程池中运行
+            _log(
+                f"[LLM][GoogleProvider] === OUTGOING REQUEST ===\n"
+                f"  model={model} | temperature={temperature} | max_tokens={max_tokens}\n"
+                f"  system length={len(system) if system else 0} chars\n"
+                f"  prompt length={len(prompt)} chars\n"
+                f"  --- SYSTEM ---\n{system or '(none)'}\n"
+                f"  --- USER PROMPT ---\n{prompt}\n"
+                f"  --- END ---"
+            )
             try:
                 # 检查是新版 google-genai（有 aio 属性）还是旧版
                 if hasattr(client, "aio"):
@@ -179,17 +194,22 @@ class GoogleProvider(LLMClient):
                     # 检查是否有有效内容（避免 finish_reason=MAX_TOKENS/RECITATION 等导致空响应）
                     if resp.candidates:
                         cand = resp.candidates[0]
-                        if cand.finish_reason and cand.finish_reason.name in (
-                            "STOP",
-                            "MAX_TOKENS",
-                        ):
-                            # 即使是 MAX_TOKENS，只要 content 不为空就有部分结果
-                            if cand.content and cand.content.parts:
-                                return cand.content.parts[0].text
-                        # 其他 finish_reason（安全、版权等）：返回空字符串由上层解析
+                        fr_name = cand.finish_reason.name if cand.finish_reason else "N/A"
+                        if cand.content and cand.content.parts and cand.content.parts[0].text:
+                            result_text = cand.content.parts[0].text
+                            _log(
+                                f"[LLM][GoogleProvider/genai] === RAW RESPONSE (finish={fr_name}) ===\n"
+                                f"{result_text}\n=== END ==="
+                            )
+                            return result_text
+                        # 空内容但有 candidate
                         logger.warning(
-                            f"[LLM] finish_reason={cand.finish_reason.name} "
-                            f"for model={model}, returning None"
+                            f"[LLM] finish_reason={fr_name} for model={model}, "
+                            f"content={'has parts' if cand.content and cand.content.parts else 'empty'}, returning None"
+                        )
+                        _log(
+                            f"[LLM][GoogleProvider/genai] === EMPTY RESPONSE ===\n"
+                            f"(finish_reason={fr_name}, no text parts)\n=== END ==="
                         )
                     return None
                 else:
@@ -206,7 +226,32 @@ class GoogleProvider(LLMClient):
                             generation_config=generation_config,  # type: ignore[arg-type]
                         )
                         resp = m.generate_content(prompt)
-                    return resp.text
+                    # 旧版 SDK：安全读取 resp.text，MAX_TOKENS 时尝试取部分内容
+                    raw_text = ""
+                    try:
+                        raw_text = resp.text or ""
+                    except Exception:
+                        # finish_reason=MAX_TOKENS / 安全拦截等导致 text accessor 失败
+                        fr_name = resp.candidates[0].finish_reason.name if resp.candidates else "N/A"
+                        logger.warning(
+                            f"[LLM] finish_reason={fr_name} (model={model}), "
+                            f"trying to extract raw parts..."
+                        )
+                        try:
+                            if resp.candidates and resp.candidates[0].content and resp.candidates[0].content.parts:
+                                parts = resp.candidates[0].content.parts
+                                raw_text = "".join(p.text for p in parts if hasattr(p, "text") and p.text)
+                                _log(
+                                    f"[LLM][GoogleProvider] Extracted {len(parts)} parts, "
+                                    f"total text length={len(raw_text)}"
+                                )
+                        except Exception as part_err:
+                            _log(f"[LLM] Parts extraction also failed: {part_err}")
+                            raw_text = ""
+                    _log(
+                        f"[LLM][GoogleProvider] === RAW RESPONSE ===\n{raw_text or '(empty/no text)'}\n=== END ==="
+                    )
+                    return raw_text
             except Exception as e:
                 exc_type = type(e).__name__
                 if "RateLimitError" in exc_type or "429" in str(e):
@@ -219,6 +264,12 @@ class GoogleProvider(LLMClient):
                     logger.warning(f"GoogleProvider genai connection error: {e}")
                 else:
                     logger.warning(f"GoogleProvider genai call error: {exc_type}: {e}")
+                # 异常时也打印，辅助诊断
+                _log(
+                    f"[LLM][GoogleProvider] === EXCEPTION RAW RESPONSE ===\n"
+                    f"prompt (first 500 chars): {prompt[:500]}\n"
+                    f"error: {exc_type}: {e}\n=== END ==="
+                )
                 return None
 
         loop = _asyncio.get_event_loop()
@@ -246,6 +297,13 @@ class GoogleProvider(LLMClient):
             max_tokens=max_tokens,
         )
         content = resp.choices[0].message.content
+        _log(
+            f"[LLM][GoogleProvider/OpenAICompat] === OUTGOING ===\n"
+            f"  model={model} | messages count={len(messages)}\n"
+            f"  --- messages[0] (system) ---\n{(messages[0]['content'] if messages else 'none')[:500]}\n"
+            f"  --- messages[1] (user) ---\n{(messages[1]['content'] if len(messages) > 1 else 'none')[:500]}\n"
+            f"  === RAW RESPONSE ===\n{content or '(empty)'}\n=== END ==="
+        )
         return content if isinstance(content, str) else None
 
     async def abatch_chat(

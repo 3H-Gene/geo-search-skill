@@ -104,6 +104,8 @@ def main(verbose: bool = False, config: str | None = None):
               help="生成 LLM 自然语言摘要（需要 --llm 或配置 API Key）")
 @click.option("--analyze-query", is_flag=True, default=False,
               help="显示 LLM 解析的查询意图（调试用）")
+@click.option("--debug-prompts", is_flag=True, default=False,
+              help="明文打印 LLM 发送的原始提示词和模型返回内容（无需 --verbose）")
 def search(
     keyword: str,
     sources: tuple,
@@ -125,6 +127,7 @@ def search(
     llm_top_k: int | None,
     summarize: bool,
     analyze_query: bool,
+    debug_prompts: bool,
 ):
     """关键词搜索数据集
 
@@ -153,6 +156,10 @@ def search(
       sra-search search "gout" --llm --llm-min-relevance 0.05  # 跳过 V1 零相关结果
     """
     import json
+
+    # 设置 LLM prompt 调试标志
+    from sra_search.llm import client as llm_client_module
+    llm_client_module.llm_debug_prompts = debug_prompts
 
     from sra_search.converter import (
         records_to_search_result,

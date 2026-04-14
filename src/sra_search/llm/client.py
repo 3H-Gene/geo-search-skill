@@ -22,6 +22,12 @@ if TYPE_CHECKING:
     pass
 
 
+# ── 全局调试标志 ────────────────────────────────────────────────────────────
+# 由 CLI --debug-prompts 标志控制
+# True 时：LLM prompt/response 以 INFO 级别明文打印（无需 --verbose）
+llm_debug_prompts: bool = False
+
+
 class LLMClient(ABC):
     """LLM 客户端抽象基类"""
 

@@ -21,6 +21,8 @@ if TYPE_CHECKING:
     from sra_search.llm.client import LLMClient
     from sra_search.schema import DatasetSchema
 
+from sra_search.llm.client import llm_debug_prompts  # runtime flag
+
 
 # ── 评分 Prompt ──────────────────────────────────────────────────────────────
 
@@ -204,7 +206,22 @@ class LLMRanker:
                 cached_scores[i] = cached
             else:
                 hit_indices.append(i)
-                prompts.append(_build_rank_prompt(query, ds))
+                raw_prompt = _build_rank_prompt(query, ds)
+                prompts.append(raw_prompt)
+                # DEBUG: 打印每个 prompt 的内容和对应的 dataset 信息
+                if llm_debug_prompts:
+                    logger.info(
+                        f"[LLM][Ranker] Prompt for {ds.gse_id!r} (idx={i}):\n"
+                        f"  title: {ds.title[:80] if ds.title else 'N/A'}\n"
+                        f"  prompt length: {len(raw_prompt)} chars\n"
+                        f"  --- RAW PROMPT ---\n{raw_prompt}\n--- END PROMPT ---"
+                    )
+                else:
+                    logger.debug(
+                        f"[LLM][Ranker] Prompt for {ds.gse_id!r} (idx={i}):\n"
+                        f"  title: {ds.title[:80] if ds.title else 'N/A'}\n"
+                        f"  prompt length: {len(raw_prompt)} chars"
+                    )
 
         # 调用 LLM（只调未缓存的）
         llm_responses: list[str | None] = []
@@ -232,7 +249,7 @@ class LLMRanker:
                             prompt=p,
                             system=_RANKER_SYSTEM_PROMPT,
                             temperature=0.2,  # 适度区分度，避免所有相关数据集都输出相似高分
-                            max_tokens=64,  # 浮点数 0.850 约需 ~10 tokens，64 留足余量
+                            max_tokens=128,  # 浮点数 0.850 约需 ~10 tokens，但长 prompt 消耗更多上下文 token
                         )
                         for p in batch_prompts
                     ]
