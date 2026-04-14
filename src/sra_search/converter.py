@@ -220,6 +220,117 @@ def infer_data_type(omics_type: str, title: str = "", platform: str = "") -> str
     return DataType.OTHER.value
 
 
+# scRNA-seq 特有文件标识（补充文件中出现则强烈暗示是单细胞数据）
+_SCRNA_FILE_PATTERNS = [
+    "barcodes", "features", "genes", "matrix.mtx", "matrix.tar",
+    ".h5", ".h5ad", ".loom", ".zarr",
+    "10x", "cellranger", "count_matrix", "filtered_gene_bc",
+    "raw_feature", "processed_matrix",
+]
+# scRNA-seq 特有平台标识
+_SCRNA_PLATFORM_KEYWORDS = ["10x", "chromium", "drop-seq", "smart-seq2", "smart-seq3", "cel-seq"]
+# bulk RNA-seq / microarray 文件标识（排除项）
+_BULK_FILE_PATTERNS = ["cel", "chp", "chrpt", "idat", "MAS5", "RMA", "microarray"]
+
+
+def analyze_data_format(dataset: DatasetSchema) -> dict[str, Any]:
+    """分析数据集的文件格式特征，用于辅助判断数据类型和 LLM 审核优先级。
+
+    Args:
+        dataset: 数据集 Schema
+
+    Returns:
+        格式分析结果字典:
+        - scRNA_signal: float  [0,1]，scRNA 特征信号强度
+        - is_bulk_by_files: bool，通过文件类型判断为 bulk 数据
+        - file_format_summary: str，文件格式摘要
+        - should_skip_llm: bool，是否应跳过 LLM 审核（明显不符合时节省 token）
+        - skip_reason: str，跳过原因
+    """
+    result: dict[str, Any] = {
+        "scRNA_signal": 0.0,
+        "is_bulk_by_files": False,
+        "file_format_summary": "",
+        "should_skip_llm": False,
+        "skip_reason": "",
+    }
+
+    supp = dataset.supplementary_files or []
+    supp_text = " ".join(
+        f.get("name", "") + " " + f.get("type", "")
+        for f in supp
+    ).lower()
+
+    # ── 1. scRNA 文件特征打分 ──────────────────────────────────────────
+    sc_score = 0.0
+    for pattern in _SCRNA_FILE_PATTERNS:
+        if pattern.lower() in supp_text:
+            sc_score += 0.25
+    result["scRNA_signal"] = min(sc_score, 1.0)
+
+    # ── 2. 平台关键字 ──────────────────────────────────────────────────
+    platform_lower = (dataset.platform or "").lower()
+    if any(kw in platform_lower for kw in _SCRNA_PLATFORM_KEYWORDS):
+        result["scRNA_signal"] = max(result["scRNA_signal"], 0.5)
+
+    # ── 3. 通过文件类型判断 bulk ──────────────────────────────────────
+    is_bulk = any(p in supp_text for p in _BULK_FILE_PATTERNS)
+    result["is_bulk_by_files"] = is_bulk
+
+    # ── 4. 文件格式摘要 ───────────────────────────────────────────────
+    if supp:
+        file_names = [f.get("name", "unknown") for f in supp[:5]]
+        sizes = [f.get("size", 0) for f in supp[:5]]
+        fmt_parts = []
+        for name, size in zip(file_names, sizes):
+            size_str = ""
+            if isinstance(size, (int, float)) and size > 0:
+                if size > 1e9:
+                    size_str = f"({size/1e9:.1f}GB)"
+                elif size > 1e6:
+                    size_str = f"({size/1e6:.1f}MB)"
+                elif size > 1e3:
+                    size_str = f"({size/1e3:.1f}KB)"
+            fmt_parts.append(f"{name[:40]}{size_str}")
+        result["file_format_summary"] = "; ".join(fmt_parts)
+        if len(supp) > 5:
+            result["file_format_summary"] += f" ... 等{len(supp)}个文件"
+    else:
+        result["file_format_summary"] = "无补充文件"
+
+    # ── 5. 决定是否跳过 LLM 审核 ──────────────────────────────────────
+    # 规则：bulk 数据集 + scRNA 查询 → 直接跳过（节省 token）
+    text_for_check = (
+        (dataset.title or "") + " " +
+        (dataset.summary or "") + " " +
+        (dataset.overall_design or "") + " " +
+        supp_text
+    ).lower()
+
+    query_lower = ""
+    # 通过全局关键词判断查询意图（注意：这里只能做启发式判断）
+    sc_terms = get_sc_method_terms()
+    disease_terms = get_disease_terms()
+
+    # 检查数据集本身是否含 scRNA 信号
+    has_sc_signal = (
+        result["scRNA_signal"] > 0.1 or
+        "scrna" in text_for_check or
+        "single-cell" in text_for_check or
+        "single cell" in text_for_check
+    )
+
+    # 如果查询包含 scRNA 关键词，但数据集文件格式显示是 bulk
+    if result["is_bulk_by_files"] and has_sc_signal:
+        result["should_skip_llm"] = True
+        result["skip_reason"] = f"查询scRNA但文件格式为bulk（可能误报）"
+    elif result["is_bulk_by_files"] and not has_sc_signal:
+        result["should_skip_llm"] = True
+        result["skip_reason"] = "bulk microarray/array数据，非目标类型"
+
+    return result
+
+
 def infer_granularity(
     omics_granularity: str,
     sample_count: int = 0,
@@ -528,7 +639,11 @@ class SchemaConverter:
             tissue=record.organ or "",  # 使用 organ 作为 tissue
             organ=record.organ,
             summary=record.abstract,
+            overall_design=record.overall_design or "",
             keywords=keywords,
+            supplementary_files=record.supplementary_files if isinstance(record.supplementary_files, list) else [],
+            series_matrix_available=record.series_matrix_available,
+            ftp_link=record.ftplink or "",
             pubmed_ids=record.pubmed_ids if isinstance(record.pubmed_ids, list) else [],
             sra_ids=record.sra_ids if isinstance(record.sra_ids, list) else [],
             bioproject_ids=record.bioproject_ids if isinstance(record.bioproject_ids, list) else [],
@@ -648,9 +763,36 @@ async def records_to_search_result_with_llm(
         result.results = result.results[:top_n]
         return result
 
+    # ── Step 2.5: V1 数据格式预过滤（节省 LLM token）────────────────────
+    logger.info("[Step 2.3] V1 数据格式预过滤...")
+    prefilter_passed: list[DatasetSchema] = []
+    prefilter_skipped: list[tuple[DatasetSchema, str]] = []
+
+    for ds in result.results:
+        fmt = analyze_data_format(ds)
+        if fmt["should_skip_llm"]:
+            prefilter_skipped.append((ds, fmt["skip_reason"]))
+        else:
+            prefilter_passed.append(ds)
+
+    if prefilter_skipped:
+        logger.info(
+            f"  ├─ 预过滤通过: {len(prefilter_passed)} 条，"
+            f"跳过 LLM: {len(prefilter_skipped)} 条（节省 token）"
+        )
+        for ds, reason in prefilter_skipped[:5]:
+            logger.debug(f"     - {ds.gse_id}: {reason}")
+        if len(prefilter_skipped) > 5:
+            logger.debug(f"     ... 还有 {len(prefilter_skipped) - 5} 条")
+    else:
+        logger.info(f"  └─ 所有 {len(prefilter_passed)} 条均通过预过滤")
+
+    # 预过滤后的候选集（用于 LLM 评分）
+    candidates_for_llm = prefilter_passed
+
     # ── Step 3: LLM 查询意图分析（可选）──────────────────────────────────
     if enable_query_analysis:
-        logger.info("[Step 2.2] LLM 查询意图分析...")
+        logger.info("[Step 2.4] LLM 查询意图分析...")
         from sra_search.llm.query_analyzer import LLMQueryAnalyzer
         analyzer = LLMQueryAnalyzer(llm_client)
         intent = await analyzer.analyze(query)
@@ -661,7 +803,7 @@ async def records_to_search_result_with_llm(
     # ── Step 4: LLM 语义评分（可选）──────────────────────────────────────
     llm_scored = 0
     if enable_ranking:
-        logger.info("[Step 2.3] LLM 语义评分...")
+        logger.info("[Step 2.5] LLM 语义评分...")
         from sra_search.llm.ranker import LLMRanker
         settings = None
         try:
@@ -674,10 +816,10 @@ async def records_to_search_result_with_llm(
         ranker = LLMRanker(client=llm_client, cache_ttl_hours=ttl)
 
         logger.info(f"  ├─ 参数: top_k={llm_top_k}, concurrency={llm_concurrency}, min_relevance={llm_min_relevance}")
-        logger.info(f"  ├─ 待评分数据集: {len(result.results)} 条")
+        logger.info(f"  ├─ 预过滤后待评分: {len(candidates_for_llm)} 条（跳过 {len(prefilter_skipped)} 条格式不符）")
 
         scored_results = await ranker.score_batch(
-            datasets=result.results,
+            datasets=candidates_for_llm,
             query=query,
             top_k=llm_top_k,
             concurrency=llm_concurrency,
@@ -686,15 +828,15 @@ async def records_to_search_result_with_llm(
         )
 
         if scored_results:
-            # 用 LLM 分数覆盖 relevance_score，重新排序
+            # 用 LLM 分数覆盖 relevance_score
             score_map = {ds.gse_id: score for ds, score in scored_results}
-            for ds in result.results:
+            for ds in candidates_for_llm:
                 if ds.gse_id in score_map:
                     ds.relevance_score = score_map[ds.gse_id]
 
             # 重新计算 total_score 并排序
             weights = {"relevance": 0.5, "recency": 0.2, "quality": 0.15, "sample_size": 0.15}
-            for ds in result.results:
+            for ds in candidates_for_llm:
                 sample_score = min(ds.sample_count / 1000, 1.0) if ds.sample_count > 0 else 0
                 ds.total_score = (
                     weights["relevance"] * ds.relevance_score
@@ -702,17 +844,26 @@ async def records_to_search_result_with_llm(
                     + weights["quality"] * ds.quality_score
                     + weights["sample_size"] * sample_score
                 )
-            result.results.sort(key=lambda x: x.total_score, reverse=True)
+            candidates_for_llm.sort(key=lambda x: x.total_score, reverse=True)
 
-            llm_scored = min(llm_top_k, len(result.results))
+            llm_scored = min(llm_top_k, len(candidates_for_llm))
             # 计算分数提升统计
-            top_score = result.results[0].relevance_score if result.results else 0
-            avg_score = sum(r.relevance_score for r in result.results[:llm_scored]) / llm_scored if llm_scored > 0 else 0
-            logger.info(f"  └─ LLM 评分完成: {llm_scored} 条记录完成评分")
-            logger.info(f"     - Top1 relevance: {top_score:.3f}")
-            logger.info(f"     - 平均 relevance: {avg_score:.3f}")
+            top_score = candidates_for_llm[0].relevance_score if candidates_for_llm else 0
+            avg_score = sum(r.relevance_score for r in candidates_for_llm[:llm_scored]) / llm_scored if llm_scored > 0 else 0
+            logger.info(f"  ├─ LLM 评分完成: {llm_scored} 条完成评分（预过滤跳过 {len(prefilter_skipped)} 条）")
+            logger.info(f"  │   - Top1 relevance: {top_score:.3f}")
+            logger.info(f"  │   - 平均 relevance: {avg_score:.3f}")
+
+            # 将排序后的 LLM 评分候选与预过滤跳过的合并（跳过项按原始 relevance_score 排序置于末尾）
+            skipped_ds = [ds for ds, _ in prefilter_skipped]
+            skipped_ds.sort(key=lambda x: x.relevance_score, reverse=True)
+            result.results = candidates_for_llm + skipped_ds
         else:
-            logger.warning("  └─ LLM 评分返回空，保持 V1 排序")
+            logger.warning("  ├─ LLM 评分返回空，保持 V1 排序（含预过滤跳过项）")
+            # 即使 LLM 失败，也合并预过滤结果
+            skipped_ds = [ds for ds, _ in prefilter_skipped]
+            skipped_ds.sort(key=lambda x: x.relevance_score, reverse=True)
+            result.results = candidates_for_llm + skipped_ds
 
     # 截取 top_n
     original_count = len(result.results)
@@ -721,7 +872,7 @@ async def records_to_search_result_with_llm(
     result.llm_scored_count = llm_scored
 
     # ── Step 5: 补全缺失元数据（对摘要为空的 SRA-only 记录做 GEO 丰富化）────
-    logger.info("[Step 2.4] 元数据补全...")
+    logger.info("[Step 2.5] 元数据补全...")
     try:
         from sra_search.retriever.geo_api import GeoRetriever
         settings_obj = None
@@ -797,6 +948,8 @@ async def records_to_search_result_with_llm(
                             # 补全缺失字段
                             if not ds.summary and rec.summary:
                                 ds.summary = rec.summary
+                            if not ds.overall_design and rec.overall_design:
+                                ds.overall_design = rec.overall_design
                             if not ds.organism and rec.organism:
                                 ds.organism = rec.organism
                             if not ds.platform and rec.platform:
@@ -807,6 +960,12 @@ async def records_to_search_result_with_llm(
                                 ds.publication_date = rec.publication_date
                             if rec.keywords:
                                 ds.keywords = rec.keywords
+                            # 数据文件信息（优先用 GEO 补充文件信息）
+                            if rec.supplementary_files and not ds.supplementary_files:
+                                ds.supplementary_files = rec.supplementary_files
+                                ds.series_matrix_available = rec.series_matrix_available
+                            if rec.ftplink and not ds.ftplink:
+                                ds.ftplink = rec.ftplink
 
             enriched_count = sum(
                 1 for idx, ds in needs_enrichment
@@ -819,7 +978,7 @@ async def records_to_search_result_with_llm(
         logger.warning(f"  └─ 元数据补全失败（不影响后续流程）: {e}")
 
     # ── Step 6: LLM 数据集分析（逐条一句话总结）─────────────────────────
-    logger.info("[Step 2.5] LLM 数据集分析...")
+    logger.info("[Step 2.6] LLM 数据集分析...")
     from sra_search.llm.dataset_summarizer import LLMDatasetSummarizer
     summarizer = LLMDatasetSummarizer(llm_client)
     analyses = await summarizer.summarize_batch_async(
@@ -837,7 +996,7 @@ async def records_to_search_result_with_llm(
 
     # ── Step 7: LLM 整体摘要生成（可选）──────────────────────────────────
     if enable_summary and result.results:
-        logger.info("[Step 2.6] LLM 整体摘要生成...")
+        logger.info("[Step 2.7] LLM 整体摘要生成...")
         from sra_search.llm.summarizer import LLMSummarizer
         summary_summarizer = LLMSummarizer(llm_client)
         result.llm_summary = await summary_summarizer.summarize(
@@ -848,7 +1007,7 @@ async def records_to_search_result_with_llm(
         )
         logger.info("  └─ 摘要生成完成")
 
-    logger.info(f"[Step 2.7] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
+    logger.info(f"[Step 2.8] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
 
     return result
 

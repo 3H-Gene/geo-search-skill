@@ -113,8 +113,14 @@ class DatasetRecord:
     platform: str = ""
     publication_date: str = ""
     journal: str = ""
-    abstract: str = ""
+    abstract: str = ""             # 摘要（来自 GEO summary 字段）
+    overall_design: str = ""       # 实验设计详细描述（来自 GEO overall_design 字段）
     keywords: list[str] = field(default_factory=list)
+    # --- 数据文件信息 ---
+    supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]
+    series_matrix_available: bool = False
+    ftplink: str = ""
+    # --- 系统字段 ---
     first_seen_at: str = field(default_factory=_now_iso)
     last_updated: str = field(default_factory=_now_iso)
     version: int = 1
@@ -147,6 +153,9 @@ class DatasetRecord:
             "platform": self.platform,
             "journal": self.journal,
             "abstract": self.abstract,
+            "overall_design": self.overall_design,
+            "supplementary_files": [f.get("name", "") for f in self.supplementary_files],
+            "series_matrix_available": self.series_matrix_available,
             "keywords": sorted(self.keywords),
         }
         raw = json.dumps(fields_to_hash, sort_keys=True, ensure_ascii=False)
@@ -175,7 +184,11 @@ class DatasetRecord:
             "publication_date": self.publication_date,
             "journal": self.journal,
             "abstract": self.abstract,
+            "overall_design": self.overall_design,
             "keywords": _json_dumps(self.keywords),
+            "supplementary_files": _json_dumps(self.supplementary_files),
+            "series_matrix_available": 1 if self.series_matrix_available else 0,
+            "ftplink": self.ftplink,
             "first_seen_at": self.first_seen_at,
             "last_updated": self.last_updated,
             "version": self.version,
@@ -207,7 +220,11 @@ class DatasetRecord:
             publication_date=row.get("publication_date", ""),
             journal=row.get("journal", ""),
             abstract=row.get("abstract", ""),
+            overall_design=row.get("overall_design", ""),
             keywords=_json_loads(row.get("keywords", "[]")),
+            supplementary_files=_json_loads(row.get("supplementary_files", "[]")),
+            series_matrix_available=bool(row.get("series_matrix_available", 0)),
+            ftplink=row.get("ftplink", ""),
             first_seen_at=row.get("first_seen_at", _now_iso()),
             last_updated=row.get("last_updated", _now_iso()),
             version=row.get("version", 1),

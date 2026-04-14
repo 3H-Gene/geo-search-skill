@@ -36,6 +36,7 @@ RESEARCH QUERY: {query}
 DATASET METADATA:
 - Title: {title}
 - Summary: {summary}
+- Overall Design: {overall_design}
 - Organism: {organism}
 - Data type: {data_type}   (scRNA-seq > RNA-seq > microarray for single-cell queries)
 - Granularity: {granularity}
@@ -43,6 +44,8 @@ DATASET METADATA:
 - Tissue/Organ: {tissue}
 - Perturbation: {has_perturbation}{perturbation_types}
 - Sample count: {sample_count} samples
+- Supplementary Files: {supp_files}
+- Series Matrix: {series_matrix}
 - Year: {year}
 - Keywords: {keywords}
 
@@ -75,10 +78,21 @@ def _build_rank_prompt(query: str, dataset: DatasetSchema) -> str:
 
     keywords_str = ", ".join(dataset.keywords[:10]) if dataset.keywords else "none"
 
+    # 格式化 overall_design
+    overall_design = dataset.overall_design[:200] if dataset.overall_design else "(no overall design)"
+
+    # 格式化补充文件
+    if dataset.supplementary_files:
+        file_types = set(f.get("type", "unknown") or "unknown" for f in dataset.supplementary_files)
+        supp_files = ", ".join(sorted(file_types))[:100]
+    else:
+        supp_files = "none"
+
     return _RANKER_USER_TEMPLATE.format(
         query=query,
         title=dataset.title or "(no title)",
         summary=summary or "(no summary)",
+        overall_design=overall_design,
         organism=dataset.organism or "unknown",
         data_type=dataset.data_type or "unknown",
         granularity=dataset.granularity or "unknown",
@@ -87,6 +101,8 @@ def _build_rank_prompt(query: str, dataset: DatasetSchema) -> str:
         has_perturbation="Yes" if dataset.has_perturbation else "No",
         perturbation_types=perturbation_types_str,
         sample_count=dataset.sample_count or 0,
+        supp_files=supp_files,
+        series_matrix="available" if dataset.series_matrix_available else "not available",
         year=year,
         keywords=keywords_str,
     )

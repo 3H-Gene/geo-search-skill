@@ -99,11 +99,14 @@ class LLMDatasetSummarizer:
 - GSE ID: {gse_id}
 - 标题: {title}
 - 摘要: {summary}
+- 实验设计: {overall_design}
 - 物种: {organism}
 - 组织: {tissue}
 - 数据类型: {data_type}
 - 样本数: {sample_count}
 - 测序平台: {platform}
+- 补充文件格式: {supp_files}
+- Series Matrix: {series_matrix}
 
 ## 用户查询
 {query}
@@ -170,15 +173,33 @@ class LLMDatasetSummarizer:
 
     def _build_prompt(self, dataset: DatasetSchema, query: str) -> str:
         """构建 LLM prompt"""
+
+        # 格式化补充文件列表
+        if dataset.supplementary_files:
+            file_info = "; ".join(
+                f"{f.get('name', '?')[:60]}({f.get('type', 'unknown')})"
+                for f in dataset.supplementary_files[:10]
+            )
+            if len(dataset.supplementary_files) > 10:
+                file_info += f" ... 等{len(dataset.supplementary_files)}个文件"
+        else:
+            file_info = "无"
+
+        # 格式化 overall_design
+        overall_design = dataset.overall_design[:300] if dataset.overall_design else "无"
+
         return self.USER_PROMPT_TEMPLATE.format(
             gse_id=dataset.gse_id,
             title=dataset.title,
             summary=dataset.summary[:500] if dataset.summary else "无摘要",
+            overall_design=overall_design,
             organism=dataset.organism or "NA",
             tissue=dataset.tissue or "NA",
             data_type=dataset.data_type or "NA",
             sample_count=str(dataset.sample_count) if dataset.sample_count else "NA",
             platform=dataset.platform or "NA",
+            supp_files=file_info,
+            series_matrix="有" if dataset.series_matrix_available else "无",
             query=query,
         )
 

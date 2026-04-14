@@ -288,6 +288,34 @@ class Database:
         # 初始化表结构
         self._init_tables()
 
+        # 数据库迁移（新增列）
+        self._run_migrations()
+
+    def _run_migrations(self) -> None:
+        """运行数据库迁移，为已有表添加新列（仅在新列不存在时执行）"""
+        conn = self.get_connection()
+        cursor = conn.cursor()
+
+        # 2026-04-14: 新增 overall_design, supplementary_files, series_matrix_available, ftplink 列
+        migrations = [
+            ("overall_design", "ALTER TABLE datasets ADD COLUMN overall_design TEXT DEFAULT ''"),
+            ("supplementary_files", "ALTER TABLE datasets ADD COLUMN supplementary_files TEXT DEFAULT '[]'"),
+            ("series_matrix_available", "ALTER TABLE datasets ADD COLUMN series_matrix_available INTEGER DEFAULT 0"),
+            ("ftplink", "ALTER TABLE datasets ADD COLUMN ftplink TEXT DEFAULT ''"),
+        ]
+
+        for col_name, sql in migrations:
+            try:
+                cursor.execute(f"SELECT {col_name} FROM datasets LIMIT 1")
+            except Exception:
+                # 列不存在，执行 ALTER TABLE
+                try:
+                    cursor.execute(sql)
+                    conn.commit()
+                    logger.info(f"[Migration] Added column: datasets.{col_name}")
+                except Exception:
+                    pass  # 列可能已存在（并发情况）
+
     def _init_tables(self) -> None:
         """创建表和索引"""
         conn = self.get_connection()

@@ -35,8 +35,12 @@ class GeoRecord:
     pubmed_id: str = ""
     publication_date: str = ""
     summary: str = ""
+    overall_design: str = ""      # 实验设计详细描述（GEO 特有字段）
     keywords: list[str] = field(default_factory=list)
-    bioproject_id: str = ""  # GEO esummary 的 bioproject 字段
+    bioproject_id: str = ""       # GEO esummary 的 bioproject 字段
+    ftplink: str = ""              # FTP 下载链接
+    supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]
+    series_matrix_available: bool = False  # 是否提供 Series Matrix 文件
 
     # 原始数据（可选）
     raw_data: dict[str, Any] = field(default_factory=dict)
@@ -51,8 +55,12 @@ class GeoRecord:
             "pubmed_id": self.pubmed_id,
             "publication_date": self.publication_date,
             "summary": self.summary,
+            "overall_design": self.overall_design,
             "keywords": self.keywords,
             "bioproject_id": self.bioproject_id,
+            "ftplink": self.ftplink,
+            "supplementary_files": self.supplementary_files,
+            "series_matrix_available": self.series_matrix_available,
         }
 
     def compute_hash(self) -> str:
@@ -348,6 +356,34 @@ class GeoRetriever:
                             except (ValueError, TypeError):
                                 gse_accession = f"GSE{gse_id}"
 
+                        # 解析补充文件列表
+                        # supplementary_file 可以是 str 或 list[dict]
+                        # dict 格式: {name, type, size}
+                        supp_raw = item.get("supplementary_file", [])
+                        supp_files: list[dict] = []
+                        series_matrix_found = False
+                        if isinstance(supp_raw, list):
+                            for f in supp_raw:
+                                if isinstance(f, dict):
+                                    name = f.get("name", "")
+                                    ftype = f.get("type", "")
+                                    fsize = f.get("size", 0)
+                                else:
+                                    name = str(f)
+                                    ftype = ""
+                                    fsize = 0
+                                supp_files.append({"name": name, "type": ftype, "size": fsize})
+                                if "series_matrix" in name.lower():
+                                    series_matrix_found = True
+                                # 也检查 type 字段
+                                if ftype and "series_matrix" in ftype.lower():
+                                    series_matrix_found = True
+                        elif isinstance(supp_raw, str) and supp_raw:
+                            # 旧格式：直接是字符串
+                            supp_files.append({"name": supp_raw, "type": "", "size": 0})
+                            if "series_matrix" in supp_raw.lower():
+                                series_matrix_found = True
+
                         record = GeoRecord(
                             gse_id=gse_accession,
                             title=item.get("title", ""),
@@ -357,14 +393,21 @@ class GeoRetriever:
                             #   n_samples  → sample_count（样品总数）
                             #   pdat       → publication_date（入库日期）
                             #   pubmedids  → list[str]（直接是 PMID 字符串，非嵌套对象）
+                            #   overall_design → 实验设计详细描述
+                            #   supplementary_file → 补充文件列表
+                            #   ftplink    → FTP 下载链接
                             organism=item.get("taxon", ""),
                             platform=item.get("gpl", ""),
                             sample_count=int(item.get("n_samples", 0) or 0),
                             pubmed_id=item.get("pubmedids", [""])[0] if item.get("pubmedids") else "",
                             publication_date=item.get("pdat", ""),
                             summary=item.get("summary", ""),
+                            overall_design=item.get("overall_design", ""),
                             keywords=[],  # GEO esummary 无 keywords 字段
                             bioproject_id=item.get("bioproject", ""),
+                            ftplink=item.get("ftplink", ""),
+                            supplementary_files=supp_files,
+                            series_matrix_available=series_matrix_found,
                         )
                         if gse_accession not in seen_accessions:
                             seen_accessions.add(gse_accession)
@@ -392,8 +435,12 @@ class GeoRetriever:
         """反序列化记录（兼容旧缓存格式）"""
         records = []
         for r in data:
-            # 旧缓存可能缺少 bioproject_id 字段，提供默认值
+            # 旧缓存可能缺少新字段，提供默认值
             r.setdefault("bioproject_id", "")
+            r.setdefault("overall_design", "")
+            r.setdefault("ftplink", "")
+            r.setdefault("supplementary_files", [])
+            r.setdefault("series_matrix_available", False)
             records.append(GeoRecord(**r))
         return records
 

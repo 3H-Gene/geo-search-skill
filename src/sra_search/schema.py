@@ -155,7 +155,13 @@ class DatasetSchema:
 
     # === 描述与链接 ===
     summary: str = ""
+    overall_design: str = ""          # 实验设计详细描述（GEO overall_design 字段）
     keywords: list[str] = field(default_factory=list)
+
+    # === 数据文件信息 ===
+    supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]
+    series_matrix_available: bool = False
+    ftp_link: str = ""
 
     # === 关联 ID ===
     pubmed_ids: list[str] = field(default_factory=list)
@@ -165,8 +171,6 @@ class DatasetSchema:
     # === 元数据 ===
     publication_date: str = ""
     journal: str = ""
-    series_matrix_available: bool = False
-    ftp_link: str = ""
 
     # === 排序与质量 ===
     relevance_score: float = 0.0
@@ -222,14 +226,16 @@ class DatasetSchema:
             "tissue": self.tissue,
             "organ": self.organ,
             "summary": self.summary,
+            "overall_design": self.overall_design,
             "keywords": self.keywords,
+            "supplementary_files": self.supplementary_files,
+            "series_matrix_available": self.series_matrix_available,
+            "ftp_link": self.ftp_link,
             "pubmed_ids": self.pubmed_ids,
             "sra_ids": self.sra_ids,
             "bioproject_ids": self.bioproject_ids,
             "publication_date": self.publication_date,
             "journal": self.journal,
-            "series_matrix_available": self.series_matrix_available,
-            "ftp_link": self.ftp_link,
             "relevance_score": self.relevance_score,
             "recency_score": self.recency_score,
             "quality_score": self.quality_score,
@@ -282,14 +288,16 @@ class DatasetSchema:
             tissue=data.get("tissue", ""),
             organ=data.get("organ", ""),
             summary=data.get("summary", ""),
+            overall_design=data.get("overall_design", ""),
             keywords=data.get("keywords", []),
+            supplementary_files=data.get("supplementary_files", []),
+            series_matrix_available=data.get("series_matrix_available", False),
+            ftp_link=data.get("ftp_link", ""),
             pubmed_ids=data.get("pubmed_ids", []),
             sra_ids=data.get("sra_ids", []),
             bioproject_ids=data.get("bioproject_ids", []),
             publication_date=data.get("publication_date", ""),
             journal=data.get("journal", ""),
-            series_matrix_available=data.get("series_matrix_available", False),
-            ftp_link=data.get("ftp_link", ""),
             relevance_score=data.get("relevance_score", 0.0),
             recency_score=data.get("recency_score", 0.0),
             quality_score=data.get("quality_score", 0.0),
