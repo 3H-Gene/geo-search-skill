@@ -787,7 +787,7 @@ async def records_to_search_result_with_llm(
     else:
         logger.info(f"  └─ 所有 {len(prefilter_passed)} 条均通过预过滤")
 
-    # 预过滤后的候选集（用于 LLM 评分）
+    # 预过滤后的候选集（用于 LLM 评分和摘要生成）
     candidates_for_llm = prefilter_passed
 
     # ── Step 3: LLM 查询意图分析（可选）──────────────────────────────────
@@ -978,20 +978,42 @@ async def records_to_search_result_with_llm(
         logger.warning(f"  └─ 元数据补全失败（不影响后续流程）: {e}")
 
     # ── Step 6: LLM 数据集分析（逐条一句话总结）─────────────────────────
+    # 注意：只对预过滤通过的候选集调用 LLM，避免浪费 token
     logger.info("[Step 2.6] LLM 数据集分析...")
     from sra_search.llm.dataset_summarizer import LLMDatasetSummarizer
     summarizer = LLMDatasetSummarizer(llm_client)
+    
+    # 获取需要调用 LLM 的候选集（预过滤后的 + 未被预过滤的数据集）
+    # prefilter_passed 是经过数据格式预过滤的候选集
+    # 未被预过滤的数据集（supp_files 为空的普通数据集）仍需 LLM 判断
+    summarizer_candidates = candidates_for_llm if candidates_for_llm else result.results
+    
+    logger.info(f"  ├─ 预过滤跳过: {len(prefilter_skipped)} 条，提交 LLM 分析: {len(summarizer_candidates)} 条")
+    
     analyses = await summarizer.summarize_batch_async(
-        datasets=result.results,
+        datasets=summarizer_candidates,
         query=query,
         concurrency=settings.llm_concurrency if settings else 5,
     )
-    # 将分析结果填充到各 DatasetSchema
-    for ds, analysis in zip(result.results, analyses):
-        ds.llm_one_sentence_summary = analysis.one_sentence_summary
-        ds.llm_sample_grouping = analysis.sample_grouping
-        ds.llm_cell_count = analysis.cell_count
-        ds.llm_relevance_reason = analysis.relevance_reason
+    
+    # 建立分析结果映射，用于填充到 DatasetSchema
+    analysis_map = {ds.gse_id: analysis for ds, analysis in zip(summarizer_candidates, analyses)}
+    
+    # 将分析结果填充到 result.results（包含预过滤跳过的数据集）
+    for ds in result.results:
+        if ds.gse_id in analysis_map:
+            analysis = analysis_map[ds.gse_id]
+            ds.llm_one_sentence_summary = analysis.one_sentence_summary
+            ds.llm_sample_grouping = analysis.sample_grouping
+            ds.llm_cell_count = analysis.cell_count
+            ds.llm_relevance_reason = analysis.relevance_reason
+        elif any(ds.gse_id == skipped_ds.gse_id for skipped_ds in [s[0] for s in prefilter_skipped]):
+            # 预过滤跳过的数据集使用格式分析结果作为摘要
+            fmt = analyze_data_format(ds)
+            ds.llm_one_sentence_summary = f"[数据格式分析] {fmt['skip_reason']}"
+            ds.llm_sample_grouping = "NA"
+            ds.llm_cell_count = "NA"
+            ds.llm_relevance_reason = fmt['file_format_summary']
     logger.info(f"  └─ 数据集分析完成: {len(analyses)} 条")
 
     # ── Step 7: LLM 整体摘要生成（可选）──────────────────────────────────

@@ -269,7 +269,7 @@ class LLMDatasetSummarizer:
                 prompt=full_prompt,
                 system=None,
                 temperature=0.3,
-                max_tokens=1024,  # 摘要 JSON 输出较长，确保不截断
+                max_tokens=2048,  # 摘要 JSON 输出较长，确保不截断
             )
 
             analysis = self._parse_response(response, dataset.gse_id)
