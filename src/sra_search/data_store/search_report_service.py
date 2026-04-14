@@ -164,15 +164,35 @@ class SearchReportService:
         filters_json = json.dumps(filters or {}, ensure_ascii=False)
 
         try:
-            cursor.execute("""
-                INSERT INTO search_reports (
-                    id, query, query_hash, mode, sources, filters,
-                    total_found, returned_count, llm_model, searched_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                report_id, query, query_hash, mode, sources_json, filters_json,
-                total_found, returned_count, llm_model, now
-            ))
+            # 先查询是否已存在相同报告
+            cursor.execute(
+                "SELECT id FROM search_reports WHERE query_hash = ? AND mode = ? AND sources = ?",
+                (query_hash, mode, sources_json)
+            )
+            existing = cursor.fetchone()
+
+            if existing:
+                # 已存在则更新
+                report_id = existing[0]
+                cursor.execute("""
+                    UPDATE search_reports SET
+                        query = ?, filters = ?, total_found = ?, returned_count = ?,
+                        llm_model = ?, searched_at = ?
+                    WHERE id = ?
+                """, (query, filters_json, total_found, returned_count, llm_model, now, report_id))
+                # 删除旧报告项
+                cursor.execute("DELETE FROM search_report_items WHERE report_id = ?", (report_id,))
+            else:
+                # 不存在则插入新报告
+                cursor.execute("""
+                    INSERT INTO search_reports (
+                        id, query, query_hash, mode, sources, filters,
+                        total_found, returned_count, llm_model, searched_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    report_id, query, query_hash, mode, sources_json, filters_json,
+                    total_found, returned_count, llm_model, now
+                ))
 
             # 插入报告项
             for item in items:
