@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -342,6 +342,7 @@ class LLMDatasetSummarizer:
             list[DatasetAnalysis]: 分析结果列表
         """
         import asyncio
+
         from loguru import logger
 
         logger.info(f"[LLM Summarizer] 批量生成 {len(datasets)} 条数据集分析...")

@@ -23,7 +23,6 @@ if TYPE_CHECKING:
 
 from sra_search.llm.client import llm_debug_prompts  # runtime flag
 
-
 # ── 评分 Prompt ──────────────────────────────────────────────────────────────
 
 _RANKER_SYSTEM_PROMPT = """You are a biomedical research data curator specializing in genomics and transcriptomics datasets.
