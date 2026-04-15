@@ -221,7 +221,11 @@ class SearchAggregator:
                     bioproject_ids=[geo_rec.bioproject_id] if geo_rec.bioproject_id else [],
                     publication_date=geo_rec.publication_date,
                     abstract=geo_rec.summary,
+                    overall_design=geo_rec.overall_design,
                     keywords=geo_rec.keywords,
+                    supplementary_files=geo_rec.supplementary_files,
+                    series_matrix_available=geo_rec.series_matrix_available,
+                    ftplink=geo_rec.ftplink,
                     has_gse=True,
                 )
                 dataset.update_hash()

@@ -787,8 +787,37 @@ async def records_to_search_result_with_llm(
     else:
         logger.info(f"  └─ 所有 {len(prefilter_passed)} 条均通过预过滤")
 
+    # ── Step 2.4: V1 相关性阈值过滤（跳过明显不相关的数据集）────────────
+    # 设定相关性阈值，低于阈值的数据集直接跳过，不调用 LLM
+    relevance_threshold = 0.15  # V1 relevance_score 低于此值视为不相关
+    relevance_skipped: list[tuple[DatasetSchema, str]] = []
+    
+    still_candidates: list[DatasetSchema] = []
+    for ds in prefilter_passed:
+        if ds.relevance_score < relevance_threshold:
+            relevance_skipped.append((ds, f"V1相关性分数 {ds.relevance_score:.2f} < {relevance_threshold}"))
+        else:
+            still_candidates.append(ds)
+    
+    if relevance_skipped:
+        logger.info(
+            f"  ├─ 相关性过滤通过: {len(still_candidates)} 条，"
+            f"跳过 LLM: {len(relevance_skipped)} 条（V1相关性过低）"
+        )
+        for ds, reason in relevance_skipped[:5]:
+            logger.debug(f"     - {ds.gse_id}: {reason}")
+        if len(relevance_skipped) > 5:
+            logger.debug(f"     ... 还有 {len(relevance_skipped) - 5} 条")
+    else:
+        logger.info(f"  └─ 所有 {len(still_candidates)} 条均通过相关性过滤")
+
+    # 合并所有跳过项：数据格式过滤 + 相关性过滤
+    all_skipped = prefilter_skipped + relevance_skipped
+    skipped_ds = [ds for ds, _ in all_skipped]
+    skipped_ds.sort(key=lambda x: x.relevance_score, reverse=True)
+
     # 预过滤后的候选集（用于 LLM 评分和摘要生成）
-    candidates_for_llm = prefilter_passed
+    candidates_for_llm = still_candidates
 
     # ── Step 3: LLM 查询意图分析（可选）──────────────────────────────────
     if enable_query_analysis:
@@ -850,19 +879,15 @@ async def records_to_search_result_with_llm(
             # 计算分数提升统计
             top_score = candidates_for_llm[0].relevance_score if candidates_for_llm else 0
             avg_score = sum(r.relevance_score for r in candidates_for_llm[:llm_scored]) / llm_scored if llm_scored > 0 else 0
-            logger.info(f"  ├─ LLM 评分完成: {llm_scored} 条完成评分（预过滤跳过 {len(prefilter_skipped)} 条）")
+            logger.info(f"  ├─ LLM 评分完成: {llm_scored} 条完成评分（预过滤跳过 {len(all_skipped)} 条）")
             logger.info(f"  │   - Top1 relevance: {top_score:.3f}")
             logger.info(f"  │   - 平均 relevance: {avg_score:.3f}")
 
             # 将排序后的 LLM 评分候选与预过滤跳过的合并（跳过项按原始 relevance_score 排序置于末尾）
-            skipped_ds = [ds for ds, _ in prefilter_skipped]
-            skipped_ds.sort(key=lambda x: x.relevance_score, reverse=True)
             result.results = candidates_for_llm + skipped_ds
         else:
             logger.warning("  ├─ LLM 评分返回空，保持 V1 排序（含预过滤跳过项）")
             # 即使 LLM 失败，也合并预过滤结果
-            skipped_ds = [ds for ds, _ in prefilter_skipped]
-            skipped_ds.sort(key=lambda x: x.relevance_score, reverse=True)
             result.results = candidates_for_llm + skipped_ds
 
     # 截取 top_n
@@ -984,11 +1009,10 @@ async def records_to_search_result_with_llm(
     summarizer = LLMDatasetSummarizer(llm_client)
     
     # 获取需要调用 LLM 的候选集（预过滤后的 + 未被预过滤的数据集）
-    # prefilter_passed 是经过数据格式预过滤的候选集
-    # 未被预过滤的数据集（supp_files 为空的普通数据集）仍需 LLM 判断
+    # candidates_for_llm 是经过数据格式+相关性预过滤的候选集
     summarizer_candidates = candidates_for_llm if candidates_for_llm else result.results
     
-    logger.info(f"  ├─ 预过滤跳过: {len(prefilter_skipped)} 条，提交 LLM 分析: {len(summarizer_candidates)} 条")
+    logger.info(f"  ├─ 预过滤跳过: {len(all_skipped)} 条，提交 LLM 分析: {len(summarizer_candidates)} 条")
     
     analyses = await summarizer.summarize_batch_async(
         datasets=summarizer_candidates,
@@ -999,6 +1023,9 @@ async def records_to_search_result_with_llm(
     # 建立分析结果映射，用于填充到 DatasetSchema
     analysis_map = {ds.gse_id: analysis for ds, analysis in zip(summarizer_candidates, analyses)}
     
+    # 建立跳过原因映射
+    skip_reason_map: dict[str, str] = {ds.gse_id: reason for ds, reason in all_skipped}
+    
     # 将分析结果填充到 result.results（包含预过滤跳过的数据集）
     for ds in result.results:
         if ds.gse_id in analysis_map:
@@ -1007,13 +1034,16 @@ async def records_to_search_result_with_llm(
             ds.llm_sample_grouping = analysis.sample_grouping
             ds.llm_cell_count = analysis.cell_count
             ds.llm_relevance_reason = analysis.relevance_reason
-        elif any(ds.gse_id == skipped_ds.gse_id for skipped_ds in [s[0] for s in prefilter_skipped]):
-            # 预过滤跳过的数据集使用格式分析结果作为摘要
-            fmt = analyze_data_format(ds)
-            ds.llm_one_sentence_summary = f"[数据格式分析] {fmt['skip_reason']}"
+        elif ds.gse_id in skip_reason_map:
+            # 预过滤跳过的数据集使用跳过原因作为摘要
+            skip_reason = skip_reason_map[ds.gse_id]
+            if "V1相关性" in skip_reason:
+                ds.llm_one_sentence_summary = f"[V1相关性过低] {ds.title[:50]}..."
+            else:
+                ds.llm_one_sentence_summary = f"[数据格式不符] {ds.title[:50]}..."
             ds.llm_sample_grouping = "NA"
             ds.llm_cell_count = "NA"
-            ds.llm_relevance_reason = fmt['file_format_summary']
+            ds.llm_relevance_reason = skip_reason
     logger.info(f"  └─ 数据集分析完成: {len(analyses)} 条")
 
     # ── Step 7: LLM 整体摘要生成（可选）──────────────────────────────────
