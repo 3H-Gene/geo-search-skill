@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
+import asyncio
 import json
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
@@ -307,11 +308,6 @@ def analyze_data_format(dataset: DatasetSchema) -> dict[str, Any]:
         supp_text
     ).lower()
 
-    query_lower = ""
-    # 通过全局关键词判断查询意图（注意：这里只能做启发式判断）
-    sc_terms = get_sc_method_terms()
-    disease_terms = get_disease_terms()
-
     # 检查数据集本身是否含 scRNA 信号
     has_sc_signal = (
         result["scRNA_signal"] > 0.1 or
@@ -323,12 +319,133 @@ def analyze_data_format(dataset: DatasetSchema) -> dict[str, Any]:
     # 如果查询包含 scRNA 关键词，但数据集文件格式显示是 bulk
     if result["is_bulk_by_files"] and has_sc_signal:
         result["should_skip_llm"] = True
-        result["skip_reason"] = f"查询scRNA但文件格式为bulk（可能误报）"
+        result["skip_reason"] = "查询scRNA但文件格式为bulk（可能误报）"
     elif result["is_bulk_by_files"] and not has_sc_signal:
         result["should_skip_llm"] = True
         result["skip_reason"] = "bulk microarray/array数据，非目标类型"
 
     return result
+
+
+# ── 处理矩阵文件模式（认为"已处理"） ──────────────────────────────────────────
+_PROCESSED_MATRIX_PATTERNS = [
+    # 表达矩阵常见格式
+    "count_matrix", "counts.tsv", "counts.csv", "counts.txt",
+    "expression_matrix", "expression.tsv", "expression.csv",
+    "tpm", "fpkm", "rpkm", "cpm",
+    # 单细胞格式
+    "matrix.mtx", "barcodes.tsv", "features.tsv", "genes.tsv",
+    ".h5", ".h5ad", ".loom", ".zarr",
+    "filtered_gene_bc", "raw_feature_bc",
+    # 通用处理矩阵
+    "normalized", "processed", "count.csv", "count.txt",
+    "gene_expression", "feature_counts",
+]
+_RAW_ONLY_PATTERNS = [
+    ".fastq", ".fastq.gz", ".fq.gz", ".bam", ".cram", ".sra",
+]
+
+
+def infer_file_metadata(supplementary_files: list[dict]) -> dict[str, bool]:
+    """从 supplementary_files 列表推断 has_processed_matrix / raw_only。
+
+    Args:
+        supplementary_files: DatasetSchema.supplementary_files 列表，
+                             每项为 {name, type, size}
+
+    Returns:
+        {"has_processed_matrix": bool, "raw_only": bool}
+    """
+    if not supplementary_files:
+        return {"has_processed_matrix": False, "raw_only": False}
+
+    all_names = " ".join(
+        f.get("name", "").lower() for f in supplementary_files
+    )
+
+    has_processed = any(p in all_names for p in _PROCESSED_MATRIX_PATTERNS)
+    has_raw = any(p in all_names for p in _RAW_ONLY_PATTERNS)
+
+    # raw_only = 有原始文件 但没有处理矩阵
+    raw_only = has_raw and not has_processed
+
+    return {"has_processed_matrix": has_processed, "raw_only": raw_only}
+
+
+# ── Tissue 关键词自动提取 ──────────────────────────────────────────────────────
+# 常见组织/器官词表（英文小写）—— 按优先级排序（特异性高→低）
+_TISSUE_PATTERNS: list[tuple[str, str]] = [
+    # 血液/免疫
+    ("peripheral blood", "PBMC"), ("pbmc", "PBMC"), ("whole blood", "whole blood"),
+    ("bone marrow", "bone marrow"), ("lymph node", "lymph node"),
+    ("spleen", "spleen"), ("thymus", "thymus"),
+    # 关节/痛风相关
+    ("synovial", "synovial tissue"), ("synovium", "synovium"),
+    ("joint", "joint"), ("cartilage", "cartilage"),
+    ("tophus", "tophus"), ("tophi", "tophus"),
+    # 肾/肝
+    ("kidney", "kidney"), ("renal", "kidney"),
+    ("liver", "liver"), ("hepat", "liver"),
+    # 肺
+    ("lung", "lung"), ("pulmonary", "lung"), ("bronchial", "bronchial"),
+    ("alveolar", "alveolar"),
+    # 肠道
+    ("colon", "colon"), ("intestin", "intestine"), ("rectum", "rectum"),
+    ("ileum", "ileum"), ("cecum", "cecum"),
+    # 皮肤
+    ("skin", "skin"), ("dermis", "dermis"), ("epidermis", "epidermis"),
+    # 脑
+    ("brain", "brain"), ("cortex", "cortex"), ("hippocampus", "hippocampus"),
+    ("cerebral", "brain"), ("neural", "neural"),
+    # 心脏
+    ("heart", "heart"), ("cardiac", "heart"), ("myocardium", "heart"),
+    # 胰腺
+    ("pancreas", "pancreas"), ("pancreatic", "pancreas"), ("islet", "islet"),
+    # 脂肪
+    ("adipose", "adipose tissue"), ("fat tissue", "adipose tissue"),
+    # 肌肉
+    ("muscle", "muscle"), ("skeletal muscle", "skeletal muscle"),
+    # 乳腺
+    ("breast", "breast"), ("mammary", "mammary"),
+    # 前列腺
+    ("prostate", "prostate"),
+    # 卵巢/宫颈
+    ("ovary", "ovary"), ("ovarian", "ovary"), ("cervical", "cervix"),
+    # 眼
+    ("retina", "retina"), ("cornea", "cornea"),
+]
+
+
+def extract_tissue_from_text(
+    summary: str,
+    overall_design: str = "",
+    title: str = "",
+) -> str:
+    """从 summary / overall_design / title 文本中启发式提取组织/器官信息。
+
+    Args:
+        summary: 数据集摘要（GEO summary 字段）
+        overall_design: 实验设计描述（GEO overall_design 字段）
+        title: 数据集标题
+
+    Returns:
+        规范化的组织名称字符串；若无法识别则返回 ""
+    """
+    # 拼接所有文本，按优先级加权（summary 最重要）
+    combined = (
+        (summary or "") + " " +
+        (overall_design or "") + " " +
+        (title or "")
+    ).lower()
+
+    if not combined.strip():
+        return ""
+
+    for keyword, canonical in _TISSUE_PATTERNS:
+        if keyword in combined:
+            return canonical
+
+    return ""
 
 
 def infer_granularity(
@@ -623,6 +740,21 @@ class SchemaConverter:
         # 解析 keywords
         keywords = record.keywords if isinstance(record.keywords, list) else []
 
+        # supplementary_files 列表
+        supp_files = record.supplementary_files if isinstance(record.supplementary_files, list) else []
+
+        # 推断文件元数据（has_processed_matrix / raw_only）
+        file_meta = infer_file_metadata(supp_files)
+
+        # tissue 字段：优先使用 record.organ，若为空则从文本中提取
+        tissue_val = record.organ or ""
+        if not tissue_val:
+            tissue_val = extract_tissue_from_text(
+                summary=record.abstract or "",
+                overall_design=record.overall_design or "",
+                title=record.title or "",
+            )
+
         # 创建 Schema
         schema = DatasetSchema(
             gse_id=record.gse_id,
@@ -636,14 +768,16 @@ class SchemaConverter:
             has_perturbation=has_perturbation,
             perturbation_types=perturbation_types,
             disease=record.disease,
-            tissue=record.organ or "",  # 使用 organ 作为 tissue
+            tissue=tissue_val,
             organ=record.organ,
             summary=record.abstract,
             overall_design=record.overall_design or "",
             keywords=keywords,
-            supplementary_files=record.supplementary_files if isinstance(record.supplementary_files, list) else [],
+            supplementary_files=supp_files,
             series_matrix_available=record.series_matrix_available,
             ftp_link=record.ftplink or "",
+            has_processed_matrix=file_meta["has_processed_matrix"],
+            raw_only=file_meta["raw_only"],
             pubmed_ids=record.pubmed_ids if isinstance(record.pubmed_ids, list) else [],
             sra_ids=record.sra_ids if isinstance(record.sra_ids, list) else [],
             bioproject_ids=record.bioproject_ids if isinstance(record.bioproject_ids, list) else [],
@@ -791,14 +925,14 @@ async def records_to_search_result_with_llm(
     # 设定相关性阈值，低于阈值的数据集直接跳过，不调用 LLM
     relevance_threshold = 0.15  # V1 relevance_score 低于此值视为不相关
     relevance_skipped: list[tuple[DatasetSchema, str]] = []
-    
+
     still_candidates: list[DatasetSchema] = []
     for ds in prefilter_passed:
         if ds.relevance_score < relevance_threshold:
             relevance_skipped.append((ds, f"V1相关性分数 {ds.relevance_score:.2f} < {relevance_threshold}"))
         else:
             still_candidates.append(ds)
-    
+
     if relevance_skipped:
         logger.info(
             f"  ├─ 相关性过滤通过: {len(still_candidates)} 条，"
@@ -1007,25 +1141,25 @@ async def records_to_search_result_with_llm(
     logger.info("[Step 2.6] LLM 数据集分析...")
     from sra_search.llm.dataset_summarizer import LLMDatasetSummarizer
     summarizer = LLMDatasetSummarizer(llm_client)
-    
+
     # 获取需要调用 LLM 的候选集（预过滤后的 + 未被预过滤的数据集）
     # candidates_for_llm 是经过数据格式+相关性预过滤的候选集
     summarizer_candidates = candidates_for_llm if candidates_for_llm else result.results
-    
+
     logger.info(f"  ├─ 预过滤跳过: {len(all_skipped)} 条，提交 LLM 分析: {len(summarizer_candidates)} 条")
-    
+
     analyses = await summarizer.summarize_batch_async(
         datasets=summarizer_candidates,
         query=query,
         concurrency=settings.llm_concurrency if settings else 5,
     )
-    
+
     # 建立分析结果映射，用于填充到 DatasetSchema
     analysis_map = {ds.gse_id: analysis for ds, analysis in zip(summarizer_candidates, analyses)}
-    
+
     # 建立跳过原因映射
     skip_reason_map: dict[str, str] = {ds.gse_id: reason for ds, reason in all_skipped}
-    
+
     # 将分析结果填充到 result.results（包含预过滤跳过的数据集）
     for ds in result.results:
         if ds.gse_id in analysis_map:

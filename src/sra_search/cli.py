@@ -46,6 +46,20 @@ def run_async(coro):
         return asyncio.run(coro)
 
 
+# CSV 输出字段顺序（模块级常量，供 search 命令使用）
+_CSV_FIELDS = [
+    "rank", "gse_id", "title", "organism", "tissue", "disease",
+    "data_type", "single_cell", "granularity", "sample_count",
+    "platform", "has_processed_matrix", "raw_only",
+    "series_matrix_available",
+    "has_perturbation", "perturbation_types",
+    "pubmed_ids", "sra_ids",
+    "publication_date", "relevance_score", "total_score",
+    "llm_one_sentence_summary", "llm_sample_grouping",
+    "llm_cell_count", "llm_relevance_reason",
+]
+
+
 @click.group()
 @click.option("--verbose", "-v", is_flag=True, help="详细日志输出")
 @click.option("--config", "-c", type=click.Path(), help="配置文件路径")
@@ -72,8 +86,8 @@ def main(verbose: bool = False, config: str | None = None):
 @click.option("--sources", "-s", multiple=True, type=click.Choice(["geo", "sra", "pubmed", "bioproject"]),
               help="数据源筛选（可多选）")
 @click.option("--retmax", "-n", default=None, type=int, help="每源最大返回数")
-@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "id-list"]),
-              default="table", help="输出格式：table(表格)/json(JSON结构化)/id-list(ID列表)")
+@click.option("--format", "-f", "fmt", type=click.Choice(["table", "json", "id-list", "csv"]),
+              default="table", help="输出格式：table(表格)/json(JSON结构化)/id-list(ID列表)/csv(CSV文件)")
 @click.option("--top", "-t", default=50, type=int, help="返回前 N 个结果（排序后）")
 @click.option("--organism", "-o", multiple=True,
               help="生物体过滤（可多选），如 --organism human --organism mouse")
@@ -131,10 +145,11 @@ def search(
 ):
     """关键词搜索数据集
 
-    支持三种输出格式：
+    支持四种输出格式：
     - table: 表格形式（默认）
     - json: 标准 JSON Schema 输出（与 gse-downloader 解耦）
     - id-list: 仅 GSE ID 列表（适合管道处理）
+    - csv: CSV 文件（含全量字段，适合 Excel 筛选分析）
 
     V2 LLM 辅助功能（三种模式）：
     - (default, 无 flag): 纯 V1 关键词模式
@@ -154,6 +169,8 @@ def search(
       sra-search search "liver fibrosis" --llm --llm-provider openai --llm-model gpt-4o
       sra-search search "covid single cell" --llm-only  # 纯 LLM 模式，不限 top_k
       sra-search search "gout" --llm --llm-min-relevance 0.05  # 跳过 V1 零相关结果
+      sra-search search "gout single cell" --format csv > results.csv  # 导出 CSV（Excel 可直接打开）
+      sra-search search "gout single cell" --llm --format csv > results_llm.csv  # 含 LLM 分析的 CSV
     """
     import json
 
@@ -344,7 +361,7 @@ def search(
     sc_count = stats.get("scRNA_seq", 0)
     pert_count = stats.get("with_perturbation", 0)
 
-    logger.info(f"[输出统计]")
+    logger.info("[输出统计]")
     logger.info(f"  - 输出格式: {fmt}")
     logger.info(f"  - 单细胞数据集: {sc_count} 条 ({sc_count/len(schema_result.results)*100:.1f}%）")
     logger.info(f"  - 含扰动实验: {pert_count} 条")
@@ -359,6 +376,55 @@ def search(
         # 仅 ID 列表
         for ds in schema_result.results:
             click.echo(ds.gse_id)
+    elif fmt == "csv":
+        # CSV 格式输出（方便在 Excel 中筛选）
+        import csv
+        import io
+        import sys
+
+        buf = io.StringIO()
+        writer = csv.DictWriter(buf, fieldnames=_CSV_FIELDS, extrasaction="ignore",
+                                lineterminator="\n")
+        writer.writeheader()
+        for i, ds in enumerate(schema_result.results, 1):
+            acc = ds.gse_id
+            row = {
+                "rank": i,
+                "gse_id": acc,
+                "title": ds.title,
+                "organism": ds.organism,
+                "tissue": ds.tissue,
+                "disease": ds.disease,
+                "data_type": ds.data_type,
+                "single_cell": ds.single_cell,
+                "granularity": ds.granularity,
+                "sample_count": ds.sample_count,
+                "platform": ds.platform,
+                "has_processed_matrix": ds.has_processed_matrix,
+                "raw_only": ds.raw_only,
+                "series_matrix_available": ds.series_matrix_available,
+                "has_perturbation": ds.has_perturbation,
+                "perturbation_types": "|".join(ds.perturbation_types),
+                "pubmed_ids": "|".join(ds.pubmed_ids),
+                "sra_ids": "|".join(ds.sra_ids),
+                "publication_date": ds.publication_date,
+                "relevance_score": f"{ds.relevance_score:.4f}",
+                "total_score": f"{ds.total_score:.4f}",
+                "llm_one_sentence_summary": ds.llm_one_sentence_summary,
+                "llm_sample_grouping": ds.llm_sample_grouping,
+                "llm_cell_count": ds.llm_cell_count,
+                "llm_relevance_reason": ds.llm_relevance_reason,
+            }
+            writer.writerow(row)
+
+        csv_content = buf.getvalue()
+        # 输出到 stdout（使用 UTF-8-sig 编码使 Excel 可正确识别中文）
+        if sys.stdout.isatty():
+            # 终端直接打印（UTF-8）
+            click.echo(csv_content)
+        else:
+            # 管道/重定向：输出 UTF-8-sig（便于 Excel 打开）
+            sys.stdout.buffer.write(csv_content.encode("utf-8-sig"))
     else:
         # 表格形式（默认）- 检查是否有 LLM 分析结果
         has_llm_analysis = any(ds.llm_one_sentence_summary for ds in schema_result.results)
@@ -483,7 +549,10 @@ def search(
 
         # ── 保存搜索报告 ───────────────────────────────────────────────
         try:
-            from sra_search.data_store.search_report_service import SearchReportService, SearchReportItem
+            from sra_search.data_store.search_report_service import (
+                SearchReportItem,
+                SearchReportService,
+            )
             report_service = SearchReportService(db)
 
             # 确定模式
@@ -712,12 +781,12 @@ def topic_group():
               help="组学类型筛选（可多选）")
 def topic_new(name: str, description: str, keywords: str, species: tuple, omics: tuple):
     """创建新主题（自动解析疾病/器官/组学维度）"""
-    from sra_search.data_store.database import Database
-    from sra_search.topic_manager.topic import TopicParser, TopicDefinition
-    from sra_search.topic_manager.keyword_generator import KeywordGenerator
-    from sra_search.metadata_extractor.models import TopicRecord
     from datetime import datetime, timezone
-    import uuid
+
+    from sra_search.data_store.database import Database
+    from sra_search.metadata_extractor.models import TopicRecord
+    from sra_search.topic_manager.keyword_generator import KeywordGenerator
+    from sra_search.topic_manager.topic import TopicParser
 
     click.echo(f"[*] Creating topic: {name}")
 
@@ -760,7 +829,7 @@ def topic_new(name: str, description: str, keywords: str, species: tuple, omics:
     asyncio.run(save_topic())
 
     # 输出摘要
-    click.echo(f"\n[+] Topic created successfully!")
+    click.echo("\n[+] Topic created successfully!")
     click.echo(f"\n=== Topic: {name} ===")
     click.echo(f"  ID:        {definition.topic_id[:8]}...")
     click.echo(f"  Diseases:  {', '.join(definition.diseases) or '-'}")
@@ -816,8 +885,8 @@ def topic_list():
 def topic_show(name: str, keywords: bool):
     """显示主题详情"""
     from sra_search.data_store.database import Database
-    from sra_search.topic_manager.topic import TopicParser
     from sra_search.topic_manager.keyword_generator import KeywordGenerator
+    from sra_search.topic_manager.topic import TopicParser
 
     db = Database()
     topic_record = db.get_topic_by_name(name)
@@ -850,7 +919,7 @@ def topic_show(name: str, keywords: bool):
     summary = filters.get_review_summary(topic_record.topic_id)
     total = summary["pending"] + summary["approved"] + summary["irrelevant"]
 
-    click.echo(f"\n  === Statistics ===")
+    click.echo("\n  === Statistics ===")
     click.echo(f"  Datasets found:  {total}")
     click.echo(f"  Pending review:  {summary['pending']}")
     click.echo(f"  Approved:         {summary['approved']}")
@@ -880,13 +949,17 @@ def topic_show(name: str, keywords: bool):
               help="使用 LLM 语义排序")
 def topic_search(name: str, top: int, organism: tuple, fmt: str, use_llm: bool | None):
     """对指定主题执行搜索（使用主题生成的关键词）"""
-    from sra_search.data_store.database import Database
-    from sra_search.topic_manager.topic import TopicParser
-    from sra_search.topic_manager.keyword_generator import KeywordGenerator
-    from sra_search.search_engine.aggregator import Aggregator
-    from sra_search.metadata_extractor.models import TopicDatasetRelation, SearchHistoryRecord
-    from datetime import datetime, timezone
     import uuid
+    from datetime import datetime, timezone
+
+    from sra_search.data_store.database import Database
+    from sra_search.metadata_extractor.models import (
+        SearchHistoryRecord,
+        TopicDatasetRelation,
+    )
+    from sra_search.search_engine.aggregator import Aggregator
+    from sra_search.topic_manager.keyword_generator import KeywordGenerator
+    from sra_search.topic_manager.topic import TopicParser
 
     db = Database()
     topic_record = db.get_topic_by_name(name)
@@ -1062,10 +1135,10 @@ def convert(accession: str, target_db: str, all_targets: bool, fmt: str):
                        (f"{', '.join(r.targets)}" if r.targets else click.style(r.note, fg="red")))
         click.echo("")
         click.echo("Usage examples:")
-        click.echo(f"  sra-search convert GSE123456 --to sra         # GSE → SRA Study")
-        click.echo(f"  sra-search convert SRP123456 --to gds         # SRP → GEO Datasets")
-        click.echo(f"  sra-search convert SRR789012 --to sra         # SRR → parent SRA Study")
-        click.echo(f"  sra-search convert GSE123456 --all-targets    # 查询所有目标类型")
+        click.echo("  sra-search convert GSE123456 --to sra         # GSE → SRA Study")
+        click.echo("  sra-search convert SRP123456 --to gds         # SRP → GEO Datasets")
+        click.echo("  sra-search convert SRR789012 --to sra         # SRR → parent SRA Study")
+        click.echo("  sra-search convert GSE123456 --all-targets    # 查询所有目标类型")
 
 
 @main.command()
@@ -1171,7 +1244,6 @@ async def _check_async(
     click.echo(f"[*] Checking {stats['total']} dataset(s)...\n")
 
     # 进度显示
-    import sys
     progress = click.progressbar(
         length=stats["total"],
         label="  Checking",
@@ -1302,8 +1374,9 @@ def _print_check_results(results: list[dict], stats: dict) -> None:
 @click.option("--dry-run", is_flag=True, help="仅显示将要更新的数据集，不实际执行")
 def update(topic: str | None, update_all: bool, since: str | None, dry_run: bool):
     """更新数据集元数据（BioProject / GEO / SRA）"""
-    from sra_search.data_store.database import Database
     from datetime import datetime
+
+    from sra_search.data_store.database import Database
 
     if not topic and not update_all:
         click.echo("Use: sra-search update --topic <name>  OR  sra-search update --all")
@@ -1355,14 +1428,14 @@ def update(topic: str | None, update_all: bool, since: str | None, dry_run: bool
             click.echo(f"  {gse_id}  {title[:50]}")
         if len(datasets_to_update) > 20:
             click.echo(f"\n  ... and {len(datasets_to_update) - 20} more")
-        click.echo(f"\n[*] Run without --dry-run to actually update.")
+        click.echo("\n[*] Run without --dry-run to actually update.")
         return
 
     # 实际更新逻辑
     async def do_update():
         import aiohttp
+
         from sra_search.retriever.geo_api import GeoRetriever
-        from sra_search.search_engine.aggregator import Aggregator
 
         updated = 0
         errors = 0
@@ -1407,10 +1480,10 @@ def update(topic: str | None, update_all: bool, since: str | None, dry_run: bool
 
     updated, errors = asyncio.run(do_update())
 
-    click.echo(f"\n[+] Update complete:")
+    click.echo("\n[+] Update complete:")
     click.echo(f"    Updated: {updated}")
     click.echo(f"    Errors:  {errors}")
-    click.echo(f"\n[*] Run 'sra-search check' to verify availability status.")
+    click.echo("\n[*] Run 'sra-search check' to verify availability status.")
 
 
 # ── Report 命令组 ──────────────────────────────────────────────────────────

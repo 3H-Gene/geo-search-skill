@@ -162,6 +162,8 @@ class DatasetSchema:
     supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]
     series_matrix_available: bool = False
     ftp_link: str = ""
+    has_processed_matrix: bool = False   # 有已处理的表达矩阵（count/RPKM/h5/h5ad 等）
+    raw_only: bool = False               # 仅有原始数据（FASTQ/SRA，无处理矩阵）
 
     # === 关联 ID ===
     pubmed_ids: list[str] = field(default_factory=list)
@@ -231,6 +233,8 @@ class DatasetSchema:
             "supplementary_files": self.supplementary_files,
             "series_matrix_available": self.series_matrix_available,
             "ftp_link": self.ftp_link,
+            "has_processed_matrix": self.has_processed_matrix,
+            "raw_only": self.raw_only,
             "pubmed_ids": self.pubmed_ids,
             "sra_ids": self.sra_ids,
             "bioproject_ids": self.bioproject_ids,
@@ -293,6 +297,8 @@ class DatasetSchema:
             supplementary_files=data.get("supplementary_files", []),
             series_matrix_available=data.get("series_matrix_available", False),
             ftp_link=data.get("ftp_link", ""),
+            has_processed_matrix=data.get("has_processed_matrix", False),
+            raw_only=data.get("raw_only", False),
             pubmed_ids=data.get("pubmed_ids", []),
             sra_ids=data.get("sra_ids", []),
             bioproject_ids=data.get("bioproject_ids", []),
