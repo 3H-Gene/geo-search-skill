@@ -20,6 +20,13 @@ from sra_search.schema import (
     SearchResultSchema,
 )
 
+# Inference 模块 - 增强的元数据推断
+try:
+    from sra_search.inference import build_dataset_inference, InferenceSchema
+    HAS_INFERENCE = True
+except ImportError:
+    HAS_INFERENCE = False
+
 if TYPE_CHECKING:
     from sra_search.llm.client import LLMClient
 
@@ -712,6 +719,21 @@ class SchemaConverter:
         Returns:
             填充好的 DatasetSchema
         """
+        # ── Inference 模块增强推断 ───────────────────────────────────────
+        inference_result: InferenceSchema | None = None
+        if HAS_INFERENCE:
+            try:
+                inference_result = build_dataset_inference(
+                    dataset_id=record.gse_id,
+                    title=record.title,
+                    summary=record.abstract or "",
+                    overall_design=record.overall_design or "",
+                    platform=record.platform,
+                    sample_count=record.sample_count,
+                )
+            except Exception as e:
+                logger.debug(f"Inference failed for {record.gse_id}: {e}")
+
         # 合并文本用于 perturbation 检测
         text = f"{record.title} {record.abstract}"
 
@@ -746,14 +768,69 @@ class SchemaConverter:
         # 推断文件元数据（has_processed_matrix / raw_only）
         file_meta = infer_file_metadata(supp_files)
 
-        # tissue 字段：优先使用 record.organ，若为空则从文本中提取
-        tissue_val = record.organ or ""
-        if not tissue_val:
-            tissue_val = extract_tissue_from_text(
-                summary=record.abstract or "",
-                overall_design=record.overall_design or "",
-                title=record.title or "",
-            )
+
+        # ── 使用 Inference 模块增强字段推断 ───────────────────────────────
+        inferred_disease = ""
+        inferred_organ = ""
+        inferred_omics_type = ""
+        platform_mapped = ""
+
+        if inference_result:
+            # disease 推断
+            inferred_disease = inference_result.biological_context.get("disease", "")
+            if not inferred_disease or inferred_disease == "unknown":
+                inferred_disease = ""
+
+            # organ 推断
+            inferred_organ = inference_result.biological_context.get("organ", "")
+            if not inferred_organ or inferred_organ == "unknown":
+                inferred_organ = ""
+
+            # omics_type 推断
+            inferred_omics_type = inference_result.omics.get("omics_type", "")
+            if not inferred_omics_type or inferred_omics_type == "unknown":
+                inferred_omics_type = ""
+
+            # platform 映射
+            platform_mapped = inference_result.platform.get("mapped", "")
+
+            # tissue 字段：优先 record.organ > inference > extract_tissue
+            tissue_val = record.organ or inferred_organ
+            if not tissue_val:
+                tissue_val = extract_tissue_from_text(
+                    summary=record.abstract or "",
+                    overall_design=record.overall_design or "",
+                    title=record.title or "",
+                )
+
+            # granularity 增强：使用 inference 结果
+            inferred_granularity = inference_result.omics.get("granularity", "")
+            if inferred_granularity and inferred_granularity != "unknown":
+                granularity = inferred_granularity
+                single_cell = granularity == GranularityType.SINGLE_CELL.value
+
+            # 更新 data_type（如果 inference 提供了 omics_type）
+            if inferred_omics_type and data_type == DataType.OTHER.value:
+                data_type = infer_data_type(
+                    omics_type=inferred_omics_type,
+                    title="",
+                    platform="",
+                )
+        else:
+            # tissue 字段：优先使用 record.organ，若为空则从文本中提取
+            tissue_val = record.organ or ""
+            if not tissue_val:
+                tissue_val = extract_tissue_from_text(
+                    summary=record.abstract or "",
+                    overall_design=record.overall_design or "",
+                    title=record.title or "",
+                )
+
+        # disease 字段：优先 record.disease > inference
+        disease_val = record.disease or inferred_disease
+
+        # organ 字段：优先 record.organ > inference
+        organ_val = record.organ or inferred_organ
 
         # 创建 Schema
         schema = DatasetSchema(
@@ -762,14 +839,14 @@ class SchemaConverter:
             organism=record.organism,
             data_type=data_type,
             sample_count=record.sample_count,
-            platform=record.platform,
+            platform=platform_mapped or record.platform,
             single_cell=single_cell,
             granularity=granularity,
             has_perturbation=has_perturbation,
             perturbation_types=perturbation_types,
-            disease=record.disease,
+            disease=disease_val,
             tissue=tissue_val,
-            organ=record.organ,
+            organ=organ_val,
             summary=record.abstract,
             overall_design=record.overall_design or "",
             keywords=keywords,
@@ -784,6 +861,10 @@ class SchemaConverter:
             publication_date=record.publication_date,
             journal=record.journal,
         )
+
+        # 保存 inference 结果到 schema 扩展字段（如果有）
+        if inference_result and inference_result.summary_text:
+            schema._inference_summary = inference_result.summary_text
 
         # 计算排序分数
         schema.relevance_score = compute_relevance_score(self.query, schema)
