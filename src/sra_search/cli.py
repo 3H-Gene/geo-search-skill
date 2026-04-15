@@ -722,28 +722,31 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"Dataset '{gse_id}' not found")
         return
 
+    # 使用 record_to_schema 转换，获取 LLM/inference 增强的信息
+    schema = record_to_schema(ds, query="")
+
     if fmt == "json":
         # JSON Schema 输出
-        schema = record_to_schema(ds, query="")
         click.echo(json_mod.dumps(schema.to_dict(), ensure_ascii=False, indent=2))
     else:
-        # 表格形式
+        # 表格形式 - 使用 schema 中的增强信息
         click.echo(f"\n{'='*60}")
         click.echo(f"  {ds.gse_id}")
         click.echo(f"{'='*60}")
-        click.echo(f"  Title:           {ds.title}")
-        click.echo(f"  Organism:        {ds.organism}")
-        click.echo(f"  Disease:         {ds.disease or '-'}")
-        click.echo(f"  Organ:           {ds.organ or '-'}")
-        click.echo(f"  Omics Type:      {ds.omics_type or '-'}")
-        click.echo(f"  Granularity:     {ds.omics_granularity}")
-        click.echo(f"  Sample Count:    {ds.sample_count}")
-        click.echo(f"  Platform:        {ds.platform or '-'}")
-        click.echo(f"  Journal:         {ds.journal or '-'}")
-        click.echo(f"  Publication:     {ds.publication_date or '-'}")
-        click.echo(f"  PubMed IDs:      {', '.join(ds.pubmed_ids) or '-'}")
-        click.echo(f"  SRA IDs:         {', '.join(ds.sra_ids) or '-'}")
-        click.echo(f"  BioProject IDs:  {', '.join(ds.bioproject_ids) or '-'}")
+        click.echo(f"  Title:           {schema.title or '-'}")
+        click.echo(f"  Organism:        {schema.organism or '-'}")
+        click.echo(f"  Disease:         {schema.disease or '-'}")
+        click.echo(f"  Organ:           {schema.organ or '-'}")
+        click.echo(f"  Tissue:          {schema.tissue or '-'}")
+        click.echo(f"  Omics Type:      {schema.data_type or '-'}")
+        click.echo(f"  Granularity:     {schema.granularity or '-'}")
+        click.echo(f"  Sample Count:    {schema.sample_count or 0}")
+        click.echo(f"  Platform:        {schema.platform or '-'}")
+        click.echo(f"  Journal:         {schema.journal or '-'}")
+        click.echo(f"  Publication:     {schema.publication_date or '-'}")
+        click.echo(f"  PubMed IDs:      {', '.join(schema.pubmed_ids) or '-'}")
+        click.echo(f"  SRA IDs:         {', '.join(schema.sra_ids) or '-'}")
+        click.echo(f"  BioProject IDs:  {', '.join(schema.bioproject_ids) or '-'}")
         click.echo(f"  Availability:    {ds.availability_status}")
         if ds.availability_note:
             click.echo(f"  Avail Note:      {ds.availability_note}")
@@ -752,6 +755,15 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"  Version:         {ds.version}")
         click.echo(f"  First Seen:      {ds.first_seen_at}")
         click.echo(f"  Last Updated:    {ds.last_updated}")
+
+        # LLM/Inference 增强信息
+        if schema.summary:
+            click.echo(f"\n  --- LLM Summary ---")
+            click.echo(f"  {schema.summary[:200]}{'...' if len(schema.summary) > 200 else ''}")
+        if hasattr(schema, '_inference_summary') and schema._inference_summary:
+            click.echo(f"\n  --- Inference Summary ---")
+            click.echo(f"  {schema._inference_summary[:200]}{'...' if len(schema._inference_summary) > 200 else ''}")
+
         click.echo(f"{'='*60}")
 
 

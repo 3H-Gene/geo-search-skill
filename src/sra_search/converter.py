@@ -807,7 +807,8 @@ class SchemaConverter:
             inferred_granularity = inference_result.omics.get("granularity", "")
             if inferred_granularity and inferred_granularity != "unknown":
                 granularity = inferred_granularity
-                single_cell = granularity == GranularityType.SINGLE_CELL.value
+                # 统一比较：inference 返回 "single-cell"，schema 用 "single_cell"
+                single_cell = "single" in granularity.lower()
 
             # 更新 data_type（如果 inference 提供了 omics_type）
             if inferred_omics_type and data_type == DataType.OTHER.value:

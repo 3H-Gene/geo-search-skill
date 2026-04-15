@@ -556,10 +556,10 @@
       "canonical": "Blood",
       "uberon_id": "UBERON:0000178",
       "adjective": "blood",
-      "synonyms": ["Blood tissue", "Whole blood"],
+      "synonyms": ["Blood tissue", "Whole blood", "PBMC", "peripheral blood mononuclear cell", "peripheral blood"],
       "parent": "",
       "children": ["Leukocyte", "Erythrocyte", "Platelet"],
-      "search_terms": ["blood", "hematologic", "circulatory"],
+      "search_terms": ["blood", "hematologic", "circulatory", "pbmc"],
       "organ_system": "circulatory"
     },
     "Leukocyte": {
@@ -896,10 +896,10 @@
       "canonical": "Nerve",
       "uberon_id": "UBERON:0001021",
       "adjective": "nerve",
-      "synonyms": ["Neural nerve", "Peripheral nerve"],
+      "synonyms": ["Neural nerve", "Peripheral nerve", "Sciatic nerve", "Vagus nerve"],
       "parent": "",
       "children": ["Neuron", "Axon"],
-      "search_terms": ["nerve", "neuron", "axon", "peripheral"],
+      "search_terms": ["nerve", "neuron", "axon", "sciatic", "vagus", "dorsal root"],
       "organ_system": "nervous"
     },
     "Neuron": {
