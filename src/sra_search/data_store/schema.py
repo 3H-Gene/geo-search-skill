@@ -40,7 +40,13 @@ CREATE TABLE IF NOT EXISTS datasets (
     availability_checked_at TEXT DEFAULT '',
     access_type TEXT DEFAULT 'unknown',
     has_gse INTEGER DEFAULT 1,
-    metadata_hash TEXT DEFAULT ''
+    metadata_hash TEXT DEFAULT '',
+    llm_summary TEXT DEFAULT '',
+    llm_sample_grouping TEXT DEFAULT '',
+    llm_cell_count TEXT DEFAULT '',
+    llm_relevance_reason TEXT DEFAULT '',
+    llm_analyzed_at TEXT DEFAULT '',
+    llm_model TEXT DEFAULT ''
 );
 """
 

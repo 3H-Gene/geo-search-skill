@@ -190,6 +190,8 @@ class DatasetSchema:
     llm_sample_grouping: str = ""         # 样本分组 (如 "6病例+6对照")
     llm_cell_count: str = ""              # 细胞数 (如 "15K")
     llm_relevance_reason: str = ""        # 相关性理由
+    llm_analyzed_at: str = ""             # LLM 分析时间（ISO 8601）
+    llm_model: str = ""                   # LLM 模型名称
 
     def compute_hash(self) -> str:
         """计算元数据哈希（用于去重和缓存）"""
@@ -252,6 +254,8 @@ class DatasetSchema:
             "llm_sample_grouping": self.llm_sample_grouping,
             "llm_cell_count": self.llm_cell_count,
             "llm_relevance_reason": self.llm_relevance_reason,
+            "llm_analyzed_at": self.llm_analyzed_at,
+            "llm_model": self.llm_model,
         }
 
     def to_id_payload(self) -> dict[str, str]:
@@ -316,6 +320,8 @@ class DatasetSchema:
             llm_sample_grouping=data.get("llm_sample_grouping", ""),
             llm_cell_count=data.get("llm_cell_count", ""),
             llm_relevance_reason=data.get("llm_relevance_reason", ""),
+            llm_analyzed_at=data.get("llm_analyzed_at", ""),
+            llm_model=data.get("llm_model", ""),
         )
 
 

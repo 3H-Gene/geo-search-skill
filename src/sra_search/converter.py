@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 
 from loguru import logger
 
-from sra_search.metadata_extractor.models import DatasetRecord, OmicsGranularity
+from sra_search.metadata_extractor.models import DatasetRecord, OmicsGranularity, _now_iso
 from sra_search.schema import (
     DatasetSchema,
     DataType,
@@ -854,6 +854,7 @@ async def records_to_search_result_with_llm(
     llm_concurrency: int = 5,
     llm_min_relevance: float = 0.0,
     llm_score_all: bool = False,
+    db: Database | None = None,
 ) -> SearchResultSchema:
     """V2 增强版：批量转换 + LLM 语义评分（可选）+ 摘要（可选）
 
@@ -1140,27 +1141,95 @@ async def records_to_search_result_with_llm(
     # 注意：只对预过滤通过的候选集调用 LLM，避免浪费 token
     logger.info("[Step 2.6] LLM 数据集分析...")
     from sra_search.llm.dataset_summarizer import LLMDatasetSummarizer
+    from sra_search.data_store.database import Database as DB
+
     summarizer = LLMDatasetSummarizer(llm_client)
 
     # 获取需要调用 LLM 的候选集（预过滤后的 + 未被预过滤的数据集）
     # candidates_for_llm 是经过数据格式+相关性预过滤的候选集
     summarizer_candidates = candidates_for_llm if candidates_for_llm else result.results
 
-    logger.info(f"  ├─ 预过滤跳过: {len(all_skipped)} 条，提交 LLM 分析: {len(summarizer_candidates)} 条")
+    # ── LLM 缓存查询（避免重复分析同一数据集）──────────────────────────
+    # 从数据库读取已有 LLM 分析结果，只对无缓存的数据集调用 LLM
+    cached_map: dict[str, dict] = {}
+    if db is not None:
+        try:
+            all_gse_ids = [ds.gse_id for ds in summarizer_candidates]
+            cached_map = db.get_llm_cache(all_gse_ids)
+            if cached_map:
+                logger.info(f"  ├─ LLM 缓存命中: {len(cached_map)} 条，跳过 LLM 调用")
+        except Exception as e:
+            logger.warning(f"  ├─ LLM 缓存查询失败（继续调用 LLM）: {e}")
 
-    analyses = await summarizer.summarize_batch_async(
-        datasets=summarizer_candidates,
-        query=query,
-        concurrency=settings.llm_concurrency if settings else 5,
+    # 分离有缓存和无缓存的候选集
+    uncached_candidates = [ds for ds in summarizer_candidates if ds.gse_id not in cached_map]
+
+    logger.info(
+        f"  ├─ 预过滤跳过: {len(all_skipped)} 条，"
+        f"缓存命中: {len(cached_map)} 条，"
+        f"需 LLM 分析: {len(uncached_candidates)} 条"
     )
 
-    # 建立分析结果映射，用于填充到 DatasetSchema
-    analysis_map = {ds.gse_id: analysis for ds, analysis in zip(summarizer_candidates, analyses)}
+    # 只对无缓存的数据集调用 LLM
+    analyses: list = []
+    if uncached_candidates:
+        analyses = await summarizer.summarize_batch_async(
+            datasets=uncached_candidates,
+            query=query,
+            concurrency=settings.llm_concurrency if settings else 5,
+        )
+        # 逐条保存 LLM 结果到数据库（缓存）
+        if db is not None:
+            try:
+                model_name = settings.llm_model if settings else ""
+                for ds, analysis in zip(uncached_candidates, analyses):
+                    db.update_llm_cache(ds.gse_id, {
+                        "llm_summary": analysis.one_sentence_summary,
+                        "llm_sample_grouping": analysis.sample_grouping,
+                        "llm_cell_count": analysis.cell_count,
+                        "llm_relevance_reason": analysis.relevance_reason,
+                        "llm_model": model_name,
+                    })
+                logger.info(f"  ├─ LLM 结果已缓存: {len(uncached_candidates)} 条")
+            except Exception as e:
+                logger.warning(f"  ├─ LLM 缓存保存失败: {e}")
+    else:
+        logger.info("  ├─ 全部候选集已缓存，无需调用 LLM")
+
+    # 建立分析结果映射 = 缓存结果 + 新分析结果
+    analysis_map: dict[str, object] = {}
+
+    # 添加缓存结果（转换为 DatasetAnalysis 兼容格式）
+    from dataclasses import dataclass
+    @dataclass
+    class _CachedAnalysis:
+        one_sentence_summary: str
+        sample_grouping: str
+        cell_count: str
+        relevance_reason: str
+        llm_analyzed_at: str
+        llm_model: str
+
+    for gse_id, cache in cached_map.items():
+        analysis_map[gse_id] = _CachedAnalysis(
+            one_sentence_summary=cache.get("llm_summary", ""),
+            sample_grouping=cache.get("llm_sample_grouping", ""),
+            cell_count=cache.get("llm_cell_count", ""),
+            relevance_reason=cache.get("llm_relevance_reason", ""),
+            llm_analyzed_at=cache.get("llm_analyzed_at", ""),
+            llm_model=cache.get("llm_model", ""),
+        )
+
+    # 添加新分析结果
+    for ds, analysis in zip(uncached_candidates, analyses):
+        analysis_map[ds.gse_id] = analysis
 
     # 建立跳过原因映射
     skip_reason_map: dict[str, str] = {ds.gse_id: reason for ds, reason in all_skipped}
 
     # 将分析结果填充到 result.results（包含预过滤跳过的数据集）
+    _now = _now_iso()
+    _model = settings.llm_model if settings else ""
     for ds in result.results:
         if ds.gse_id in analysis_map:
             analysis = analysis_map[ds.gse_id]
@@ -1168,6 +1237,9 @@ async def records_to_search_result_with_llm(
             ds.llm_sample_grouping = analysis.sample_grouping
             ds.llm_cell_count = analysis.cell_count
             ds.llm_relevance_reason = analysis.relevance_reason
+            # 缓存结果包含 llm_analyzed_at / llm_model，来自数据库
+            ds.llm_analyzed_at = getattr(analysis, "llm_analyzed_at", _now)
+            ds.llm_model = getattr(analysis, "llm_model", _model)
         elif ds.gse_id in skip_reason_map:
             # 预过滤跳过的数据集使用跳过原因作为摘要
             skip_reason = skip_reason_map[ds.gse_id]
@@ -1178,7 +1250,9 @@ async def records_to_search_result_with_llm(
             ds.llm_sample_grouping = "NA"
             ds.llm_cell_count = "NA"
             ds.llm_relevance_reason = skip_reason
-    logger.info(f"  └─ 数据集分析完成: {len(analyses)} 条")
+    # 实际调用 LLM 条目数（不含缓存）
+    llm_called = len(uncached_candidates)
+    logger.info(f"  └─ 数据集分析完成（LLM 调用: {llm_called} 条，缓存命中: {len(cached_map)} 条）")
 
     # ── Step 7: LLM 整体摘要生成（可选）──────────────────────────────────
     if enable_summary and result.results:

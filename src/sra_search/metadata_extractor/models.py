@@ -133,12 +133,19 @@ class DatasetRecord:
     # --- 标记字段 ---
     has_gse: bool = True
     metadata_hash: str = ""
+    # --- LLM 缓存字段（避免重复分析同一数据集） ---
+    llm_summary: str = ""
+    llm_sample_grouping: str = ""
+    llm_cell_count: str = ""
+    llm_relevance_reason: str = ""
+    llm_analyzed_at: str = ""
+    llm_model: str = ""
 
     def compute_metadata_hash(self) -> str:
         """计算元数据摘要哈希（用于检测数据集修订/更新）
 
         排除运行时字段（first_seen_at、last_updated、version、change_log、
-        availability_*、access_type、metadata_hash）。
+        availability_*、access_type、metadata_hash、llm_*）。
         """
         fields_to_hash = {
             "title": self.title,
@@ -199,6 +206,12 @@ class DatasetRecord:
             "access_type": self.access_type,
             "has_gse": self.has_gse,
             "metadata_hash": self.metadata_hash,
+            "llm_summary": self.llm_summary,
+            "llm_sample_grouping": self.llm_sample_grouping,
+            "llm_cell_count": self.llm_cell_count,
+            "llm_relevance_reason": self.llm_relevance_reason,
+            "llm_analyzed_at": self.llm_analyzed_at,
+            "llm_model": self.llm_model,
         }
 
     @classmethod
@@ -235,6 +248,12 @@ class DatasetRecord:
             access_type=row.get("access_type", AccessType.UNKNOWN.value),
             has_gse=bool(row.get("has_gse", True)),
             metadata_hash=row.get("metadata_hash", ""),
+            llm_summary=row.get("llm_summary", ""),
+            llm_sample_grouping=row.get("llm_sample_grouping", ""),
+            llm_cell_count=row.get("llm_cell_count", ""),
+            llm_relevance_reason=row.get("llm_relevance_reason", ""),
+            llm_analyzed_at=row.get("llm_analyzed_at", ""),
+            llm_model=row.get("llm_model", ""),
         )
 
 

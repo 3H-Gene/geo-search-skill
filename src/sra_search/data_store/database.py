@@ -23,6 +23,7 @@ from sra_search.metadata_extractor.models import (
     SearchHistoryRecord,
     TopicDatasetRelation,
     TopicRecord,
+    _now_iso,
 )
 
 
@@ -169,13 +170,17 @@ class WriteQueue:
                 platform, publication_date, journal, abstract, keywords,
                 first_seen_at, last_updated, version, change_log,
                 availability_status, availability_note, availability_checked_at,
-                access_type, has_gse, metadata_hash)
+                access_type, has_gse, metadata_hash,
+                llm_summary, llm_sample_grouping, llm_cell_count,
+                llm_relevance_reason, llm_analyzed_at, llm_model)
             VALUES (:gse_id, :title, :pubmed_ids, :sra_ids, :bioproject_ids,
                 :organism, :disease, :organ, :omics_type, :omics_granularity, :sample_count,
                 :platform, :publication_date, :journal, :abstract, :keywords,
                 :first_seen_at, :last_updated, :version, :change_log,
                 :availability_status, :availability_note, :availability_checked_at,
-                :access_type, :has_gse, :metadata_hash)
+                :access_type, :has_gse, :metadata_hash,
+                :llm_summary, :llm_sample_grouping, :llm_cell_count,
+                :llm_relevance_reason, :llm_analyzed_at, :llm_model)
             ON CONFLICT(gse_id) DO UPDATE SET
                 title = COALESCE(NULLIF(:title, ''), title),
                 pubmed_ids = CASE WHEN :pubmed_ids != '[]' THEN :pubmed_ids ELSE pubmed_ids END,
@@ -200,7 +205,13 @@ class WriteQueue:
                 availability_checked_at = :availability_checked_at,
                 access_type = :access_type,
                 has_gse = :has_gse,
-                metadata_hash = :metadata_hash
+                metadata_hash = :metadata_hash,
+                llm_summary = CASE WHEN :llm_summary != '' THEN :llm_summary ELSE llm_summary END,
+                llm_sample_grouping = CASE WHEN :llm_sample_grouping != '' THEN :llm_sample_grouping ELSE llm_sample_grouping END,
+                llm_cell_count = CASE WHEN :llm_cell_count != '' THEN :llm_cell_count ELSE llm_cell_count END,
+                llm_relevance_reason = CASE WHEN :llm_relevance_reason != '' THEN :llm_relevance_reason ELSE llm_relevance_reason END,
+                llm_analyzed_at = CASE WHEN :llm_analyzed_at != '' THEN :llm_analyzed_at ELSE llm_analyzed_at END,
+                llm_model = CASE WHEN :llm_model != '' THEN :llm_model ELSE llm_model END
         """, data)
 
     @staticmethod
@@ -296,12 +307,19 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
 
-        # 2026-04-14: 新增 overall_design, supplementary_files, series_matrix_available, ftplink 列
+# 2026-04-14: 新增 overall_design, supplementary_files, series_matrix_available, ftplink 列
+        # 2026-04-15: 新增 llm_summary, llm_sample_grouping, llm_cell_count, llm_relevance_reason, llm_analyzed_at, llm_model 列
         migrations = [
             ("overall_design", "ALTER TABLE datasets ADD COLUMN overall_design TEXT DEFAULT ''"),
             ("supplementary_files", "ALTER TABLE datasets ADD COLUMN supplementary_files TEXT DEFAULT '[]'"),
             ("series_matrix_available", "ALTER TABLE datasets ADD COLUMN series_matrix_available INTEGER DEFAULT 0"),
             ("ftplink", "ALTER TABLE datasets ADD COLUMN ftplink TEXT DEFAULT ''"),
+            ("llm_summary", "ALTER TABLE datasets ADD COLUMN llm_summary TEXT DEFAULT ''"),
+            ("llm_sample_grouping", "ALTER TABLE datasets ADD COLUMN llm_sample_grouping TEXT DEFAULT ''"),
+            ("llm_cell_count", "ALTER TABLE datasets ADD COLUMN llm_cell_count TEXT DEFAULT ''"),
+            ("llm_relevance_reason", "ALTER TABLE datasets ADD COLUMN llm_relevance_reason TEXT DEFAULT ''"),
+            ("llm_analyzed_at", "ALTER TABLE datasets ADD COLUMN llm_analyzed_at TEXT DEFAULT ''"),
+            ("llm_model", "ALTER TABLE datasets ADD COLUMN llm_model TEXT DEFAULT ''"),
         ]
 
         for col_name, sql in migrations:
@@ -424,6 +442,66 @@ class Database:
             return DatasetRecord.from_db_row(dict(row))
 
         return None
+
+    def get_llm_cache(self, gse_ids: list[str]) -> dict[str, dict[str, str]]:
+        """批量查询数据集的 LLM 缓存结果。
+
+        Args:
+            gse_ids: GSE ID 列表
+
+        Returns:
+            {gse_id: {"llm_summary": ..., "llm_sample_grouping": ...,
+                      "llm_cell_count": ..., "llm_relevance_reason": ...,
+                      "llm_analyzed_at": ..., "llm_model": ...}}
+            仅返回有缓存的数据集（llm_summary 非空）。
+        """
+        if not gse_ids:
+            return {}
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        placeholders = ", ".join("?" * len(gse_ids))
+        cursor.execute(
+            f"""SELECT gse_id, llm_summary, llm_sample_grouping, llm_cell_count,
+                       llm_relevance_reason, llm_analyzed_at, llm_model
+                FROM datasets
+                WHERE gse_id IN ({placeholders}) AND llm_summary != ''""",
+            gse_ids,
+        )
+        rows = cursor.fetchall()
+        return {
+            row["gse_id"]: dict(row)
+            for row in rows
+        }
+
+    def update_llm_cache(self, gse_id: str, analysis: dict) -> None:
+        """更新单个数据集的 LLM 缓存结果。
+
+        Args:
+            gse_id: GSE ID
+            analysis: LLM 分析结果字典，包含 llm_summary / llm_sample_grouping /
+                      llm_cell_count / llm_relevance_reason / llm_model
+        """
+        conn = self.get_connection()
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE datasets SET
+                llm_summary = :llm_summary,
+                llm_sample_grouping = :llm_sample_grouping,
+                llm_cell_count = :llm_cell_count,
+                llm_relevance_reason = :llm_relevance_reason,
+                llm_analyzed_at = :llm_analyzed_at,
+                llm_model = :llm_model
+            WHERE gse_id = :gse_id
+        """, {
+            "gse_id": gse_id,
+            "llm_summary": analysis.get("llm_summary", ""),
+            "llm_sample_grouping": analysis.get("llm_sample_grouping", ""),
+            "llm_cell_count": analysis.get("llm_cell_count", ""),
+            "llm_relevance_reason": analysis.get("llm_relevance_reason", ""),
+            "llm_analyzed_at": analysis.get("llm_analyzed_at", _now_iso()),
+            "llm_model": analysis.get("llm_model", ""),
+        })
+        conn.commit()
 
     def list_datasets(
         self,
