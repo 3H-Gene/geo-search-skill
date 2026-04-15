@@ -12,6 +12,9 @@ from __future__ import annotations
 
 import json
 import re
+import urllib.error
+import urllib.parse
+import urllib.request
 from pathlib import Path
 from typing import Any
 
@@ -516,3 +519,76 @@ def rule_infer(
         "platform_category": platform_category,
         "sources": sources,
     }
+
+
+# ============ GPL 平台查询（通过 NCBI E-utilities）============
+
+_GPL_NAME_CACHE: dict[str, str] = {}  # GPL ID -> platform name
+
+
+def query_gpl_platform(gpl_id: str) -> str:
+    """查询 GPL ID 对应的平台名称
+
+    通过 NCBI E-utilities 查询 GPL 数据库获取平台名称。
+
+    GPL ID 的 UID 规律：GPL{编号} → UID = 1{编号}（7位数字）
+    例如：GPL24676 → UID = 100024676
+
+    Args:
+        gpl_id: GEO 平台 ID（如 GPL24676、24676）
+
+    Returns:
+        平台名称（如 "Illumina NovaSeq 6000"），查询失败则返回原始 ID
+    """
+    global _GPL_NAME_CACHE
+
+    if not gpl_id:
+        return ""
+
+    # 标准化 GPL ID（去除 GPL 前缀，转为纯数字）
+    normalized_id = gpl_id.upper().replace("GPL", "")
+    # 确保是数字
+    try:
+        num = int(normalized_id)
+    except ValueError:
+        return gpl_id
+
+    cache_key = f"GPL{num}"
+
+    # 检查缓存
+    if cache_key in _GPL_NAME_CACHE:
+        return _GPL_NAME_CACHE[cache_key]
+
+    try:
+        import ssl
+
+        # 创建 SSL context（禁用验证）
+        ssl_context = ssl.create_default_context()
+        ssl_context.check_hostname = False
+        ssl_context.verify_mode = ssl.CERT_NONE
+
+        # NCBI E-utilities
+        base_url = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
+
+        # GPL UID 规律：1 + 8位数字（补零到8位）
+        # 例如：24676 → 100024676 (1 + 00024676)
+        gpl_uid = f"1{num:08d}"
+        summary_params = {"db": "gds", "id": gpl_uid, "retmode": "json"}
+        request = urllib.request.Request(
+            f"{base_url}/esummary.fcgi?{urllib.parse.urlencode(summary_params)}"
+        )
+        with urllib.request.urlopen(request, timeout=10, context=ssl_context) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            result = data.get("result", {}).get(gpl_uid, {})
+            platform_name = result.get("title", "")
+
+            if platform_name:
+                _GPL_NAME_CACHE[cache_key] = platform_name
+                return platform_name
+
+    except Exception:
+        pass
+
+    # 查询失败，返回原始 ID
+    _GPL_NAME_CACHE[cache_key] = gpl_id
+    return gpl_id

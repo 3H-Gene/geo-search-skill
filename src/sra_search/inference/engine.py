@@ -20,7 +20,11 @@ from sra_search.inference.group_inference import (
     is_contrast_ready,
 )
 from sra_search.inference.llm_fallback import llm_infer, should_use_llm_fallback
-from sra_search.inference.rule_engine import rule_infer
+from sra_search.inference.rule_engine import (
+    infer_platform,
+    query_gpl_platform,
+    rule_infer,
+)
 from sra_search.inference.schema import InferenceSchema, init_inference_schema
 
 
@@ -107,13 +111,28 @@ class InferenceEngine:
             schema.sources["granularity"] = "rule_engine"
 
         # 平台映射
-        if rule_result.get("platform_mapped"):
+        mapped_name = rule_result.get("platform_mapped", "")
+        platform_category = rule_result.get("platform_category", "")
+
+        # 如果规则引擎无法映射，尝试查询 GPL ID
+        if not mapped_name or mapped_name == platform:
+            gpl_name = query_gpl_platform(platform)
+            if gpl_name and gpl_name != platform:
+                mapped_name = gpl_name
+                platform_category = "Sequencing"  # 假设大多数 GPL 是测序平台
+                # 尝试进一步标准化
+                inferred_name, inferred_cat = infer_platform(mapped_name)
+                if inferred_name != platform:
+                    mapped_name = inferred_name
+                    platform_category = inferred_cat
+
+        if mapped_name:
             schema.platform = {
                 "raw": platform,
-                "mapped": rule_result["platform_mapped"],
-                "category": rule_result.get("platform_category", ""),
+                "mapped": mapped_name,
+                "category": platform_category,
             }
-            schema.sources["platform"] = "rule_engine"
+            schema.sources["platform"] = "gpl_query" if "gpl" in str(schema.sources) else "rule_engine"
 
         # ============ 2. LLM 兜底（可选）============
         if self.use_llm_fallback and self.llm_client:
