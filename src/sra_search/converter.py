@@ -1173,11 +1173,25 @@ async def records_to_search_result_with_llm(
     # 只对无缓存的数据集调用 LLM
     analyses: list = []
     if uncached_candidates:
-        analyses = await summarizer.summarize_batch_async(
-            datasets=uncached_candidates,
-            query=query,
-            concurrency=settings.llm_concurrency if settings else 5,
-        )
+        try:
+            analyses = await summarizer.summarize_batch_async(
+                datasets=uncached_candidates,
+                query=query,
+                concurrency=settings.llm_concurrency if settings else 5,
+            )
+        except Exception as e:
+            # LLM 调用完全失败时，降级处理：不生成摘要，但不影响排序结果
+            logger.warning(f"[Step 2.6] LLM 批量分析失败（已缓存 {len(cached_map)} 条，降级处理）: {e}")
+            analyses = []
+            for ds in uncached_candidates:
+                from dataclasses import dataclass
+                @dataclass
+                class _FallbackAnalysis:
+                    one_sentence_summary: str = ""
+                    sample_grouping: str = ""
+                    cell_count: str = ""
+                    relevance_reason: str = ""
+                analyses.append(_FallbackAnalysis())
         # 逐条保存 LLM 结果到数据库（缓存）
         if db is not None:
             try:

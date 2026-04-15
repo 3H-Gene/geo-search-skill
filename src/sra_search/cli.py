@@ -73,12 +73,21 @@ def main(verbose: bool = False, config: str | None = None):
     level = "DEBUG" if verbose else "INFO"
     setup_logger(level=level)
 
+    # ── NCBI 配置强制校验 ──────────────────────────────────────────────
+    from sra_search.utils.validator import validate_ncbi_config
+
     settings = get_settings()
-    if not settings.ncbi_email:
-        logger.warning(
-            "NCBI email not configured. Set SRA_SEARCH_NCBI_EMAIL env var or "
-            "run 'sra-search config' to configure."
-        )
+    validation = validate_ncbi_config(settings.ncbi_email, settings.ncbi_api_key)
+
+    if validation.errors:
+        # 校验失败：打印错误并退出
+        error_msg = click.style("配置校验失败:\n", bold=True, fg="red")
+        error_msg += validation.format_message()
+        raise SystemExit(click.echo(error_msg, err=True))
+
+    if validation.warnings:
+        for warning in validation.warnings:
+            logger.warning(warning)
 
 
 @main.command()
@@ -173,6 +182,25 @@ def search(
       sra-search search "gout single cell" --llm --format csv > results_llm.csv  # 含 LLM 分析的 CSV
     """
     import json
+
+    # ── 输入校验与清理 ──────────────────────────────────────────────────
+    from sra_search.utils.validator import validate_query_input, sanitize_query
+
+    validation = validate_query_input(keyword)
+    if validation.errors:
+        error_msg = click.style("输入校验失败:\n", bold=True, fg="red")
+        error_msg += validation.format_message()
+        raise SystemExit(click.echo(error_msg, err=True))
+
+    if validation.warnings:
+        for warning in validation.warnings:
+            logger.warning(warning)
+
+    # 自动清理问题字符
+    original_keyword = keyword
+    keyword = sanitize_query(keyword)
+    if keyword != original_keyword:
+        logger.info(f"查询词已自动清理: {original_keyword!r} → {keyword!r}")
 
     # 设置 LLM prompt 调试标志
     from sra_search.llm import client as llm_client_module
@@ -677,6 +705,14 @@ def show(gse_id: str, changelog: bool, fmt: str):
     """
     import json as json_mod
 
+    # GSE ID 格式校验
+    import re
+    if not re.match(r"^GSE\d+$", gse_id.upper()):
+        raise click.BadParameter(
+            f"无效的 GSE ID 格式: {gse_id!r}\n"
+            "期望格式: GSE + 数字，如 GSE123456"
+        )
+
     from sra_search.converter import record_to_schema
     from sra_search.data_store.database import get_database
 
@@ -1150,6 +1186,14 @@ def convert(accession: str, target_db: str, all_targets: bool, fmt: str):
 @click.option("--format", "-f", "fmt", default="table", type=click.Choice(["table", "json"]), help="输出格式")
 def check(gse_id: str | None, topic: str | None, check_all: bool, recheck: bool, min_samples: int, fmt: str):
     """数据集可用性检查（SRA/BioProject）"""
+    # GSE ID 格式校验（如果提供了）
+    if gse_id:
+        import re
+        if not re.match(r"^GSE\d+$", gse_id.upper()):
+            raise click.BadParameter(
+                f"无效的 GSE ID 格式: {gse_id!r}\n"
+                "期望格式: GSE + 数字，如 GSE123456"
+            )
     asyncio.run(_check_async(gse_id, topic, check_all, recheck, min_samples, fmt))
 
 
@@ -1578,6 +1622,69 @@ def report(query: str | None, list_all: bool, delete: str | None, limit: int, of
 
     click.echo("=" * 120)
     click.echo(f"\n提示: 使用 'sra-search search \"{saved_report.query}\" --llm' 重新搜索以更新报告")
+
+
+# ── Cache 命令组 ──────────────────────────────────────────────────────────────
+
+@main.command("cache")
+@click.option("--info", "-i", is_flag=True, help="显示缓存统计信息")
+@click.option("--clean", "-c", is_flag=True, help="清理过期缓存")
+@click.option("--clear", is_flag=True, help="清空所有缓存")
+@click.option("--ttl", type=int, help="设置 TTL 小时数")
+def cache(info: bool, clean: bool, clear: bool, ttl: int | None):
+    """管理查询缓存
+
+    缓存功能：
+    - 自动缓存 GEO 检索结果（TTL 默认 24 小时）
+    - 避免重复查询，节省 API 配额
+    - 支持最大存储限制（默认 500 条 / 100MB）
+
+    示例：
+      sra-search cache --info      # 查看缓存状态
+      sra-search cache --clean     # 清理过期缓存
+      sra-search cache --clear     # 清空所有缓存
+      sra-search cache --ttl 48    # 设置 TTL 为 48 小时
+    """
+    from sra_search.cache import get_cache
+
+    cache_instance = get_cache()
+
+    # 设置 TTL
+    if ttl is not None:
+        if ttl <= 0:
+            raise click.ClickException("TTL 必须大于 0")
+        cache_instance.ttl_hours = ttl
+        click.echo(f"[OK] TTL 已设置为 {ttl} 小时")
+
+    # 显示统计信息
+    if info or (not clean and not clear and ttl is None):
+        stats = cache_instance.get_stats()
+        click.echo("\n📊 缓存统计:")
+        click.echo(f"  缓存目录: {stats['cache_dir']}")
+        click.echo(f"  总条目数: {stats['total_entries']}")
+        click.echo(f"  有效条目: {stats['valid_entries']}")
+        click.echo(f"  过期条目: {stats['expired_entries']}")
+        click.echo(f"  总大小:   {stats['total_size_mb']} MB")
+        click.echo(f"  TTL:      {stats['ttl_hours']} 小时")
+        click.echo(f"  最大条目: {stats['max_entries']}")
+        click.echo(f"  最大大小: {stats['max_size_mb']} MB")
+        return
+
+    # 清理过期缓存
+    if clean:
+        if not click.confirm("确定要清理过期缓存吗?"):
+            click.echo("已取消")
+            return
+        result = cache_instance.clean_expired()
+        click.echo(f"[OK] 清理完成: 移除 {result['removed']} 条，释放 {result['freed_bytes'] / 1024:.1f} KB")
+
+    # 清空所有缓存
+    if clear:
+        if not click.confirm("⚠️ 警告：这将清空所有缓存！确定要继续吗?"):
+            click.echo("已取消")
+            return
+        cache_instance.invalidate()  # 清空所有
+        click.echo("[OK] 缓存已清空")
 
 
 if __name__ == "__main__":
