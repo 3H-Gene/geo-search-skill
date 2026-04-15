@@ -14,8 +14,9 @@ from typing import Any
 
 from loguru import logger
 
-from sra_search.inference.group_inference import (
+from sra_search.inference.group_inference_robust import (
     infer_groups,
+    infer_groups_robust,
     infer_groups_from_text,
     is_contrast_ready,
 )
@@ -169,11 +170,18 @@ class InferenceEngine:
                         schema.confidence["granularity"] = 0.5
                         schema.sources["granularity"] = "llm_fallback"
 
-        # ============ 3. 样本分组推断 ============
-        groups: list[dict[str, Any]] = []
+        # ============ 3. 样本分组推断（使用健壮模块）============
+        group_result: dict[str, Any] = {
+            "groups": [],
+            "method": "none",
+            "confidence": 0.0,
+            "design": "unknown",
+            "contrast_ready": False,
+        }
 
         if sample_names:
-            groups = infer_groups(sample_names)
+            # 使用健壮推断（支持 prefix/delimiter/timecourse 模式）
+            group_result = infer_groups_robust(sample_names)
         else:
             # 从文本推断
             groups, _ = infer_groups_from_text(
@@ -181,14 +189,20 @@ class InferenceEngine:
                 title=title,
                 sample_count=sample_count,
             )
+            group_result["groups"] = groups
+            group_result["method"] = "text_fallback"
+            group_result["contrast_ready"] = is_contrast_ready(groups)
 
         schema.samples = {
             "total": len(sample_names) if sample_names else sample_count,
-            "groups": groups,
+            "groups": group_result["groups"],
+            "group_method": group_result["method"],
+            "group_confidence": group_result["confidence"],
         }
 
         # ============ 4. 对比分析准备 ============
-        schema.study_design["contrast_ready"] = is_contrast_ready(groups)
+        schema.study_design["contrast_ready"] = group_result["contrast_ready"]
+        schema.study_design["design"] = group_result["design"]
 
         # ============ 5. 推断摘要生成 ============
         schema.summary_text = _generate_summary_text(schema)
