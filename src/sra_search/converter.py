@@ -710,7 +710,11 @@ class SchemaConverter:
         """
         self.query = query
 
-    def convert(self, record: DatasetRecord) -> DatasetSchema:
+    def convert(
+        self,
+        record: DatasetRecord,
+        sample_names: list[str] | None = None,
+    ) -> DatasetSchema:
         """将 DatasetRecord 转换为 DatasetSchema
 
         Args:
@@ -729,6 +733,7 @@ class SchemaConverter:
                     summary=record.abstract or "",
                     overall_design=record.overall_design or "",
                     platform=record.platform,
+                    sample_names=sample_names,
                     sample_count=record.sample_count,
                 )
             except Exception as e:
@@ -908,10 +913,21 @@ class SchemaConverter:
         return result
 
 
-def record_to_schema(record: DatasetRecord, query: str = "") -> DatasetSchema:
-    """便捷函数：单条转换"""
+def record_to_schema(
+    record: DatasetRecord,
+    query: str = "",
+    sample_names: list[str] | None = None,
+) -> DatasetSchema:
+    """便捷函数：单条转换
+
+    Args:
+        record: 数据集记录
+        query: 查询词（用于相关性评分）
+        sample_names: GSM 样本名称列表（从 NCBI 获取，用于样本分组推断）
+                     若为 None，走文本推断（低置信度）
+    """
     converter = SchemaConverter(query)
-    return converter.convert(record)
+    return converter.convert(record, sample_names=sample_names)
 
 
 def records_to_search_result(

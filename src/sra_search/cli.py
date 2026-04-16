@@ -702,11 +702,11 @@ def show(gse_id: str, changelog: bool, fmt: str):
     """查看单条数据集完整详情
 
     支持 JSON 输出（标准 Schema 格式），可与 gse-downloader 集成。
+    联网取真实 GSM 样本名用于样本分组推断。
     """
     import json as json_mod
-
-    # GSE ID 格式校验
     import re
+
     if not re.match(r"^GSE\d+$", gse_id.upper()):
         raise click.BadParameter(
             f"无效的 GSE ID 格式: {gse_id!r}\n"
@@ -715,6 +715,7 @@ def show(gse_id: str, changelog: bool, fmt: str):
 
     from sra_search.converter import record_to_schema
     from sra_search.data_store.database import get_database
+    from sra_search.retriever.geo_api import GeoRetriever
 
     db = get_database()
     ds = db.get_dataset(gse_id)
@@ -722,8 +723,17 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"Dataset '{gse_id}' not found")
         return
 
-    # 使用 record_to_schema 转换，获取 LLM/inference 增强的信息
-    schema = record_to_schema(ds, query="")
+    # 联网取 GSM 真实样本名（用于样本分组推断）
+    geo = GeoRetriever()
+    gsm_names: list[str] = []
+
+    async def fetch_gsm() -> list[str]:
+        return await geo.get_gsm_sample_names(gse_id)
+
+    gsm_names = run_async(fetch_gsm())
+
+    # 使用 record_to_schema 转换，传入真实样本名触发健壮分组推断
+    schema = record_to_schema(ds, query="", sample_names=gsm_names or None)
 
     if fmt == "json":
         # JSON Schema 输出
@@ -741,6 +751,11 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"  Omics Type:      {schema.data_type or '-'}")
         click.echo(f"  Granularity:     {schema.granularity or '-'}")
         click.echo(f"  Sample Count:    {schema.sample_count or 0}")
+        if gsm_names:
+            # 展示联网获取的 GSM 样本名（最多 20 个）
+            display = gsm_names[:20]
+            suffix = f" ... (+{len(gsm_names)-20})" if len(gsm_names) > 20 else ""
+            click.echo(f"  GSM Samples:     {', '.join(display)}{suffix}")
         click.echo(f"  Platform:        {schema.platform or '-'}")
         click.echo(f"  Journal:         {schema.journal or '-'}")
         click.echo(f"  Publication:     {schema.publication_date or '-'}")

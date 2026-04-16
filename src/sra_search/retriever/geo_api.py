@@ -233,6 +233,96 @@ class GeoRetriever:
                 valid.append(gid)
         return valid
 
+    async def get_gsm_sample_names(self, gse_id: str) -> list[str]:
+        """获取 GSE 关联的所有 GSM 样本名称（用于样本分组推断）。
+
+        通过 GEO esummary JSON 的 samples 字段提取真实的 GSM ID 列表，
+        例如 ["GSM1234567", "GSM1234568", ...]。
+
+        Args:
+            gse_id: GSE 编号，如 "GSE217561"
+
+        Returns:
+            GSM 样本名称列表（降序：GSM 后数字大的在前），空列表表示失败
+        """
+        try:
+            # esearch 找到 GDS UID
+            search_params = {
+                "db": "gds",
+                "term": gse_id,
+                "retmax": 1,
+                "email": self.email,
+            }
+            if self.api_key:
+                search_params["api_key"] = self.api_key
+
+            await self._rate_limit()
+
+            async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(ssl=False)
+            ) as session:
+                async with session.get(
+                    f"{self.BASE_URL}/esearch.fcgi", params=search_params
+                ) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"GEO esearch failed for {gse_id}: HTTP {resp.status}")
+                        return []
+                    text = await resp.text()
+                    import xml.etree.ElementTree as ET
+
+                    root = ET.fromstring(text)
+                    id_list = root.find("IdList")
+                    if id_list is None:
+                        return []
+                    ids = [e.text for e in id_list.findall("Id") if e.text]
+                    if not ids:
+                        return []
+
+                # esummary 获取 samples 字段
+                uid = ids[0]
+                summary_params = {
+                    "db": "gds",
+                    "id": uid,
+                    "retmode": "json",
+                    "email": self.email,
+                }
+                if self.api_key:
+                    summary_params["api_key"] = self.api_key
+
+                await self._rate_limit()
+
+                async with session.get(
+                    f"{self.BASE_URL}/esummary.fcgi", params=summary_params
+                ) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"GEO esummary failed for {gse_id}: HTTP {resp.status}")
+                        return []
+                    data = await resp.json(content_type=None)
+
+                result = data.get("result", {})
+                item = result.get(uid, {})
+                samples_raw = item.get("samples", [])
+
+                if not isinstance(samples_raw, list):
+                    return []
+
+                # 提取 GSM 编号（降序排列：数字大的在前）
+                gsm_names: list[str] = []
+                for s in samples_raw:
+                    acc = s.get("accession", "")
+                    if acc and acc.startswith("GSM") and acc[3:].isdigit():
+                        gsm_names.append(acc)
+
+                gsm_names.sort(key=lambda x: int(x[3:]), reverse=True)
+                logger.debug(
+                    f"[{gse_id}] fetched {len(gsm_names)} GSM sample names"
+                )
+                return gsm_names
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch GSM samples for {gse_id}: {e}")
+            return []
+
     async def _do_search(self, query: str, retmax: int, retry: int = 0) -> RetrievalResult:
         """执行实际搜索（带重试）"""
         max_retries = 3
