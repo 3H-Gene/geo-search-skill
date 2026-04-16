@@ -191,7 +191,12 @@ class SearchAggregator:
             gse_ids = [r.dataset.gse_id for r in all_results]
             logger.debug(f"[Step 5] 获取 GSM 样本信息: {len(gse_ids)} 个 GSE")
             gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
-            gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
+            # 使用优化的批量查询（批量 esearch + esummary，减少 HTTP 请求）
+            try:
+                gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch_optimized(gsm_map, chunk_size=100)
+            except Exception as e:
+                logger.warning(f"[GSM batch] optimized method failed, fallback: {e}")
+                gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
             for r in all_results:
                 r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
                 r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])

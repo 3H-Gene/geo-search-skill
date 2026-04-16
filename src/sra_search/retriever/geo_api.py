@@ -548,6 +548,194 @@ class GeoRetriever:
                 attrs[key] = value
         return attrs
 
+    async def fetch_gsm_attributes_batch_optimized(
+        self,
+        gse_to_gsm: dict[str, list[str]],
+        chunk_size: int = 100,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """批量获取多个 GSE 的 GSM 样品属性（优化版）。
+
+        真正的批量查询策略：
+        1. 分块批量 esearch：每块 100 个 GSM 的 OR 查询获取 GDS UID
+        2. 分块批量 esummary：用逗号分隔的 UID 列表一次获取详细信息
+
+        Args:
+            gse_to_gsm: dict[GSE_ID, GSM列表]
+            chunk_size: 每批处理的 GSM 数量（默认100）
+
+        Returns:
+            dict[GSE_ID, GSM属性列表]
+        """
+        if not gse_to_gsm:
+            return {}
+
+        # 展平并限制每个 GSE 的 GSM 数量
+        all_gsms: list[tuple[str, str]] = []  # [(gse_id, gsm_id), ...]
+        for gse_id, gsm_list in gse_to_gsm.items():
+            for gsm_id in gsm_list[:50]:
+                all_gsms.append((gse_id, gsm_id))
+
+        if not all_gsms:
+            return {}
+
+        gsm_ids = list(set([gsm_id for _, gsm_id in all_gsms]))  # 去重
+        logger.debug(f"[GSM batch] fetching attributes for {len(gsm_ids)} unique GSMs")
+
+        # 分块处理
+        results: dict[str, dict[str, Any]] = {}
+        for i in range(0, len(gsm_ids), chunk_size):
+            chunk = gsm_ids[i:i + chunk_size]
+            chunk_results = await self._batch_fetch_gsm_chunk(chunk)
+            results.update(chunk_results)
+            logger.debug(f"[GSM batch] processed chunk {i // chunk_size + 1}/{(len(gsm_ids) - 1) // chunk_size + 1}")
+
+        # 按 GSE 分组
+        out: dict[str, list[dict[str, Any]]] = {gse_id: [] for gse_id in gse_to_gsm}
+        for gse_id, gsm_id in all_gsms:
+            if gsm_id in results:
+                out[gse_id].append(results[gsm_id])
+
+        total_attrs = sum(len(v) for v in out.values())
+        logger.info(f"[GSM batch] fetched {total_attrs} attributes for {len(gse_to_gsm)} GSEs ({len(gsm_ids)} GSMs)")
+        return out
+
+    async def _batch_fetch_gsm_chunk(self, gsm_ids: list[str]) -> dict[str, dict[str, Any]]:
+        """批量获取一批 GSM 的属性。
+
+        Args:
+            gsm_ids: GSM ID 列表
+
+        Returns:
+            dict[gsm_id, 属性字典]
+        """
+        if not gsm_ids:
+            return {}
+
+        results: dict[str, dict[str, Any]] = {}
+
+        try:
+            async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(ssl=False)
+            ) as session:
+
+                # Step 1: 批量 esearch 获取 GDS UID
+                # 构建 OR 查询: "GSM1234567[Accession] OR GSM1234568[Accession]"
+                term = " OR ".join([f"{gsm}[Accession]" for gsm in gsm_ids])
+                search_params = {
+                    "db": "gds",
+                    "term": term,
+                    "retmax": len(gsm_ids),
+                    "email": self.email,
+                }
+                if self.api_key:
+                    search_params["api_key"] = self.api_key
+
+                await self._rate_limit()
+
+                async with session.get(
+                    f"{self.BASE_URL}/esearch.fcgi", params=search_params
+                ) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"[GSM batch] esearch failed: {resp.status}")
+                        return {}
+                    text = await resp.text()
+
+                import xml.etree.ElementTree as ET
+                root = ET.fromstring(text)
+                id_list = root.find("IdList")
+                if id_list is None or len(id_list) == 0:
+                    logger.debug(f"[GSM batch] no GDS UIDs found for {len(gsm_ids)} GSMs")
+                    return {}
+
+                # 建立 GSM ID -> UID 的映射
+                uid_list: list[str] = []
+                gsm_to_uid: dict[str, str] = {}
+                for id_elem in id_list.findall("Id"):
+                    uid = id_elem.text
+                    if uid:
+                        uid_list.append(uid)
+
+                # Step 2: 批量 esummary 获取详细信息
+                if uid_list:
+                    summary_params = {
+                        "db": "gds",
+                        "id": ",".join(uid_list),  # 逗号分隔的 UID 列表
+                        "retmode": "json",
+                        "email": self.email,
+                    }
+                    if self.api_key:
+                        summary_params["api_key"] = self.api_key
+
+                    await self._rate_limit()
+
+                    async with session.get(
+                        f"{self.BASE_URL}/esummary.fcgi", params=summary_params
+                    ) as resp:
+                        if resp.status != 200:
+                            logger.warning(f"[GSM batch] esummary failed: {resp.status}")
+                            return {}
+                        data = await resp.json(content_type=None)
+
+                    result_data = data.get("result", {})
+                    for uid, item in result_data.items():
+                        if uid == "uids":  # 跳过 uids 列表本身
+                            continue
+                        # 从 title 或 accession 中提取 GSM ID
+                        title = item.get("title", "")
+                        accession = item.get("accession", "")
+                        # 尝试匹配 GSM ID（通常在 title 中）
+                        matched_gsm = self._extract_gsm_from_item(item, gsm_ids)
+                        if matched_gsm:
+                            attributes_raw = item.get("sample_type", [])
+                            if isinstance(attributes_raw, str):
+                                attributes_raw = [attributes_raw]
+                            results[matched_gsm] = {
+                                "gsm_id": matched_gsm,
+                                "title": title,
+                                "accession": accession,
+                                "sample_type": attributes_raw,
+                                "pubmed_id": item.get("pubmed_id", ""),
+                                "GPL": item.get("GPL", ""),
+                                "taxon_id": item.get("taxon_id", ""),
+                            }
+
+        except Exception as e:
+            logger.warning(f"[GSM batch] chunk fetch failed: {e}")
+
+        return results
+
+    def _extract_gsm_from_item(
+        self, item: dict[str, Any], gsm_ids: list[str]
+    ) -> str | None:
+        """从 esummary item 中提取对应的 GSM ID。
+
+        NCBI esummary 返回的 GDS 记录中，GSM ID 通常在 title 字段中，
+        格式如 "GSM1234567: Sample description"
+
+        Args:
+            item: esummary 返回的 item 字典
+            gsm_ids: 目标 GSM ID 列表
+
+        Returns:
+            匹配的 GSM ID 或 None
+        """
+        title = item.get("title", "")
+        accession = item.get("accession", "")
+
+        # 尝试从 accession 直接匹配
+        if accession and accession in gsm_ids:
+            return accession
+
+        # 尝试从 title 中提取（格式: "GSM1234567: ..."）
+        if title:
+            for gsm_id in gsm_ids:
+                if title.startswith(f"{gsm_id}:"):
+                    return gsm_id
+                if gsm_id in title:
+                    return gsm_id
+
+        return None
+
     async def _do_search(self, query: str, retmax: int, retry: int = 0) -> RetrievalResult:
         """执行实际搜索（带重试）"""
         max_retries = 3
