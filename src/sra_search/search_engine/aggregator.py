@@ -101,9 +101,9 @@ class SearchAggregator:
         settings = get_settings()
         retmax = retmax or settings.search_retmax
 
-        # 默认全部数据源
+        # 默认只搜索 GEO（GEO 已关联 SRA/PubMed，去掉减少噪声）
         if sources is None:
-            sources = ["geo", "sra", "pubmed"]
+            sources = ["geo"]
 
         # ── Step 1: 查询优化 ────────────────────────────────────────────────
         optimized_query = self._build_optimized_query(keyword)
@@ -247,7 +247,6 @@ class SearchAggregator:
                     publication_date=geo_rec.publication_date,
                     abstract=geo_rec.summary,
                     overall_design=geo_rec.overall_design,
-                    keywords=geo_rec.keywords,
                     supplementary_files=geo_rec.supplementary_files,
                     series_matrix_available=geo_rec.series_matrix_available,
                     ftplink=geo_rec.ftplink,
