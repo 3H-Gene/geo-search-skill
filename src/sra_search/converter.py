@@ -934,6 +934,15 @@ class SchemaConverter:
         if inference_result and inference_result.summary_text:
             schema._inference_summary = inference_result.summary_text
 
+        # 传递 LLM 分析字段（从 record 复制到 schema）
+        # 这些字段在 records_to_search_result_with_llm() 中填充
+        schema.llm_one_sentence_summary = getattr(record, "llm_one_sentence_summary", "") or ""
+        schema.llm_sample_grouping = getattr(record, "llm_sample_grouping", "") or ""
+        schema.llm_cell_count = getattr(record, "llm_cell_count", "") or ""
+        schema.llm_relevance_reason = getattr(record, "llm_relevance_reason", "") or ""
+        schema.llm_analyzed_at = getattr(record, "llm_analyzed_at", "") or ""
+        schema.llm_model = getattr(record, "llm_model", "") or ""
+
         # 计算排序分数
         schema.relevance_score = compute_relevance_score(self.query, schema)
         schema.recency_score = compute_recency_score(record.publication_date)

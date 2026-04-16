@@ -30,6 +30,18 @@ def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _format_size(size_bytes: int) -> str:
+    """格式化文件大小为人类可读格式"""
+    if size_bytes < 1024:
+        return f"{size_bytes}B"
+    elif size_bytes < 1024 * 1024:
+        return f"{size_bytes / 1024:.1f}KB"
+    elif size_bytes < 1024 * 1024 * 1024:
+        return f"{size_bytes / (1024 * 1024):.1f}MB"
+    else:
+        return f"{size_bytes / (1024 * 1024 * 1024):.2f}GB"
+
+
 def run_async(coro):
     """在同步 Click 上下文中运行异步协程"""
     try:
@@ -772,6 +784,30 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"  Version:         {ds.version}")
         click.echo(f"  First Seen:      {ds.first_seen_at}")
         click.echo(f"  Last Updated:    {ds.last_updated}")
+
+        # LLM 样本分组与细胞数
+        if schema.llm_sample_grouping:
+            click.echo(f"  Sample Grouping: {schema.llm_sample_grouping}")
+        if schema.llm_cell_count:
+            click.echo(f"  Cell Count:      {schema.llm_cell_count}")
+
+        # 数据文件信息
+        if schema.supplementary_files:
+            click.echo(f"\n  --- Supplementary Files ({len(schema.supplementary_files)}) ---")
+            for i, f in enumerate(schema.supplementary_files[:10], 1):
+                fname = f.get("name", "unknown")
+                ftype = f.get("type", "-")
+                fsize = f.get("size", 0)
+                if fsize:
+                    size_str = _format_size(fsize)
+                else:
+                    size_str = "-"
+                # 截断过长的文件名
+                if len(fname) > 50:
+                    fname = fname[:47] + "..."
+                click.echo(f"    {i:2}. [{ftype:<8}] {size_str:>8}  {fname}")
+            if len(schema.supplementary_files) > 10:
+                click.echo(f"    ... (+{len(schema.supplementary_files) - 10} more files)")
 
         # LLM/Inference 增强信息
         if schema.summary:
