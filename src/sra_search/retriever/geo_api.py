@@ -323,6 +323,48 @@ class GeoRetriever:
             logger.warning(f"Failed to fetch GSM samples for {gse_id}: {e}")
             return []
 
+    async def fetch_gsm_samples_batch(
+        self,
+        gse_ids: list[str],
+        concurrency: int = 5,
+    ) -> dict[str, list[str]]:
+        """批量获取多个 GSE 的 GSM 样本名称。
+
+        使用信号量控制并发数，避免对 NCBI 造成过大压力。
+        单个 GSE 失败不影响其他 GSE。
+
+        Args:
+            gse_ids: GSE ID 列表
+            concurrency: 最大并发数（默认 5）
+
+        Returns:
+            dict[GSE_ID, GSM列表]，失败/无结果的 GSE 不出现在字典中
+        """
+        if not gse_ids:
+            return {}
+
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _fetch_one(gse_id: str) -> tuple[str, list[str]]:
+            async with semaphore:
+                result = await self.get_gsm_sample_names(gse_id)
+                return gse_id, result
+
+        tasks = [_fetch_one(gse_id) for gse_id in gse_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        out: dict[str, list[str]] = {}
+        for item in results:
+            if isinstance(item, BaseException):
+                logger.warning(f"GSM batch fetch exception: {item}")
+                continue
+            gse_id, gsm_names = item
+            if gsm_names:  # 只保留有结果的
+                out[gse_id] = gsm_names
+
+        logger.debug(f"[GSM batch] fetched {len(out)}/{len(gse_ids)} GSE with GSM samples")
+        return out
+
     async def _do_search(self, query: str, retmax: int, retry: int = 0) -> RetrievalResult:
         """执行实际搜索（带重试）"""
         max_retries = 3

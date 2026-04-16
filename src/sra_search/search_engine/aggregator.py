@@ -248,6 +248,14 @@ class SearchAggregator:
                     matched_keyword=query,
                 ))
 
+            # ── 获取 GSM 样本名（用于样本分组推断）──────────────────────────────
+            if records:
+                gse_ids = [r.dataset.gse_id for r in records]
+                logger.debug(f"[GEO] Fetching GSM samples for {len(gse_ids)} GSE...")
+                gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+                for r in records:
+                    r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
+
             return records
 
         except Exception as e:
@@ -375,23 +383,33 @@ class SearchAggregator:
                     logger.debug(f"SRA: skipping unrelated SRA-only record {srp_id}: {sra_rec.title[:60]}")  # type: ignore[union-attr]
                     continue
 
-                dataset = DatasetRecord(
-                    gse_id=srp_id,
-                    title=sra_rec.title,  # type: ignore[union-attr]
-                    organism=sra_rec.organism,  # type: ignore[union-attr]
-                    platform=sra_rec.platform,  # type: ignore[union-attr]
-                    sample_count=sra_rec.sample_count,  # type: ignore[union-attr]
-                    sra_ids=[srp_id],
-                    bioproject_ids=sra_rec.bioproject_ids,  # type: ignore[union-attr]
-                    has_gse=False,
-                )
-                dataset.update_hash()
-                records.append(DatasetSearchResult(
-                    dataset=dataset,
-                    match_source=MatchSource.SRA.value,
-                    match_score=0.4,
-                    matched_keyword=query,
-                ))
+                    dataset = DatasetRecord(
+                        gse_id=srp_id,
+                        title=sra_rec.title,  # type: ignore[union-attr]
+                        organism=sra_rec.organism,  # type: ignore[union-attr]
+                        platform=sra_rec.platform,  # type: ignore[union-attr]
+                        sample_count=sra_rec.sample_count,  # type: ignore[union-attr]
+                        sra_ids=[srp_id],
+                        bioproject_ids=sra_rec.bioproject_ids,  # type: ignore[union-attr]
+                        has_gse=False,
+                    )
+                    dataset.update_hash()
+                    records.append(DatasetSearchResult(
+                        dataset=dataset,
+                        match_source=MatchSource.SRA.value,
+                        match_score=0.4,
+                        matched_keyword=query,
+                    ))
+
+            # ── 获取 GSM 样本名（仅针对有 GSE 关联的记录）──────────────────────
+            if records:
+                gse_ids = [r.dataset.gse_id for r in records if r.dataset.has_gse]
+                if gse_ids:
+                    logger.debug(f"[SRA] Fetching GSM samples for {len(gse_ids)} GSE...")
+                    gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+                    for r in records:
+                        if r.dataset.has_gse:
+                            r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
 
             return records
 
@@ -467,6 +485,14 @@ class SearchAggregator:
                         match_score=0.5,
                         matched_keyword=query,
                     ))
+
+            # ── 获取 GSM 样本名（用于样本分组推断）──────────────────────────────
+            if records:
+                gse_ids = [r.dataset.gse_id for r in records]
+                logger.debug(f"[PubMed] Fetching GSM samples for {len(gse_ids)} GSE...")
+                gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+                for r in records:
+                    r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
 
             return records
 

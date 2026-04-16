@@ -172,7 +172,8 @@ class WriteQueue:
                 availability_status, availability_note, availability_checked_at,
                 access_type, has_gse, metadata_hash,
                 llm_summary, llm_sample_grouping, llm_cell_count,
-                llm_relevance_reason, llm_analyzed_at, llm_model)
+                llm_relevance_reason, llm_analyzed_at, llm_model,
+                gsm_sample_names)
             VALUES (:gse_id, :title, :pubmed_ids, :sra_ids, :bioproject_ids,
                 :organism, :disease, :organ, :omics_type, :omics_granularity, :sample_count,
                 :platform, :publication_date, :journal, :abstract, :keywords,
@@ -180,7 +181,8 @@ class WriteQueue:
                 :availability_status, :availability_note, :availability_checked_at,
                 :access_type, :has_gse, :metadata_hash,
                 :llm_summary, :llm_sample_grouping, :llm_cell_count,
-                :llm_relevance_reason, :llm_analyzed_at, :llm_model)
+                :llm_relevance_reason, :llm_analyzed_at, :llm_model,
+                :gsm_sample_names)
             ON CONFLICT(gse_id) DO UPDATE SET
                 title = COALESCE(NULLIF(:title, ''), title),
                 pubmed_ids = CASE WHEN :pubmed_ids != '[]' THEN :pubmed_ids ELSE pubmed_ids END,
@@ -211,7 +213,8 @@ class WriteQueue:
                 llm_cell_count = CASE WHEN :llm_cell_count != '' THEN :llm_cell_count ELSE llm_cell_count END,
                 llm_relevance_reason = CASE WHEN :llm_relevance_reason != '' THEN :llm_relevance_reason ELSE llm_relevance_reason END,
                 llm_analyzed_at = CASE WHEN :llm_analyzed_at != '' THEN :llm_analyzed_at ELSE llm_analyzed_at END,
-                llm_model = CASE WHEN :llm_model != '' THEN :llm_model ELSE llm_model END
+                llm_model = CASE WHEN :llm_model != '' THEN :llm_model ELSE llm_model END,
+                gsm_sample_names = CASE WHEN :gsm_sample_names != '[]' THEN :gsm_sample_names ELSE gsm_sample_names END
         """, data)
 
     @staticmethod
@@ -307,8 +310,9 @@ class Database:
         conn = self.get_connection()
         cursor = conn.cursor()
 
-# 2026-04-14: 新增 overall_design, supplementary_files, series_matrix_available, ftplink 列
+        # 2026-04-14: 新增 overall_design, supplementary_files, series_matrix_available, ftplink 列
         # 2026-04-15: 新增 llm_summary, llm_sample_grouping, llm_cell_count, llm_relevance_reason, llm_analyzed_at, llm_model 列
+        # 2026-04-16: 新增 gsm_sample_names 列（搜索阶段获取，用于样本分组推断）
         migrations = [
             ("overall_design", "ALTER TABLE datasets ADD COLUMN overall_design TEXT DEFAULT ''"),
             ("supplementary_files", "ALTER TABLE datasets ADD COLUMN supplementary_files TEXT DEFAULT '[]'"),
@@ -320,6 +324,7 @@ class Database:
             ("llm_relevance_reason", "ALTER TABLE datasets ADD COLUMN llm_relevance_reason TEXT DEFAULT ''"),
             ("llm_analyzed_at", "ALTER TABLE datasets ADD COLUMN llm_analyzed_at TEXT DEFAULT ''"),
             ("llm_model", "ALTER TABLE datasets ADD COLUMN llm_model TEXT DEFAULT ''"),
+            ("gsm_sample_names", "ALTER TABLE datasets ADD COLUMN gsm_sample_names TEXT DEFAULT '[]'"),
         ]
 
         for col_name, sql in migrations:

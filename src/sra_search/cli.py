@@ -701,8 +701,7 @@ def list_cmd(topic: str | None, list_all: bool, status: str | None,
 def show(gse_id: str, changelog: bool, fmt: str):
     """查看单条数据集完整详情
 
-    支持 JSON 输出（标准 Schema 格式），可与 gse-downloader 集成。
-    联网取真实 GSM 样本名用于样本分组推断。
+    支持 JSON 输出（标准 Schema 格式），GSM 样本名从本地数据库读取（搜索阶段已获取）。
     """
     import json as json_mod
     import re
@@ -715,7 +714,6 @@ def show(gse_id: str, changelog: bool, fmt: str):
 
     from sra_search.converter import record_to_schema
     from sra_search.data_store.database import get_database
-    from sra_search.retriever.geo_api import GeoRetriever
 
     db = get_database()
     ds = db.get_dataset(gse_id)
@@ -723,17 +721,11 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"Dataset '{gse_id}' not found")
         return
 
-    # 联网取 GSM 真实样本名（用于样本分组推断）
-    geo = GeoRetriever()
-    gsm_names: list[str] = []
+    # 使用 record_to_schema 转换（record.gsm_sample_names 已在搜索阶段获取）
+    schema = record_to_schema(ds, query="")
 
-    async def fetch_gsm() -> list[str]:
-        return await geo.get_gsm_sample_names(gse_id)
-
-    gsm_names = run_async(fetch_gsm())
-
-    # 使用 record_to_schema 转换，传入真实样本名触发健壮分组推断
-    schema = record_to_schema(ds, query="", sample_names=gsm_names or None)
+    # GSM 样本名从本地记录读取（搜索阶段已联网获取并存入数据库）
+    gsm_names: list[str] = getattr(ds, "gsm_sample_names", []) or []
 
     if fmt == "json":
         # JSON Schema 输出
@@ -752,7 +744,7 @@ def show(gse_id: str, changelog: bool, fmt: str):
         click.echo(f"  Granularity:     {schema.granularity or '-'}")
         click.echo(f"  Sample Count:    {schema.sample_count or 0}")
         if gsm_names:
-            # 展示联网获取的 GSM 样本名（最多 20 个）
+            # 展示存储在数据库中的 GSM 样本名（最多 20 个）
             display = gsm_names[:20]
             suffix = f" ... (+{len(gsm_names)-20})" if len(gsm_names) > 20 else ""
             click.echo(f"  GSM Samples:     {', '.join(display)}{suffix}")

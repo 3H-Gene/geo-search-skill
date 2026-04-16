@@ -140,6 +140,8 @@ class DatasetRecord:
     llm_relevance_reason: str = ""
     llm_analyzed_at: str = ""
     llm_model: str = ""
+    # --- GSM 样本名称（搜索阶段获取，用于样本分组推断） ---
+    gsm_sample_names: list[str] = field(default_factory=list)
 
     def compute_metadata_hash(self) -> str:
         """计算元数据摘要哈希（用于检测数据集修订/更新）
@@ -212,6 +214,7 @@ class DatasetRecord:
             "llm_relevance_reason": self.llm_relevance_reason,
             "llm_analyzed_at": self.llm_analyzed_at,
             "llm_model": self.llm_model,
+            "gsm_sample_names": _json_dumps(self.gsm_sample_names),
         }
 
     @classmethod
@@ -254,6 +257,7 @@ class DatasetRecord:
             llm_relevance_reason=row.get("llm_relevance_reason", ""),
             llm_analyzed_at=row.get("llm_analyzed_at", ""),
             llm_model=row.get("llm_model", ""),
+            gsm_sample_names=_json_loads(row.get("gsm_sample_names", "[]")),
         )
 
 

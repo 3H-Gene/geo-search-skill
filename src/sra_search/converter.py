@@ -719,10 +719,13 @@ class SchemaConverter:
 
         Args:
             record: 原始数据集记录
+            sample_names: 可选，手动传入的样本名列表（通常来自 record.gsm_sample_names）
 
-        Returns:
-            填充好的 DatasetSchema
+        优先级：sample_names 参数 > record.gsm_sample_names > None（走文本推断）
         """
+        # 优先使用传入参数，其次使用 record 中存储的 GSM 样本名
+        effective_sample_names = sample_names or record.gsm_sample_names or None
+
         # ── Inference 模块增强推断 ───────────────────────────────────────
         inference_result: InferenceSchema | None = None
         if HAS_INFERENCE:
@@ -733,7 +736,7 @@ class SchemaConverter:
                     summary=record.abstract or "",
                     overall_design=record.overall_design or "",
                     platform=record.platform,
-                    sample_names=sample_names,
+                    sample_names=effective_sample_names,
                     sample_count=record.sample_count,
                 )
             except Exception as e:
@@ -921,10 +924,9 @@ def record_to_schema(
     """便捷函数：单条转换
 
     Args:
-        record: 数据集记录
+        record: 数据集记录（优先从 record.gsm_sample_names 获取样本名）
         query: 查询词（用于相关性评分）
-        sample_names: GSM 样本名称列表（从 NCBI 获取，用于样本分组推断）
-                     若为 None，走文本推断（低置信度）
+        sample_names: 可选，手动传入的样本名（覆盖 record.gsm_sample_names）
     """
     converter = SchemaConverter(query)
     return converter.convert(record, sample_names=sample_names)
@@ -1116,12 +1118,12 @@ async def records_to_search_result_with_llm(
             logger.info(f"  │   - Top1 relevance: {top_score:.3f}")
             logger.info(f"  │   - 平均 relevance: {avg_score:.3f}")
 
-            # 将排序后的 LLM 评分候选与预过滤跳过的合并（跳过项按原始 relevance_score 排序置于末尾）
-            result.results = candidates_for_llm + skipped_ds
+            # 将排序后的 LLM 评分候选作为最终结果
+            # 方案A：低于V1相关性的数据完全不展示，避免用户看到无关结果
+            result.results = candidates_for_llm
         else:
-            logger.warning("  ├─ LLM 评分返回空，保持 V1 排序（含预过滤跳过项）")
-            # 即使 LLM 失败，也合并预过滤结果
-            result.results = candidates_for_llm + skipped_ds
+            logger.warning("  ├─ LLM 评分返回空，保持 V1 排序（仅通过V1过滤的数据）")
+            result.results = candidates_for_llm
 
     # 截取 top_n
     original_count = len(result.results)
