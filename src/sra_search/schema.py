@@ -376,21 +376,44 @@ class SearchResultSchema:
         return self.stats
 
     def sort_results(self, top_n: int = 50, weights: dict[str, float] | None = None) -> list[DatasetSchema]:
-        """排序结果（默认使用 relevance + sample_size + recency + quality）"""
+        """排序结果（默认使用 relevance + sample_size + recency + quality + species_weight）"""
         if weights is None:
             weights = {"relevance": 0.4, "recency": 0.2, "quality": 0.2, "sample_size": 0.2}
+
+        # 物种权重映射（Cursor review R2：人源优先）
+        species_weights = {
+            "homo sapiens": 1.0,
+            "mus musculus": 0.8,
+            "rattus norvegicus": 0.7,
+            "danio rerio": 0.6,
+            "other": 0.4,
+            "unknown": 0.3,
+        }
+
+        def _get_species_weight(organism: str) -> float:
+            if not organism:
+                return species_weights.get("unknown", 0.3)
+            org_lower = organism.lower()
+            for key, weight in species_weights.items():
+                if key in org_lower or org_lower in key:
+                    return weight
+            return species_weights.get("other", 0.4)
 
         for r in self.results:
             # 归一化样本数分数（log scale）
             sample_score = min(r.sample_count / 1000, 1.0) if r.sample_count > 0 else 0
 
-            # 计算总分
-            r.total_score = (
+            # 计算基础总分
+            base_score = (
                 weights["relevance"] * r.relevance_score +
                 weights["recency"] * r.recency_score +
                 weights["quality"] * r.quality_score +
                 weights["sample_size"] * sample_score
             )
+
+            # 物种权重因子：人源 ×1.0，小鼠 ×0.8，其他 ×0.4
+            species_weight = _get_species_weight(r.organism)
+            r.total_score = base_score * species_weight
 
         # 排序
         self.results.sort(key=lambda x: x.total_score, reverse=True)

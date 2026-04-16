@@ -27,6 +27,38 @@ try:
 except ImportError:
     HAS_INFERENCE = False
 
+# ── 物种权重配置（Cursor review：人源优先排序）─────────────────────────────
+SPECIES_WEIGHTS: dict[str, float] = {
+    "homo sapiens": 1.0,    # 人源最高权重
+    "mus musculus": 0.8,    # 小鼠次之
+    "rattus norvegicus": 0.7,  # 大鼠
+    "danio rerio": 0.6,     # 斑马鱼
+    "drosophila melanogaster": 0.5,  # 果蝇
+    "caenorhabditis elegans": 0.5,  # 线虫
+    "other": 0.4,           # 其他物种
+    "unknown": 0.3,         # 未知物种
+}
+
+
+def get_species_weight(organism: str) -> float:
+    """获取物种权重。
+
+    Args:
+        organism: 物种名称（大小写不敏感）
+
+    Returns:
+        物种权重因子
+    """
+    if not organism:
+        return SPECIES_WEIGHTS.get("unknown", 0.3)
+
+    org_lower = organism.lower()
+    for key, weight in SPECIES_WEIGHTS.items():
+        if key in org_lower or org_lower in key:
+            return weight
+    return SPECIES_WEIGHTS.get("other", 0.4)
+
+
 if TYPE_CHECKING:
     from sra_search.llm.client import LLMClient
 
@@ -575,6 +607,10 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     # ── 2. 计算相关性分数 ───────────────────────────────────────────────────
     score = 0.0
 
+    # 疾病查询 AND 组学查询 过滤逻辑（Cursor review 建议）
+    # 如果查询同时包含疾病和 scRNA，数据集必须同时满足两个条件才能得高分
+    is_mixed_query = is_disease_query and is_sc_query
+
     # ① 疾病关键词命中（最重要）
     if has_disease_in_dataset:
         score += 0.45
@@ -582,6 +618,26 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     # ② scRNA 技术类型命中
     if is_sc_dataset:
         score += 0.25
+
+    # ── 3. AND 过滤惩罚逻辑（替代原有的惩罚逻辑）──────────────
+    # 修复 Cursor 指出的 OR 问题：疾病+组学查询时，数据集必须同时匹配
+
+    # 惩罚A：混合查询（疾病+scRNA）但数据集缺少疾病关键词
+    if is_mixed_query and not has_disease_in_dataset:
+        # 无疾病词 → 直接过滤为极低分（AND 逻辑）
+        score *= 0.05   # 大幅降权，几乎不相关
+
+    # 惩罚B：混合查询但数据集不是 scRNA（bulk/microarray 等）
+    if is_mixed_query and not is_sc_dataset:
+        score *= 0.10   # 进一步降权
+
+    # 惩罚C：scRNA 查询但数据集不是 scRNA
+    if is_sc_query and not is_sc_dataset:
+        score *= 0.25   # 大幅降权
+
+    # 惩罚D：疾病查询但数据集完全无疾病/scRNA 上下文
+    if is_disease_query and not has_disease_in_dataset and not is_sc_dataset:
+        score *= 0.05
 
     # ③ 标题子串匹配（query 词在标题 → 额外加成）
     title_matched = sum(1 for t in query_clean if _in_text(t, title_lower))
@@ -597,20 +653,6 @@ def compute_relevance_score(query: str, dataset: DatasetSchema) -> float:
     # ⑤ 结构化字段精确匹配（disease/tissue 字段）
     disease_matched = sum(1 for t in query_clean if t in disease_field_lower)
     score += 0.05 * min(disease_matched, 2) / 2
-
-    # ── 3. 惩罚逻辑 ──────────────────────────────────────────────────────────
-
-    # 惩罚A：疾病查询但数据集完全无疾病/scRNA 上下文
-    if is_disease_query:
-        if not has_disease_in_dataset and not is_sc_dataset:
-            score *= 0.05   # 非常低，几乎不相关
-        elif not has_disease_in_dataset and is_sc_dataset:
-            score *= 0.15   # 有 scRNA 但无疾病词，轻度惩罚
-
-    # 惩罚B：scRNA 查询但数据集不是 scRNA（bulk/microarray 等）
-    # 这是当前输出中最大的问题：GSE160308 是 bulk RNA-seq，不应出现在 scRNA 查询结果前列
-    if is_sc_query and not is_sc_dataset:
-        score *= 0.25   # 大幅降权，让 bulk 数据集排名靠后
 
     return min(score, 1.0)
 
@@ -1119,15 +1161,19 @@ async def records_to_search_result_with_llm(
                     ds.relevance_score = score_map[ds.gse_id]
 
             # 重新计算 total_score 并排序
+            # 加入物种权重：人源优先（Cursor review R2）
             weights = {"relevance": 0.5, "recency": 0.2, "quality": 0.15, "sample_size": 0.15}
             for ds in candidates_for_llm:
                 sample_score = min(ds.sample_count / 1000, 1.0) if ds.sample_count > 0 else 0
-                ds.total_score = (
+                base_score = (
                     weights["relevance"] * ds.relevance_score
                     + weights["recency"] * ds.recency_score
                     + weights["quality"] * ds.quality_score
                     + weights["sample_size"] * sample_score
                 )
+                # 物种权重因子：人源 ×1.0，小鼠 ×0.8，其他 ×0.4
+                species_weight = get_species_weight(ds.organism)
+                ds.total_score = base_score * species_weight
             candidates_for_llm.sort(key=lambda x: x.total_score, reverse=True)
 
             llm_scored = min(llm_top_k, len(candidates_for_llm))
