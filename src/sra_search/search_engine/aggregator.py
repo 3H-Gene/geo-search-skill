@@ -260,16 +260,43 @@ class SearchAggregator:
                 )
                 dataset.update_hash()
 
-                # 基于标题+摘要对查询词的匹配情况调整分数
-                # 确保完全不相关的结果排名靠后
-                rec_text = (geo_rec.title + " " + (geo_rec.summary or "")).lower()
+                # ── AND 逻辑过滤（修复 Cursor 指出问题）──────────────────
+                # 检测查询是否同时包含疾病关键词和 scRNA 关键词
+                query_lower = query.lower()
+
+                # 疾病关键词（仅痛风/高尿酸相关）
+                disease_kws = ["gout", "hyperuricemia", "uric acid", "monosodium urate", "gouty", "podagra"]
+                # scRNA 关键词
+                sc_kws = ["single-cell", "single cell", "scrna", "scRNA", "snRNA", "10x", "chromium"]
+
+                is_disease_query = any(kw in query_lower for kw in disease_kws)
+                is_sc_query = any(kw in query_lower for kw in sc_kws)
+                is_mixed_query = is_disease_query and is_sc_query
+
+                # 数据集文本（标题 + 摘要 + overall_design）
+                rec_text = (
+                    geo_rec.title + " " +
+                    (geo_rec.summary or "") + " " +
+                    (geo_rec.overall_design or "")
+                ).lower()
+
+                has_disease = any(kw in rec_text for kw in disease_kws)
+                has_sc = any(kw in rec_text for kw in sc_kws)
+
+                # 基础匹配分数
                 matched = sum(1 for t in query_terms if t in rec_text)
                 if query_terms:
                     relevance_ratio = matched / len(query_terms)
-                    # GEO 直接命中基础分 0.8，按相关性比例加权
                     geo_score = 0.4 + 0.4 * relevance_ratio
                 else:
                     geo_score = 0.8
+
+                # 混合查询（疾病+scRNA）时的 AND 过滤
+                if is_mixed_query:
+                    if not has_disease:
+                        geo_score *= 0.05   # 无疾病词 → 极低分
+                    elif not has_sc:
+                        geo_score *= 0.10   # 非 scRNA → 低分
 
                 records.append(DatasetSearchResult(
                     dataset=dataset,

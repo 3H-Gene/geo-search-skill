@@ -495,10 +495,10 @@ def search(
         else:
             # 原始表格（无 LLM 分析）
             click.echo(f"\nFound {len(schema_result.results)} datasets for '{keyword}' (sorted by score):\n")
-            click.echo(f"{'Accession':<12} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<50}")
-            click.echo("-" * 97)
+            click.echo(f"{'Accession':<12} {'Organism':<10} {'Type':<12} {'SC':<4} {'Pert':<5} {'Samples':<8} {'Title':<45}")
+            click.echo("-" * 102)
             for ds in schema_result.results:
-                title = ds.title[:47] + "..." if len(ds.title) > 50 else ds.title
+                title = ds.title[:42] + "..." if len(ds.title) > 45 else ds.title
                 sc = "Y" if ds.single_cell else "N"
                 pert = "Y" if ds.has_perturbation else "N"
                 # 规范化 ID 展示
@@ -507,7 +507,11 @@ def search(
                     acc = acc.split(":")[1] if ":" in acc else acc
                 # Samples 为 0 显示为 —
                 samples = str(ds.sample_count) if ds.sample_count > 0 else "—"
-                click.echo(f"{acc:<12} {ds.data_type:<12} {sc:<4} {pert:<5} {samples:<8} {title:<50}")
+                # 规范化物种名称（截断过长的拉丁名）
+                organism = ds.organism or "—"
+                if len(organism) > 9:
+                    organism = organism[:7] + ".."
+                click.echo(f"{acc:<12} {organism:<10} {ds.data_type:<12} {sc:<4} {pert:<5} {samples:<8} {title:<45}")
 
         # 统计摘要（区分来源）
         stats = schema_result.compute_stats()
