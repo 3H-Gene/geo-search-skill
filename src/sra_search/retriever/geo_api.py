@@ -25,42 +25,66 @@ from sra_search.cache import QueryCache
 class GeoRecord:
     """GEO 记录结构
 
-    所有字段类型明确，确保 deterministic 输出
+    第一阶段字段（V1 相关性过滤）：
+    - gse_id, title, summary, overall_design, organism, sample_count, gdstype, platform
+
+    第二阶段字段（LLM 增强）：
+    - pubmed_id, publication_date, ftplink, bioproject_id, platformtitle, suppfile
+    - supplementary_files, series_matrix_available
+    - gsm_sample_names, gsm_attributes
     """
-    gse_id: str
+    gse_id: str = ""
     title: str = ""
-    organism: str = ""
-    platform: str = ""
-    sample_count: int = 0
+    summary: str = ""                       # 第一阶段
+    overall_design: str = ""                # 第一阶段
+    organism: str = ""                      # 第一阶段
+    sample_count: int = 0                   # 第一阶段
+    gdstype: str = ""                       # 第一阶段：实验类型（scRNA/bulk等）
+    platform: str = ""                       # 第一阶段：平台编号
+
+    # 第二阶段：esummary 扩展
     pubmed_id: str = ""
     publication_date: str = ""
-    summary: str = ""
-    overall_design: str = ""      # 实验设计详细描述（GEO 特有字段）
-    keywords: list[str] = field(default_factory=list)
-    bioproject_id: str = ""       # GEO esummary 的 bioproject 字段
-    ftplink: str = ""              # FTP 下载链接
+    ftplink: str = ""
+    bioproject_id: str = ""
+    platformtitle: str = ""                 # 平台名称（人类可读）
+    suppfile: str = ""                      # 补充文件类型字符串
+
+    # 第二阶段：网页解析
     supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]
-    series_matrix_available: bool = False  # 是否提供 Series Matrix 文件
+    series_matrix_available: bool = False
+
+    # 第二阶段：GSM 信息（外部获取后填充）
+    gsm_sample_names: list[str] = field(default_factory=list)
+    gsm_attributes: list[dict] = field(default_factory=list)
 
     # 原始数据（可选）
     raw_data: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            # 第一阶段
             "gse_id": self.gse_id,
             "title": self.title,
-            "organism": self.organism,
-            "platform": self.platform,
-            "sample_count": self.sample_count,
-            "pubmed_id": self.pubmed_id,
-            "publication_date": self.publication_date,
             "summary": self.summary,
             "overall_design": self.overall_design,
-            "keywords": self.keywords,
-            "bioproject_id": self.bioproject_id,
+            "organism": self.organism,
+            "sample_count": self.sample_count,
+            "gdstype": self.gdstype,
+            "platform": self.platform,
+            # 第二阶段：esummary 扩展
+            "pubmed_id": self.pubmed_id,
+            "publication_date": self.publication_date,
             "ftplink": self.ftplink,
+            "bioproject_id": self.bioproject_id,
+            "platformtitle": self.platformtitle,
+            "suppfile": self.suppfile,
+            # 第二阶段：网页解析
             "supplementary_files": self.supplementary_files,
             "series_matrix_available": self.series_matrix_available,
+            # 第二阶段：GSM 信息
+            "gsm_sample_names": self.gsm_sample_names,
+            "gsm_attributes": self.gsm_attributes,
         }
 
     def compute_hash(self) -> str:
@@ -632,100 +656,46 @@ class GeoRetriever:
 
                         item = result[gse_id]
 
-                        # 优先使用 esummary 返回的 accession 字段（真实 GSE 编号）
-                        # GEO esearch 返回的是内部 GDS UID（如 200272217）
-                        # esummary 的 JSON 中 "accession" 字段才是真正的 GSE ID（如 "GSE272217"）
+                        # 使用 esummary 返回的 accession 字段筛选 GSE 记录
+                        # GEO esearch 返回 GDS UID，esummary 返回 accession
+                        # 非 GSE 开头（如 GSM、GPL）的记录直接跳过
                         accession = item.get("accession", "")
-                        if accession and accession.startswith("GSE"):
-                            # 验证 accession 字段本身的位数（防御性检查）
-                            gse_digits = accession[3:]
-                            if gse_digits.isdigit() and len(gse_digits) <= 7:
-                                gse_accession = accession
-                            else:
-                                logger.warning(
-                                    f"Skipping invalid GSE accession '{accession}' "
-                                    f"(digit count={len(gse_digits)}, max=7)"
-                                )
-                                continue
-                        else:
-                            # fallback：GDS UID 减去 200000000 得到 GSE 编号
-                            # 例：200272217 - 200000000 = 272217 → GSE272217
-                            # GEO GSE ID 最多 7 位数字（截至 2026 年约 270000），超出则为无效 UID
-                            try:
-                                uid_int = int(gse_id)
-                                if uid_int > 200000000:
-                                    gse_num = uid_int - 200000000
-                                    if len(str(gse_num)) > 7:
-                                        logger.warning(
-                                            f"Skipping invalid GDS UID {gse_id}: "
-                                            f"derived GSE number {gse_num} has {len(str(gse_num))} digits (max=7)"
-                                        )
-                                        continue
-                                    gse_accession = f"GSE{gse_num}"
-                                else:
-                                    # UID ≤ 200000000：不能用减法，直接用 UID 数字
-                                    # 同样校验位数
-                                    if len(str(uid_int)) > 7:
-                                        logger.warning(
-                                            f"Skipping invalid GDS UID {gse_id}: "
-                                            f"raw UID has {len(str(uid_int))} digits (max=7)"
-                                        )
-                                        continue
-                                    gse_accession = f"GSE{gse_id}"
-                            except (ValueError, TypeError):
-                                gse_accession = f"GSE{gse_id}"
+                        if not accession or not accession.startswith("GSE"):
+                            # 非 GSE 记录（如 GSM UID 3xxxxxxx）直接跳过
+                            logger.debug(f"Skipping non-GSE accession '{accession}' from UID {gse_id}")
+                            continue
 
-                        # 解析补充文件列表
-                        # supplementary_file 可以是 str 或 list[dict]
-                        # dict 格式: {name, type, size}
-                        supp_raw = item.get("supplementary_file", [])
-                        supp_files: list[dict] = []
-                        series_matrix_found = False
-                        if isinstance(supp_raw, list):
-                            for f in supp_raw:
-                                if isinstance(f, dict):
-                                    name = f.get("name", "")
-                                    ftype = f.get("type", "")
-                                    fsize = f.get("size", 0)
-                                else:
-                                    name = str(f)
-                                    ftype = ""
-                                    fsize = 0
-                                supp_files.append({"name": name, "type": ftype, "size": fsize})
-                                if "series_matrix" in name.lower():
-                                    series_matrix_found = True
-                                # 也检查 type 字段
-                                if ftype and "series_matrix" in ftype.lower():
-                                    series_matrix_found = True
-                        elif isinstance(supp_raw, str) and supp_raw:
-                            # 旧格式：直接是字符串
-                            supp_files.append({"name": supp_raw, "type": "", "size": 0})
-                            if "series_matrix" in supp_raw.lower():
-                                series_matrix_found = True
+                        # 验证 GSE 位数（防御性检查）
+                        gse_digits = accession[3:]
+                        if not (gse_digits.isdigit() and 1 <= len(gse_digits) <= 7):
+                            logger.warning(f"Skipping invalid GSE accession '{accession}' (digits: {gse_digits})")
+                            continue
+                        gse_accession = accession
+
+                        # 解析 suppfile（补充文件类型字符串）
+                        suppfile_str = item.get("suppfile", "")
+
+                        # 检测 series_matrix（从 suppfile 字符串中判断）
+                        series_matrix_found = bool(suppfile_str and "series_matrix" in suppfile_str.lower())
 
                         record = GeoRecord(
+                            # 第一阶段字段
                             gse_id=gse_accession,
                             title=item.get("title", ""),
-                            # GEO esummary 字段名（已通过 API 实测确认）：
-                            #   taxon      → organism（物种学名）
-                            #   gpl        → platform（GPL 平台编号）
-                            #   n_samples  → sample_count（样品总数）
-                            #   pdat       → publication_date（入库日期）
-                            #   pubmedids  → list[str]（直接是 PMID 字符串，非嵌套对象）
-                            #   overall_design → 实验设计详细描述
-                            #   supplementary_file → 补充文件列表
-                            #   ftplink    → FTP 下载链接
-                            organism=item.get("taxon", ""),
-                            platform=item.get("gpl", ""),
-                            sample_count=int(item.get("n_samples", 0) or 0),
-                            pubmed_id=item.get("pubmedids", [""])[0] if item.get("pubmedids") else "",
-                            publication_date=item.get("pdat", ""),
                             summary=item.get("summary", ""),
                             overall_design=item.get("overall_design", ""),
-                            keywords=[],  # GEO esummary 无 keywords 字段
-                            bioproject_id=item.get("bioproject", ""),
+                            organism=item.get("taxon", ""),
+                            sample_count=int(item.get("n_samples", 0) or 0),
+                            gdstype=item.get("gdstype", ""),
+                            platform=item.get("gpl", ""),
+                            # 第二阶段字段：esummary 扩展
+                            pubmed_id=item.get("pubmedids", [""])[0] if item.get("pubmedids") else "",
+                            publication_date=item.get("pdat", ""),
                             ftplink=item.get("ftplink", ""),
-                            supplementary_files=supp_files,
+                            bioproject_id=item.get("bioproject", ""),
+                            platformtitle=item.get("platformtitle", ""),
+                            suppfile=suppfile_str,
+                            # 第二阶段字段：网页解析（暂用 suppfile，后续 P1 完善）
                             series_matrix_available=series_matrix_found,
                         )
                         if gse_accession not in seen_accessions:
@@ -753,15 +723,180 @@ class GeoRetriever:
     def _deserialize_records(self, data: list[dict]) -> list[GeoRecord]:
         """反序列化记录（兼容旧缓存格式）"""
         records = []
+        # 新字段默认值
+        new_fields = {
+            "gdstype": "",
+            "platformtitle": "",
+            "suppfile": "",
+            "gsm_sample_names": [],
+            "gsm_attributes": [],
+        }
         for r in data:
             # 旧缓存可能缺少新字段，提供默认值
-            r.setdefault("bioproject_id", "")
+            for field, default in new_fields.items():
+                r.setdefault(field, default)
+            # 也保留旧字段的默认值
             r.setdefault("overall_design", "")
             r.setdefault("ftplink", "")
             r.setdefault("supplementary_files", [])
             r.setdefault("series_matrix_available", False)
             records.append(GeoRecord(**r))
         return records
+
+    async def fetch_supp_files_detail(self, gse_id: str) -> list[dict[str, Any]]:
+        """从 GEO 网页获取补充文件详细信息（第二阶段）。
+
+        esummary 只返回 suppfile 类型字符串（如 "MTX, TSV"），
+        真正的文件名、大小、类型需要解析 GEO 网页。
+
+        Args:
+            gse_id: GSE 编号，如 "GSE217561"
+
+        Returns:
+            list[dict]：补充文件列表，每个 dict 包含 name, size, type
+            例如：[{"name": "GSE217561_RAW.tar", "size": "729.3 Mb", "type": "TAR"}]
+        """
+        try:
+            url = f"https://www.ncbi.nlm.nih.gov/geo/query/acc.cgi?acc={gse_id}&view=full"
+
+            await self._rate_limit()
+
+            async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(ssl=False),
+                timeout=aiohttp.ClientTimeout(total=30),
+            ) as session:
+                async with session.get(url) as resp:
+                    if resp.status != 200:
+                        logger.warning(f"Failed to fetch supp files for {gse_id}: HTTP {resp.status}")
+                        return []
+
+                    html = await resp.text()
+
+            # 解析 HTML 表格
+            # 结构：<table><thead><tr><th>Supplementary file</th><th>Size</th>...
+            files: list[dict[str, Any]] = []
+
+            try:
+                from html.parser import HTMLParser
+
+                class SuppFilesParser(HTMLParser):
+                    def __init__(self: "SuppFilesParser") -> None:
+                        super().__init__()
+                        self.in_table = False
+                        self.in_tbody = False
+                        self.in_row = False
+                        self.in_cell = False
+                        self.current_row: list[str] = []
+                        self.current_cell = ""
+                        self.cell_count = 0
+                        self.files: list[dict[str, Any]] = []
+                        self.skip_next_td = False  # 跳过 Download 列
+
+                    def handle_starttag(self: "SuppFilesParser", tag: str, attrs: list[tuple[str, str | None]]) -> None:
+                        if tag == "table":
+                            self.in_table = True
+                            self.in_tbody = False
+                            self.in_row = False
+                            self.in_cell = False
+                            self.current_row = []
+                            self.current_cell = ""
+                            self.cell_count = 0
+                        elif tag == "tbody" and self.in_table:
+                            self.in_tbody = True
+                        elif tag == "tr" and self.in_tbody:
+                            self.in_row = True
+                            self.current_row = []
+                            self.current_cell = ""
+                            self.cell_count = 0
+                            self.skip_next_td = False
+                        elif tag == "td" and self.in_row:
+                            self.in_cell = True
+                            self.current_cell = ""
+                            # 第3列是 Download 列，跳过
+                            if self.cell_count == 2:
+                                self.skip_next_td = True
+
+                    def handle_endtag(self: "SuppFilesParser", tag: str) -> None:
+                        if tag == "td" and self.in_cell:
+                            self.in_cell = False
+                            self.current_row.append(self.current_cell.strip())
+                            self.cell_count += 1
+                            self.skip_next_td = False
+                        elif tag == "tr" and self.in_row:
+                            self.in_row = False
+                            # 解析行：第0列=文件名, 第1列=大小, 第3列=类型
+                            # 第2列是 Download 链接，跳过
+                            if len(self.current_row) >= 4:
+                                name = self.current_row[0]
+                                size = self.current_row[1]
+                                ftype = self.current_row[3]
+                                # 跳过空行或资源链接行
+                                if name and not name.startswith("/"):
+                                    self.files.append({
+                                        "name": name,
+                                        "size": size,
+                                        "type": ftype,
+                                    })
+                        elif tag == "tbody" and self.in_tbody:
+                            self.in_tbody = False
+                        elif tag == "table":
+                            self.in_table = False
+
+                    def handle_data(self: "SuppFilesParser", data: str) -> None:
+                        if self.in_cell and not self.skip_next_td:
+                            self.current_cell += data
+
+                parser = SuppFilesParser()
+                parser.feed(html)
+                files = parser.files
+
+            except Exception as e:
+                logger.warning(f"Failed to parse supp files HTML for {gse_id}: {e}")
+                return []
+
+            if files:
+                logger.debug(f"Fetched {len(files)} supp files for {gse_id}")
+
+            return files
+
+        except Exception as e:
+            logger.warning(f"Error fetching supp files for {gse_id}: {e}")
+            return []
+
+    async def fetch_supp_files_batch(
+        self, gse_ids: list[str], concurrency: int = 3
+    ) -> dict[str, list[dict[str, Any]]]:
+        """批量获取多个 GSE 的补充文件详情（第二阶段）。
+
+        Args:
+            gse_ids: GSE 编号列表
+            concurrency: 最大并发数（默认3，避免频繁请求）
+
+        Returns:
+            dict[GSE_ID, supp_files列表]
+        """
+        if not gse_ids:
+            return {}
+
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _fetch_one(gse_id: str) -> tuple[str, list[dict[str, Any]]]:
+            async with semaphore:
+                files = await self.fetch_supp_files_detail(gse_id)
+                return gse_id, files
+
+        tasks = [_fetch_one(gse_id) for gse_id in gse_ids]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        out: dict[str, list[dict[str, Any]]] = {}
+        for item in results:
+            if isinstance(item, BaseException):
+                continue
+            gse_id, files = item
+            if files:
+                out[gse_id] = files
+
+        return out
 
 
 class FailureHandler:

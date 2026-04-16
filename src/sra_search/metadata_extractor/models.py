@@ -116,8 +116,12 @@ class DatasetRecord:
     abstract: str = ""             # 摘要（来自 GEO summary 字段）
     overall_design: str = ""       # 实验设计详细描述（来自 GEO overall_design 字段）
     keywords: list[str] = field(default_factory=list)
+    # --- GEO 特有字段 ---
+    gdstype: str = ""                # 实验类型（如 "Expression profiling by high throughput sequencing"）
+    platformtitle: str = ""          # 平台名称（人类可读，如 "Illumina NovaSeq 6000"）
+    suppfile: str = ""              # 补充文件类型字符串
     # --- 数据文件信息 ---
-    supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]
+    supplementary_files: list[dict] = field(default_factory=list)  # [{name, type, size}]（第二阶段网页获取）
     series_matrix_available: bool = False
     ftplink: str = ""
     # --- 系统字段 ---
@@ -201,6 +205,10 @@ class DatasetRecord:
             "supplementary_files": _json_dumps(self.supplementary_files),
             "series_matrix_available": 1 if self.series_matrix_available else 0,
             "ftplink": self.ftplink,
+            # GEO 特有字段
+            "gdstype": self.gdstype,
+            "platformtitle": self.platformtitle,
+            "suppfile": self.suppfile,
             "first_seen_at": self.first_seen_at,
             "last_updated": self.last_updated,
             "version": self.version,
@@ -245,6 +253,10 @@ class DatasetRecord:
             supplementary_files=_json_loads(row.get("supplementary_files", "[]")),
             series_matrix_available=bool(row.get("series_matrix_available", 0)),
             ftplink=row.get("ftplink", ""),
+            # GEO 特有字段
+            gdstype=row.get("gdstype", ""),
+            platformtitle=row.get("platformtitle", ""),
+            suppfile=row.get("suppfile", ""),
             first_seen_at=row.get("first_seen_at", _now_iso()),
             last_updated=row.get("last_updated", _now_iso()),
             version=row.get("version", 1),

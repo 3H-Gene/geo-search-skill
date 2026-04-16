@@ -313,7 +313,8 @@ class Database:
 
         # 2026-04-14: 新增 overall_design, supplementary_files, series_matrix_available, ftplink 列
         # 2026-04-15: 新增 llm_summary, llm_sample_grouping, llm_cell_count, llm_relevance_reason, llm_analyzed_at, llm_model 列
-        # 2026-04-16: 新增 gsm_sample_names 列（搜索阶段获取，用于样本分组推断）
+        # 2026-04-16: 新增 gsm_sample_names, gsm_attributes 列（搜索阶段获取，用于样本分组推断）
+        # 2026-04-16: 新增 gdstype, platformtitle, suppfile 列（GEO 特有字段）
         migrations = [
             ("overall_design", "ALTER TABLE datasets ADD COLUMN overall_design TEXT DEFAULT ''"),
             ("supplementary_files", "ALTER TABLE datasets ADD COLUMN supplementary_files TEXT DEFAULT '[]'"),
@@ -327,6 +328,9 @@ class Database:
             ("llm_model", "ALTER TABLE datasets ADD COLUMN llm_model TEXT DEFAULT ''"),
             ("gsm_sample_names", "ALTER TABLE datasets ADD COLUMN gsm_sample_names TEXT DEFAULT '[]'"),
             ("gsm_attributes", "ALTER TABLE datasets ADD COLUMN gsm_attributes TEXT DEFAULT '[]'"),
+            ("gdstype", "ALTER TABLE datasets ADD COLUMN gdstype TEXT DEFAULT ''"),
+            ("platformtitle", "ALTER TABLE datasets ADD COLUMN platformtitle TEXT DEFAULT ''"),
+            ("suppfile", "ALTER TABLE datasets ADD COLUMN suppfile TEXT DEFAULT ''"),
         ]
 
         for col_name, sql in migrations:

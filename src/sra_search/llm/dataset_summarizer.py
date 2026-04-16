@@ -85,18 +85,31 @@ class LLMDatasetSummarizer:
 
     SYSTEM_PROMPT = """你是一个专业的生物信息学数据评审专家。
 
-你的任务是分析给定的数据集，帮助用户判断该数据集是否符合其研究需求。
+你的任务是为每个GEO数据集生成完整的描述摘要，帮助用户快速判断数据集是否符合其研究需求。
 
-重要：样本分组信息是用户最关心的字段，请优先从样本属性(GSM attributes)中提取分组信息！
-- 如果有GSM样本属性，优先分析其中的分组字段（如source_name, treatment, condition, disease state, group等）
-- 统计每个分组的样本数量，输出如"病例(n=4)/对照(n=5)"或"发作期(n=3)+缓解期(n=3)"
-- 如果GSM属性中没有明确的分组信息，再从overall_design或summary中推断
+## one_sentence_summary 生成要求
+生成一个完整的数据集描述（100-200字），包含以下要素：
+1. **研究主题**：疾病名称或科学问题
+2. **实验类型**：scRNA-seq/bulk RNA-seq/ATAC-seq等
+3. **物种和样本来源**：包括组织类型或细胞类型
+4. **样本数量和分组**：总样本数及实验组/对照组分布
+5. **测序平台和技术**：如Illumina NovaSeq 6000
+6. **数据处理方式**：是否有processed matrix，还是raw data only
+7. **关键实验条件**：处理因素、时间点、疾病状态等
 
-输出要求：
+描述风格：学术但易懂，像论文引言中的数据集介绍。
+
+## 样本分组识别（重要！）
+优先从GSM样本属性中提取分组信息：
+- 分析source_name, treatment, condition, disease_state, group等字段
+- 统计每个分组的样本数量
+- 输出格式："病例(n=4)/对照(n=5)"或"发作期(n=3)+缓解期(n=3)"
+- 如果GSM属性中没有明确分组信息，从overall_design或summary推断
+
+## 输出要求
 - 使用中文输出
-- 一句话总结要简洁（不超过60字），突出核心发现
-- 样本分组要具体（优先用结构化格式：分组名(n=数量)）
-- 相关性理由要说明为什么该数据集与查询相关
+- one_sentence_summary要完整（100-200字），不是简短的一句话
+- 样本分组要具体（结构化格式：分组名(n=数量)）
 - 如果某项信息不明确，输出"NA"
 """
 
@@ -106,10 +119,12 @@ class LLMDatasetSummarizer:
 - 摘要: {summary}
 - 实验设计: {overall_design}
 - 物种: {organism}
-- 组织: {tissue}
+- 组织/细胞: {tissue}
 - 数据类型: {data_type}
+- 实验粒度: {granularity}
 - 样本数: {sample_count}
 - 测序平台: {platform}
+- 发表日期: {publication_date}
 - 补充文件格式: {supp_files}
 - Series Matrix: {series_matrix}
 
@@ -121,8 +136,21 @@ class LLMDatasetSummarizer:
 
 ## 输出要求
 请严格按以下JSON格式输出，不要包含其他内容：
+
+请生成一个完整的数据集描述，包含以下要素：
+1. 研究主题/疾病/科学问题
+2. 实验类型（scRNA-seq/bulk RNA-seq/ATAC-seq等）
+3. 物种和样本来源（组织/细胞类型）
+4. 样本数量和分组情况
+5. 测序平台和技术
+6. 数据处理方式（有processed matrix还是raw data）
+7. 关键实验条件或处理因素
+
+示例格式：
+"[GSE123456]是一项关于[疾病/研究问题]的[实验类型]研究，采集自[物种]的[组织/细胞类型]（共[样本数]个样本，包含[分组信息]），使用[平台]完成测序。[数据描述/处理方式]。[发表年份]"
+
 {{
-    "one_sentence_summary": "一句话总结（不超过60字，突出核心发现）",
+    "one_sentence_summary": "完整数据集描述（100-200字，包含研究主题、实验类型、物种、组织、样本数、平台、数据处理方式和关键条件）",
     "sample_grouping": "样本分组描述，使用结构化格式如'病例(n=4)/对照(n=5)'或'发作期(n=3)+缓解期(n=3)'，无法确定则输出'NA'",
     "cell_count": "细胞数，如'15K'、'28.5K'、'1.2M'，无法确定则输出'NA'",
     "relevance_reason": "相关性理由，说明该数据集为何与查询相关"
@@ -223,8 +251,10 @@ class LLMDatasetSummarizer:
             organism=dataset.organism or "NA",
             tissue=dataset.tissue or "NA",
             data_type=dataset.data_type or "NA",
+            granularity=dataset.granularity or "NA",
             sample_count=str(dataset.sample_count) if dataset.sample_count else "NA",
             platform=dataset.platform or "NA",
+            publication_date=dataset.publication_date or "NA",
             supp_files=file_info,
             series_matrix="有" if dataset.series_matrix_available else "无",
             gsm_attributes=gsm_attrs_formatted,

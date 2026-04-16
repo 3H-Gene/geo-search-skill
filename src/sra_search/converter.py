@@ -1042,14 +1042,15 @@ async def records_to_search_result_with_llm(
         logger.info(f"  └─ 所有 {len(prefilter_passed)} 条均通过预过滤")
 
     # ── Step 2.4: V1 相关性阈值过滤（跳过明显不相关的数据集）────────────
-    # 设定相关性阈值，低于阈值的数据集直接跳过，不调用 LLM
-    relevance_threshold = 0.15  # V1 relevance_score 低于此值视为不相关
+    # 注意：V1 阈值过滤已在 aggregator.search() 中完成（--relevance-threshold 参数）
+    # 这里只做最后的保险检查，跳过极少数遗漏的低相关数据
+    relevance_min_threshold = 0.05  # 安全阈值，不再调用 LLM
     relevance_skipped: list[tuple[DatasetSchema, str]] = []
 
     still_candidates: list[DatasetSchema] = []
     for ds in prefilter_passed:
-        if ds.relevance_score < relevance_threshold:
-            relevance_skipped.append((ds, f"V1相关性分数 {ds.relevance_score:.2f} < {relevance_threshold}"))
+        if ds.relevance_score < relevance_min_threshold:
+            relevance_skipped.append((ds, f"V1相关性分数 {ds.relevance_score:.2f} < {relevance_min_threshold}"))
         else:
             still_candidates.append(ds)
 

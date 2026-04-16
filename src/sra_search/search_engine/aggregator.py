@@ -80,6 +80,7 @@ class SearchAggregator:
         min_date: str | None = None,
         max_date: str | None = None,
         strict_scrna: bool = False,
+        relevance_threshold: float = 0.30,
     ) -> list[DatasetSearchResult]:
         """执行多源检索
 
@@ -91,9 +92,11 @@ class SearchAggregator:
             min_date: 最早发表日期（YYYY/MM/DD），仅 SRA/GEO 支持
             max_date: 最晚发表日期（YYYY/MM/DD）
             strict_scrna: 是否启用严格 scRNA-seq 过滤（仅 SRA 源）
+            relevance_threshold: V1 预筛选相关性阈值（默认 0.30），
+                                 只有 match_score >= 此值的结果才会返回
 
         Returns:
-            DatasetSearchResult 列表（按 match_score 降序）
+            DatasetSearchResult 列表（按 match_score 降序，已过滤）
         """
         settings = get_settings()
         retmax = retmax or settings.search_retmax
@@ -169,8 +172,29 @@ class SearchAggregator:
                     seen_gse_ids.add(gse_key)
                     all_results.append(r)
 
-        # ── Step 4: 排序与汇总 ─────────────────────────────────────────────
+        # ── Step 4: 排序 ─────────────────────────────────────────────────
         all_results.sort(key=lambda x: x.match_score, reverse=True)
+
+        # ── Step 5: V1 阈值过滤 ───────────────────────────────────────────
+        # 只有 match_score >= relevance_threshold 的结果才会进入后续处理
+        before_filter = len(all_results)
+        all_results = [r for r in all_results if r.match_score >= relevance_threshold]
+        filtered_count = before_filter - len(all_results)
+
+        if filtered_count > 0:
+            logger.info(f"[Step 4] V1 阈值过滤: {before_filter} → {len(all_results)} 条 "
+                        f"(relevance_threshold={relevance_threshold}, 过滤 {filtered_count} 条)")
+
+        # ── Step 6: 获取 GSM 信息（用于样本分组推断）───────────────────────
+        # 这在 V1 和 V1+LLM 模式下都需要
+        if all_results and self.geo_retriever:
+            gse_ids = [r.dataset.gse_id for r in all_results]
+            logger.debug(f"[Step 5] 获取 GSM 样本信息: {len(gse_ids)} 个 GSE")
+            gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+            gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
+            for r in all_results:
+                r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
+                r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
         # 计算总分统计
         total_raw = sum(source_raw_counts.values())
@@ -180,9 +204,10 @@ class SearchAggregator:
         )
         avg_score = sum(r.match_score for r in all_results) / len(all_results) if all_results else 0
 
-        logger.info("[Step 4] 检索完成汇总:")
+        logger.info("[Step 5] V1 检索完成汇总:")
         logger.info(f"  ├─ 各源原始命中: {source_raw_counts}")
-        logger.info(f"  ├─ 合并后总数: {len(all_results)} 条 (去重率: {(1 - len(all_results)/total_raw)*100:.1f}%)" if total_raw > 0 else f"  ├─ 合并后总数: {len(all_results)} 条")
+        logger.info(f"  ├─ 合并后总数: {before_filter} 条 (去重率: {(1 - before_filter/total_raw)*100:.1f}%)" if total_raw > 0 else f"  ├─ 合并后总数: {before_filter} 条")
+        logger.info(f"  ├─ 阈值过滤后: {len(all_results)} 条 (过滤率: {filtered_count/before_filter*100:.1f}%)" if before_filter > 0 else "")
         logger.info(f"  ├─ 单细胞数据集: {sc_count} 条")
         logger.info(f"  └─ 平均匹配分数: {avg_score:.3f}")
         if failed_sources:
@@ -227,6 +252,10 @@ class SearchAggregator:
                     series_matrix_available=geo_rec.series_matrix_available,
                     ftplink=geo_rec.ftplink,
                     has_gse=True,
+                    # 第二阶段字段
+                    gdstype=geo_rec.gdstype,
+                    platformtitle=geo_rec.platformtitle,
+                    suppfile=geo_rec.suppfile,
                 )
                 dataset.update_hash()
 
@@ -247,18 +276,6 @@ class SearchAggregator:
                     match_score=geo_score,
                     matched_keyword=query,
                 ))
-
-            # ── 获取 GSM 样本名和属性（用于样本分组推断）─────────────────────────
-            if records:
-                gse_ids = [r.dataset.gse_id for r in records]
-                logger.debug(f"[GEO] Fetching GSM samples for {len(gse_ids)} GSE...")
-                # 获取 GSM 样本名称列表
-                gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
-                # 获取 GSM 详细属性（用于分组识别）
-                gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
-                for r in records:
-                    r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
-                    r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
             return records
 
@@ -387,35 +404,23 @@ class SearchAggregator:
                     logger.debug(f"SRA: skipping unrelated SRA-only record {srp_id}: {sra_rec.title[:60]}")  # type: ignore[union-attr]
                     continue
 
-                    dataset = DatasetRecord(
-                        gse_id=srp_id,
-                        title=sra_rec.title,  # type: ignore[union-attr]
-                        organism=sra_rec.organism,  # type: ignore[union-attr]
-                        platform=sra_rec.platform,  # type: ignore[union-attr]
-                        sample_count=sra_rec.sample_count,  # type: ignore[union-attr]
-                        sra_ids=[srp_id],
-                        bioproject_ids=sra_rec.bioproject_ids,  # type: ignore[union-attr]
-                        has_gse=False,
-                    )
-                    dataset.update_hash()
-                    records.append(DatasetSearchResult(
-                        dataset=dataset,
-                        match_source=MatchSource.SRA.value,
-                        match_score=0.4,
-                        matched_keyword=query,
-                    ))
-
-            # ── 获取 GSM 样本名和属性（仅针对有 GSE 关联的记录）──────────────────
-            if records:
-                gse_ids = [r.dataset.gse_id for r in records if r.dataset.has_gse]
-                if gse_ids:
-                    logger.debug(f"[SRA] Fetching GSM samples for {len(gse_ids)} GSE...")
-                    gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
-                    gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
-                    for r in records:
-                        if r.dataset.has_gse:
-                            r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
-                            r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
+                dataset = DatasetRecord(
+                    gse_id=srp_id,
+                    title=sra_rec.title,  # type: ignore[union-attr]
+                    organism=sra_rec.organism,  # type: ignore[union-attr]
+                    platform=sra_rec.platform,  # type: ignore[union-attr]
+                    sample_count=sra_rec.sample_count,  # type: ignore[union-attr]
+                    sra_ids=[srp_id],
+                    bioproject_ids=sra_rec.bioproject_ids,  # type: ignore[union-attr]
+                    has_gse=False,
+                )
+                dataset.update_hash()
+                records.append(DatasetSearchResult(
+                    dataset=dataset,
+                    match_source=MatchSource.SRA.value,
+                    match_score=0.4,
+                    matched_keyword=query,
+                ))
 
             return records
 
@@ -491,16 +496,6 @@ class SearchAggregator:
                         match_score=0.5,
                         matched_keyword=query,
                     ))
-
-            # ── 获取 GSM 样本名和属性（用于样本分组推断）─────────────────────────
-            if records:
-                gse_ids = [r.dataset.gse_id for r in records]
-                logger.debug(f"[PubMed] Fetching GSM samples for {len(gse_ids)} GSE...")
-                gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
-                gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
-                for r in records:
-                    r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
-                    r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
             return records
 

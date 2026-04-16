@@ -105,6 +105,8 @@ def main(verbose: bool = False, config: str | None = None):
 @click.option("--strict-scrna", is_flag=True, default=False,
               help="启用严格 scRNA-seq 过滤（仅 SRA 源，排除 Smart-seq 等低通量方法）")
 @click.option("--save/--no-save", default=True, help="是否保存到数据库")
+@click.option("--relevance-threshold", default=0.30, type=float,
+              help="V1 预筛选相关性阈值（默认 0.30），只有 relevance_score >= 此值的结果才会进入后续处理")
 # ── LLM 参数（V2 新增）──
 @click.option("--llm/--no-llm", "use_llm", default=None, is_flag=True,
               help="V1+LLM 模式：V1 预过滤后 LLM 重排（需配置 API Key）。"
@@ -140,6 +142,7 @@ def search(
     until: str | None,
     strict_scrna: bool,
     save: bool,
+    relevance_threshold: float,
     use_llm: bool | None,
     llm_only: bool,
     llm_min_relevance: float | None,
@@ -160,12 +163,17 @@ def search(
     - id-list: 仅 GSE ID 列表（适合管道处理）
     - csv: CSV 文件（含全量字段，适合 Excel 筛选分析）
 
-    V2 LLM 辅助功能（三种模式）：
-    - (default, 无 flag): 纯 V1 关键词模式
-    - --llm: V1 预过滤 + LLM 重排（推荐，默认 top_k=20）
-    - --llm-only: 纯 LLM 模式，对所有结果评分（忽略 V1 预过滤，不限 top_k）
-    - --summarize: 生成自然语言摘要
-    - --llm: 启用 LLM 语义评分，提升结果相关性
+    检索流程（两步）：
+    - 阶段 1: V1 关键词预筛选（esummary 基础字段）
+      → 基于 relevance_threshold 阈值过滤（如 --relevance-threshold 0.30）
+    - 阶段 2: V1 输出 或 V1+LLM 增强
+      → 无 --llm：直接输出 V1 表格
+      → 有 --llm：获取详细字段 → LLM 语义分析 → 重排序+摘要
+
+    V2 LLM 辅助功能：
+    - (default, 无 --llm): 纯 V1 关键词模式
+    - --llm: V1 阈值过滤 → LLM 重排（推荐）
+    - --llm-only: 纯 LLM 模式，对所有结果评分（忽略 V1 预过滤）
     - --summarize: 生成自然语言摘要
     - --analyze-query: 显示 LLM 解析的查询意图
 
@@ -174,12 +182,12 @@ def search(
       sra-search search "gout single cell" --organism human --since 2022/01/01
       sra-search search "liver fibrosis" --sources geo --format id-list
       sra-search search "single cell" --organism mouse --strict-scrna
-      sra-search search "gout single cell" --llm --summarize
+      sra-search search "gout single cell" --relevance-threshold 0.35  # 更严格过滤
+      sra-search search "gout single cell" --llm --summarize  # LLM 增强模式
       sra-search search "liver fibrosis" --llm --llm-provider openai --llm-model gpt-4o
       sra-search search "covid single cell" --llm-only  # 纯 LLM 模式，不限 top_k
       sra-search search "gout" --llm --llm-min-relevance 0.05  # 跳过 V1 零相关结果
-      sra-search search "gout single cell" --format csv > results.csv  # 导出 CSV（Excel 可直接打开）
-      sra-search search "gout single cell" --llm --format csv > results_llm.csv  # 含 LLM 分析的 CSV
+      sra-search search "gout single cell" --format csv > results.csv  # 导出 CSV
     """
     import json
 
@@ -228,14 +236,15 @@ def search(
                 min_date=since,
                 max_date=until,
                 strict_scrna=strict_scrna,
+                relevance_threshold=relevance_threshold,
             )
             return results
         finally:
             await client.close()
 
-    # ── 阶段 1: 多源检索 ─────────────────────────────────────────────────────
+    # ── 阶段 1: V1 多源检索 + 阈值过滤 ─────────────────────────────────────────
     logger.info("=" * 60)
-    logger.info("阶段 1/3: 多源检索")
+    logger.info("阶段 1: V1 多源检索（relevance_threshold={})".format(relevance_threshold))
     logger.info("=" * 60)
 
     search_results = run_async(_do_search())
@@ -273,9 +282,12 @@ def search(
     if (llm_api_key or llm_provider) and use_llm is not False:
         should_use_llm = True
 
-    # ── 阶段 2: Schema 转换与排序 ──────────────────────────────────────────
+    # ── 阶段 2: Schema 转换与排序（LLM 增强）────────────────────────────────────
     logger.info("=" * 60)
-    logger.info("阶段 2/3: Schema 转换与排序")
+    if should_use_llm or llm_only:
+        logger.info("阶段 2: V1+LLM 增强模式")
+    else:
+        logger.info("阶段 2: V1 模式（--llm 关闭）")
     logger.info("=" * 60)
 
     # 输出模式提示
