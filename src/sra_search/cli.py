@@ -268,19 +268,12 @@ def search(
 
     # ── 判断运行模式 ────────────────────────────────────────────────────────
     settings = get_settings()
-    should_use_llm = False
 
-    # CLI --llm/--no-llm 优先，其次看 settings.llm_enabled
-    if use_llm is True:
-        should_use_llm = True
-    elif use_llm is False:
-        should_use_llm = False
-    elif settings.llm_enabled:
-        should_use_llm = True
-
-    # 如果传入了 api_key / provider，隐式启用 LLM
-    if (llm_api_key or llm_provider) and use_llm is not False:
-        should_use_llm = True
+    # CLI --llm/--no-llm 是唯一控制开关
+    # - 显式传 --llm：启用 LLM
+    # - 显式传 --no-llm：禁用 LLM
+    # - 未传参数：默认禁用（V1 模式）
+    should_use_llm = use_llm is True
 
     # ── 阶段 2: Schema 转换与排序（LLM 增强）────────────────────────────────────
     logger.info("=" * 60)
