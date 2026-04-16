@@ -208,9 +208,13 @@ class GeoRetriever:
                     if count_elem is None:
                         return False
                     return int(count_elem.text or "0") > 0
-        except Exception:
-            # 网络错误时保守处理：不过滤，保留该 GSE
-            return True
+        except Exception as e:
+            # 网络错误时保守失败：不过滤无效 GSE，丢弃该 ID
+            # 这意味着无效 GSE 可能导致下游少结果，但不会把假 GSE 传给 LLM
+            logger.warning(
+                f"GEO esearch failed for '{gse_id}', skipping validation: {e}"
+            )
+            return False
 
     async def filter_valid_gse_ids(self, gse_ids: list[str]) -> list[str]:
         """批量验证 GSE ID 列表，返回仅存在于 GEO 的 ID。

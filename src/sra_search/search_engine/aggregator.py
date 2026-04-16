@@ -439,7 +439,17 @@ class SearchAggregator:
                 if not all_gse_ids:
                     continue
 
-                for gse_id in all_gse_ids[:5]:  # 最多取5个
+                # 在线校验：论文 title 是自由文本，必须通过 NCBI esearch 确认 GSE 真实存在
+                # 网络错误时 gse_exists 返回 False，该 GSE 被丢弃（不降级为"保守保留"）
+                valid_gse_ids = await self.geo_retriever.filter_valid_gse_ids(all_gse_ids)
+                if not valid_gse_ids:
+                    logger.debug(
+                        f"PubMed: PMID={pub_rec.pmid} '{pub_rec.title[:60]}': "
+                        f"all GSE IDs [{', '.join(all_gse_ids)}] failed NCBI validation"
+                    )
+                    continue
+
+                for gse_id in valid_gse_ids[:5]:  # 最多取5个
                     dataset = DatasetRecord(
                         gse_id=gse_id,
                         title=pub_rec.title,
