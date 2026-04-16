@@ -197,18 +197,15 @@ class SearchAggregator:
                 r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
         # 计算总分统计
+        # 注意：DatasetRecord 没有 inference 模块推断的 granularity，
+        # 单细胞统计应在 schema 转换后进行（见 cli.py schema_result.compute_stats()）
         total_raw = sum(source_raw_counts.values())
-        sc_count = sum(
-            1 for r in all_results
-            if r.dataset.omics_granularity == "single_cell"
-        )
         avg_score = sum(r.match_score for r in all_results) / len(all_results) if all_results else 0
 
         logger.info("[Step 5] V1 检索完成汇总:")
         logger.info(f"  ├─ 各源原始命中: {source_raw_counts}")
         logger.info(f"  ├─ 合并后总数: {before_filter} 条 (去重率: {(1 - before_filter/total_raw)*100:.1f}%)" if total_raw > 0 else f"  ├─ 合并后总数: {before_filter} 条")
         logger.info(f"  ├─ 阈值过滤后: {len(all_results)} 条 (过滤率: {filtered_count/before_filter*100:.1f}%)" if before_filter > 0 else "")
-        logger.info(f"  ├─ 单细胞数据集: {sc_count} 条")
         logger.info(f"  └─ 平均匹配分数: {avg_score:.3f}")
         if failed_sources:
             logger.warning(f"  └─ 失败数据源: {failed_sources}")

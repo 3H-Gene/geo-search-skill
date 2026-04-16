@@ -513,9 +513,10 @@ def search(
         stats = schema_result.compute_stats()
         click.echo("\n--- Summary ---")
         click.echo(f"Total: {stats['total_found']} | scRNA-seq: {stats['scRNA_seq']} | with perturbation: {stats['with_perturbation']}")
-        # 说明各源合并情况（当有多个数据源时）
-        click.echo("\nNote: Results are deduplicated across GEO, SRA, and PubMed sources.")
-        click.echo("PubMed branch links publications to GEO; not all papers have linked datasets.")
+        # 说明数据源情况
+        # 注意：GEO 已关联 SRA/PubMed ID，无需多源检索
+        click.echo(f"\nNote: Results from {sources_list or ['geo']} source(s).")
+        click.echo("GEO datasets already link to associated SRA/PubMed IDs.")
 
     if save:
         from sra_search.data_store.database import get_database
@@ -620,7 +621,7 @@ def search(
             report_id = report_service.save_report(
                 query=keyword,
                 mode=mode,
-                sources=sources_list or ["geo", "sra", "pubmed"],
+                sources=sources_list or ["geo"],
                 total_found=len(search_results),
                 returned_count=len(schema_result.results),
                 llm_model=schema_result.llm_model,
@@ -636,7 +637,7 @@ def search(
     logger.info("=" * 60)
     logger.info(f"  查询词: {keyword}")
     logger.info(f"  模式: {'V1 关键词模式' if not should_use_llm and not llm_only else ('V1+LLM 模式' if not llm_only else 'LLM-only 模式')}")
-    logger.info(f"  检索数据源: {sources_list or ['geo', 'sra', 'pubmed']}")
+    logger.info(f"  检索数据源: {sources_list or ['geo']}")
     logger.info(f"  获取记录数: {len(search_results)}")
     logger.info(f"  输出记录数: {len(schema_result.results)} (top={top})")
     logger.info(f"  单细胞数据集: {sc_count} 条 ({sc_count/len(schema_result.results)*100:.1f}%)" if schema_result.results else "  单细胞数据集: 0 条")
