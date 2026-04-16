@@ -550,16 +550,24 @@ def search(
                     cursor.execute("""
                         INSERT INTO datasets (gse_id, title, pubmed_ids, sra_ids, bioproject_ids,
                             organism, disease, organ, omics_type, omics_granularity, sample_count,
-                            platform, publication_date, journal, abstract, keywords,
+                            platform, publication_date, journal, abstract, overall_design, keywords,
+                            supplementary_files, series_matrix_available, ftplink,
                             first_seen_at, last_updated, version, change_log,
                             availability_status, availability_note, availability_checked_at,
-                            access_type, has_gse, metadata_hash)
+                            access_type, has_gse, metadata_hash,
+                            llm_summary, llm_sample_grouping, llm_cell_count,
+                            llm_relevance_reason, llm_analyzed_at, llm_model,
+                            gsm_sample_names, gsm_attributes)
                         VALUES (:gse_id, :title, :pubmed_ids, :sra_ids, :bioproject_ids,
                             :organism, :disease, :organ, :omics_type, :omics_granularity, :sample_count,
-                            :platform, :publication_date, :journal, :abstract, :keywords,
+                            :platform, :publication_date, :journal, :abstract, :overall_design, :keywords,
+                            :supplementary_files, :series_matrix_available, :ftplink,
                             :first_seen_at, :last_updated, :version, :change_log,
                             :availability_status, :availability_note, :availability_checked_at,
-                            :access_type, :has_gse, :metadata_hash)
+                            :access_type, :has_gse, :metadata_hash,
+                            :llm_summary, :llm_sample_grouping, :llm_cell_count,
+                            :llm_relevance_reason, :llm_analyzed_at, :llm_model,
+                            :gsm_sample_names, :gsm_attributes)
                         ON CONFLICT(gse_id) DO UPDATE SET
                             title = COALESCE(NULLIF(:title, ''), title),
                             pubmed_ids = CASE WHEN :pubmed_ids != '[]' THEN :pubmed_ids ELSE pubmed_ids END,
@@ -575,7 +583,11 @@ def search(
                             publication_date = COALESCE(NULLIF(:publication_date, ''), publication_date),
                             journal = COALESCE(NULLIF(:journal, ''), journal),
                             abstract = CASE WHEN LENGTH(:abstract) > LENGTH(abstract) THEN :abstract ELSE abstract END,
+                            overall_design = CASE WHEN LENGTH(:overall_design) > LENGTH(overall_design) THEN :overall_design ELSE overall_design END,
                             keywords = CASE WHEN :keywords != '[]' THEN :keywords ELSE keywords END,
+                            supplementary_files = CASE WHEN :supplementary_files != '[]' THEN :supplementary_files ELSE supplementary_files END,
+                            series_matrix_available = :series_matrix_available,
+                            ftplink = COALESCE(NULLIF(:ftplink, ''), ftplink),
                             last_updated = :last_updated,
                             version = :version,
                             change_log = :change_log,
@@ -584,7 +596,15 @@ def search(
                             availability_checked_at = :availability_checked_at,
                             access_type = :access_type,
                             has_gse = :has_gse,
-                            metadata_hash = :metadata_hash
+                            metadata_hash = :metadata_hash,
+                            llm_summary = COALESCE(NULLIF(:llm_summary, ''), llm_summary),
+                            llm_sample_grouping = COALESCE(NULLIF(:llm_sample_grouping, ''), llm_sample_grouping),
+                            llm_cell_count = COALESCE(NULLIF(:llm_cell_count, ''), llm_cell_count),
+                            llm_relevance_reason = COALESCE(NULLIF(:llm_relevance_reason, ''), llm_relevance_reason),
+                            llm_analyzed_at = COALESCE(NULLIF(:llm_analyzed_at, ''), llm_analyzed_at),
+                            llm_model = COALESCE(NULLIF(:llm_model, ''), llm_model),
+                            gsm_sample_names = CASE WHEN :gsm_sample_names != '[]' THEN :gsm_sample_names ELSE gsm_sample_names END,
+                            gsm_attributes = CASE WHEN :gsm_attributes != '[]' THEN :gsm_attributes ELSE gsm_attributes END
                     """, row)
                     flushed += 1
                 except Exception as e:

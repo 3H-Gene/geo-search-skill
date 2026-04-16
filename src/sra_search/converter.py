@@ -1458,5 +1458,33 @@ async def records_to_search_result_with_llm(
 
     logger.info(f"[Step 2.8] Schema 转换完成: {original_count} → {len(result.results)} 条 (top={top_n})")
 
+    # ── Step 9: 同步 LLM 字段回原始 records（供数据库保存）────────────────
+    # result.results 是 DatasetSchema，records 是 DatasetRecord
+    # 需要将 LLM 分析结果同步回原始 records，以便保存到数据库
+    schema_map: dict[str, DatasetSchema] = {ds.gse_id: ds for ds in result.results}
+    for record in records:
+        if record.gse_id in schema_map:
+            schema = schema_map[record.gse_id]
+            record.llm_one_sentence_summary = schema.llm_one_sentence_summary
+            record.llm_sample_grouping = schema.llm_sample_grouping
+            record.llm_cell_count = schema.llm_cell_count
+            record.llm_relevance_reason = schema.llm_relevance_reason
+            record.llm_analyzed_at = schema.llm_analyzed_at
+            record.llm_model = schema.llm_model
+            # 同步 GSM 信息
+            if schema.gsm_sample_names:
+                record.gsm_sample_names = schema.gsm_sample_names
+            if schema.gsm_attributes:
+                record.gsm_attributes = schema.gsm_attributes
+            # 同步补充文件信息
+            if schema.supplementary_files:
+                record.supplementary_files = schema.supplementary_files
+            if schema.series_matrix_available:
+                record.series_matrix_available = schema.series_matrix_available
+            if schema.ftp_link:
+                record.ftplink = schema.ftp_link
+            if schema.overall_design:
+                record.overall_design = schema.overall_design
+
     return result
 
