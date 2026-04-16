@@ -342,16 +342,40 @@ class GeoRetriever:
                         # esummary 的 JSON 中 "accession" 字段才是真正的 GSE ID（如 "GSE272217"）
                         accession = item.get("accession", "")
                         if accession and accession.startswith("GSE"):
-                            gse_accession = accession
+                            # 验证 accession 字段本身的位数（防御性检查）
+                            gse_digits = accession[3:]
+                            if gse_digits.isdigit() and len(gse_digits) <= 7:
+                                gse_accession = accession
+                            else:
+                                logger.warning(
+                                    f"Skipping invalid GSE accession '{accession}' "
+                                    f"(digit count={len(gse_digits)}, max=7)"
+                                )
+                                continue
                         else:
                             # fallback：GDS UID 减去 200000000 得到 GSE 编号
                             # 例：200272217 - 200000000 = 272217 → GSE272217
+                            # GEO GSE ID 最多 7 位数字（截至 2026 年约 270000），超出则为无效 UID
                             try:
                                 uid_int = int(gse_id)
                                 if uid_int > 200000000:
                                     gse_num = uid_int - 200000000
+                                    if len(str(gse_num)) > 7:
+                                        logger.warning(
+                                            f"Skipping invalid GDS UID {gse_id}: "
+                                            f"derived GSE number {gse_num} has {len(str(gse_num))} digits (max=7)"
+                                        )
+                                        continue
                                     gse_accession = f"GSE{gse_num}"
                                 else:
+                                    # UID ≤ 200000000：不能用减法，直接用 UID 数字
+                                    # 同样校验位数
+                                    if len(str(uid_int)) > 7:
+                                        logger.warning(
+                                            f"Skipping invalid GDS UID {gse_id}: "
+                                            f"raw UID has {len(str(uid_int))} digits (max=7)"
+                                        )
+                                        continue
                                     gse_accession = f"GSE{gse_id}"
                             except (ValueError, TypeError):
                                 gse_accession = f"GSE{gse_id}"

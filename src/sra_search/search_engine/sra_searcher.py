@@ -273,7 +273,7 @@ class SRASearcher:
 
             # Study alias (可能包含 GSE 编号)
             study_alias = study.get("alias", "")
-            gse_ids = re.findall(r"\bGSE\d{4,}\b", study_alias)
+            gse_ids = re.findall(r"\bGSE\d{4,7}\b", study_alias)
 
             # Title
             title_elem = study.find(".//STUDY_TITLE")

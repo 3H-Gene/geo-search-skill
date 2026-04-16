@@ -424,13 +424,14 @@ class SearchAggregator:
                     logger.debug(f"PubMed: skipping unrelated paper PMID={pub_rec.pmid}: {pub_rec.title[:60]}")
                     continue
 
-                # 从标题中提取 GSE 编号（格式为 GSE + 4位以上数字）
-                title_gse_ids = re.findall(r"\bGSE\d{4,}\b", pub_rec.title)
+                # 从标题中提取 GSE 编号（格式为 GSE + 4~7位数字）
+                title_gse_ids = re.findall(r"\bGSE\d{4,7}\b", pub_rec.title)
                 # 从 ELink 关联的 GSE 编号
                 # 注意：ELink 返回的可能是 GDS 内部数字 UID（如 "100272217"），需要过滤
+                # 额外校验：GSE 后数字不超过 7 位（GEO 真实 ID 上限）
                 linked_gse_ids = [
                     g for g in pub_rec.gse_ids
-                    if g.startswith("GSE")  # 只保留格式正确的 GSE ID
+                    if g.startswith("GSE") and g[3:].isdigit() and len(g[3:]) <= 7
                 ]
                 # 合并去重
                 all_gse_ids = list(dict.fromkeys(title_gse_ids + linked_gse_ids))
