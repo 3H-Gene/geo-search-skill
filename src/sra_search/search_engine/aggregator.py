@@ -248,13 +248,17 @@ class SearchAggregator:
                     matched_keyword=query,
                 ))
 
-            # ── 获取 GSM 样本名（用于样本分组推断）──────────────────────────────
+            # ── 获取 GSM 样本名和属性（用于样本分组推断）─────────────────────────
             if records:
                 gse_ids = [r.dataset.gse_id for r in records]
                 logger.debug(f"[GEO] Fetching GSM samples for {len(gse_ids)} GSE...")
+                # 获取 GSM 样本名称列表
                 gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+                # 获取 GSM 详细属性（用于分组识别）
+                gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
                 for r in records:
                     r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
+                    r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
             return records
 
@@ -401,15 +405,17 @@ class SearchAggregator:
                         matched_keyword=query,
                     ))
 
-            # ── 获取 GSM 样本名（仅针对有 GSE 关联的记录）──────────────────────
+            # ── 获取 GSM 样本名和属性（仅针对有 GSE 关联的记录）──────────────────
             if records:
                 gse_ids = [r.dataset.gse_id for r in records if r.dataset.has_gse]
                 if gse_ids:
                     logger.debug(f"[SRA] Fetching GSM samples for {len(gse_ids)} GSE...")
                     gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+                    gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
                     for r in records:
                         if r.dataset.has_gse:
                             r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
+                            r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
             return records
 
@@ -486,13 +492,15 @@ class SearchAggregator:
                         matched_keyword=query,
                     ))
 
-            # ── 获取 GSM 样本名（用于样本分组推断）──────────────────────────────
+            # ── 获取 GSM 样本名和属性（用于样本分组推断）─────────────────────────
             if records:
                 gse_ids = [r.dataset.gse_id for r in records]
                 logger.debug(f"[PubMed] Fetching GSM samples for {len(gse_ids)} GSE...")
                 gsm_map = await self.geo_retriever.fetch_gsm_samples_batch(gse_ids, concurrency=5)
+                gsm_attrs_map = await self.geo_retriever.fetch_gsm_attributes_batch(gsm_map, concurrency=5)
                 for r in records:
                     r.dataset.gsm_sample_names = gsm_map.get(r.dataset.gse_id, [])
+                    r.dataset.gsm_attributes = gsm_attrs_map.get(r.dataset.gse_id, [])
 
             return records
 

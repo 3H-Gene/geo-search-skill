@@ -365,6 +365,165 @@ class GeoRetriever:
         logger.debug(f"[GSM batch] fetched {len(out)}/{len(gse_ids)} GSE with GSM samples")
         return out
 
+    async def get_gsm_attributes(self, gsm_id: str) -> dict[str, Any]:
+        """获取单个 GSM 样品的详细属性（Sample Attributes）。
+
+        通过 GEO esummary JSON 获取 GSM 的 Sample Attribute，如：
+        - source_name: 组织/细胞来源
+        - treatment: 处理条件
+        - condition: 疾病/状态
+        - group: 分组信息
+        - individual: 供体编号
+
+        Args:
+            gsm_id: GSM 编号，如 "GSM1234567"
+
+        Returns:
+            dict: 包含 title, sample_attributes, pubmed_id 等字段的字典
+        """
+        try:
+            # 先通过 esearch 找到 GSM 对应的 GDS UID
+            search_params = {
+                "db": "gds",
+                "term": gsm_id,
+                "retmax": 1,
+                "email": self.email,
+            }
+            if self.api_key:
+                search_params["api_key"] = self.api_key
+
+            await self._rate_limit()
+
+            async with aiohttp.ClientSession(
+                connector=aiohttp.TCPConnector(ssl=False)
+            ) as session:
+                async with session.get(
+                    f"{self.BASE_URL}/esearch.fcgi", params=search_params
+                ) as resp:
+                    if resp.status != 200:
+                        return {}
+                    text = await resp.text()
+                    import xml.etree.ElementTree as ET
+
+                    root = ET.fromstring(text)
+                    id_list = root.find("IdList")
+                    if id_list is None:
+                        return {}
+                    ids = [e.text for e in id_list.findall("Id") if e.text]
+                    if not ids:
+                        return {}
+
+                # esummary 获取详细信息
+                uid = ids[0]
+                summary_params = {
+                    "db": "gds",
+                    "id": uid,
+                    "retmode": "json",
+                    "email": self.email,
+                }
+                if self.api_key:
+                    summary_params["api_key"] = self.api_key
+
+                await self._rate_limit()
+
+                async with session.get(
+                    f"{self.BASE_URL}/esummary.fcgi", params=summary_params
+                ) as resp:
+                    if resp.status != 200:
+                        return {}
+                    data = await resp.json(content_type=None)
+
+                result = data.get("result", {})
+                item = result.get(uid, {})
+
+                # 提取关键字段
+                attributes_raw = item.get("sample_type", [])
+                if isinstance(attributes_raw, str):
+                    attributes_raw = [attributes_raw]
+
+                return {
+                    "gsm_id": gsm_id,
+                    "title": item.get("title", ""),
+                    "accession": item.get("accession", ""),
+                    "sample_type": attributes_raw,
+                    "pubmed_id": item.get("pubmed_id", ""),
+                    "GPL": item.get("GPL", ""),  # 平台ID
+                    "taxon_id": item.get("taxon_id", ""),
+                }
+
+        except Exception as e:
+            logger.warning(f"Failed to fetch attributes for {gsm_id}: {e}")
+            return {}
+
+    async def fetch_gsm_attributes_batch(
+        self,
+        gse_to_gsm: dict[str, list[str]],
+        concurrency: int = 5,
+    ) -> dict[str, list[dict[str, Any]]]:
+        """批量获取多个 GSE 的 GSM 样品属性。
+
+        Args:
+            gse_to_gsm: dict[GSE_ID, GSM列表]
+            concurrency: 最大并发数（默认5）
+
+        Returns:
+            dict[GSE_ID, GSM属性列表]
+        """
+        if not gse_to_gsm:
+            return {}
+
+        # 展平所有 GSM
+        all_gsms: list[tuple[str, str]] = []  # [(gse_id, gsm_id), ...]
+        for gse_id, gsm_list in gse_to_gsm.items():
+            for gsm_id in gsm_list[:50]:  # 限制每个 GSE 最多取 50 个 GSM
+                all_gsms.append((gse_id, gsm_id))
+
+        semaphore = asyncio.Semaphore(concurrency)
+
+        async def _fetch_one(gse_id: str, gsm_id: str) -> tuple[str, str, dict[str, Any]]:
+            async with semaphore:
+                attrs = await self.get_gsm_attributes(gsm_id)
+                return gse_id, gsm_id, attrs
+
+        tasks = [_fetch_one(gse_id, gsm_id) for gse_id, gsm_id in all_gsms]
+        results = await asyncio.gather(*tasks, return_exceptions=True)
+
+        # 按 GSE 分组
+        out: dict[str, list[dict[str, Any]]] = {gse_id: [] for gse_id in gse_to_gsm}
+        for item in results:
+            if isinstance(item, BaseException):
+                continue
+            gse_id, gsm_id, attrs = item
+            if attrs:
+                out[gse_id].append(attrs)
+
+        logger.debug(f"[GSM attrs] fetched attributes for {len(all_gsms)} GSMs across {len(gse_to_gsm)} GSEs")
+        return out
+
+    def _extract_sample_attributes(self, text: str) -> dict[str, str]:
+        """从文本中提取样本属性。
+
+        常见格式：
+        - "source_name: PBMC"
+        - "treatment: LPS stimulation"
+        - "disease state: gout flare"
+
+        Args:
+            text: 属性文本
+
+        Returns:
+            dict[属性名, 属性值]
+        """
+        attrs: dict[str, str] = {}
+        lines = text.split("\n")
+        for line in lines:
+            if ":" in line:
+                parts = line.split(":", 1)
+                key = parts[0].strip().lower().replace(" ", "_")
+                value = parts[1].strip()
+                attrs[key] = value
+        return attrs
+
     async def _do_search(self, query: str, retmax: int, retry: int = 0) -> RetrievalResult:
         """执行实际搜索（带重试）"""
         max_retries = 3

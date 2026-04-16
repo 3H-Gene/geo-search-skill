@@ -568,3 +568,135 @@ def is_contrast_ready(groups: list[dict[str, Any]]) -> bool:
 
     total = sum(g.get("n", 0) for g in groups)
     return total >= 4
+
+
+# ========================
+# Pattern 5: GSM 属性分组识别（LLM 降级策略）
+# ========================
+
+
+def infer_groups_from_gsm_attributes(
+    gsm_attributes: list[dict[str, Any]],
+) -> dict[str, Any]:
+    """从 GSM 样本属性中推断分组信息（LLM 降级策略）。
+
+    GSM 样本属性通常包含：
+    - source_name: 组织/细胞来源（如 "PBMC", "Synovial fluid"）
+    - treatment: 处理条件（如 "LPS stimulation", "Control"）
+    - condition: 疾病状态（如 "Gout flare", "Remission"）
+    - disease state: 疾病状态
+    - group: 分组（如 "Case", "Control"）
+    - individual: 供体编号
+
+    Args:
+        gsm_attributes: GSM 属性列表，每个 dict 包含 gsm_id, title, sample_type 等字段
+
+    Returns:
+        分组推断结果，包含 groups, method, confidence, design, contrast_ready
+    """
+    if not gsm_attributes:
+        return _format_output(pattern_single_group([]))
+
+    # 提取分组相关的字段
+    GROUP_FIELDS = [
+        "source_name", "source name", "source_name_ch1",
+        "treatment", "treatment_ch1",
+        "condition", "condition_ch1",
+        "disease state", "disease_state",
+        "group", "group_ch1",
+        "sample type", "sample_type",
+        "cell type", "cell_type",
+        "protocol", "patient group",
+    ]
+
+    # 收集所有非空的分组值
+    group_values: list[str] = []
+    for attr in gsm_attributes:
+        attr_str = str(attr).lower()
+        # 检查 sample_type 字段
+        sample_types = attr.get("sample_type", [])
+        if isinstance(sample_types, list):
+            for st in sample_types:
+                st_lower = str(st).lower()
+                if st_lower and len(st_lower) > 2:
+                    group_values.append(st_lower)
+        elif sample_types and isinstance(sample_types, str):
+            if len(sample_types) > 2:
+                group_values.append(sample_types.lower())
+
+        # 检查其他关键字段
+        for field in GROUP_FIELDS:
+            if field in attr:
+                val = str(attr[field]).lower()
+                if val and len(val) > 2 and val not in ["na", "none", "unknown"]:
+                    group_values.append(val)
+
+    if not group_values:
+        return _format_output(pattern_single_group(gsm_attributes))
+
+    # 统计分组
+    counter = Counter(group_values)
+
+    # 如果只有1个分组，可能是没有意义的（如所有样本都是 "PBMC"）
+    if len(counter) == 1:
+        # 检查分组名称是否有意义
+        only_group = list(counter.keys())[0]
+        # 如果是常见的组织/细胞类型名称，可能不是真正的分组
+        COMMON_TISSUE_TYPES = {
+            "pbmc", "peripheral blood mononuclear cell", "whole blood",
+            "synovial fluid", "synovium", "kidney", "liver", "lung",
+            "bone marrow", "monocyte", "macrophage", "t cell", "b cell",
+        }
+        if only_group in COMMON_TISSUE_TYPES:
+            return _format_output(pattern_single_group(gsm_attributes))
+
+    # 构建分组结果
+    # 将相似分组名合并（如 "control" 和 "control group"）
+    merged_counter = _merge_similar_groups(counter)
+
+    # 置信度评估
+    total_samples = len(gsm_attributes)
+    avg_samples_per_group = total_samples / len(merged_counter) if merged_counter else 0
+    confidence = 0.6 + (0.1 * min(avg_samples_per_group, 4))
+
+    return {
+        "groups": merged_counter,
+        "method": "gsm_attributes",
+        "confidence": min(confidence, 0.95),
+        "design": "binary" if len(merged_counter) == 2 else "multi-group",
+        "contrast_ready": is_contrast_ready(
+            [{"name": k, "n": v} for k, v in merged_counter.items()]
+        ),
+    }
+
+
+def _merge_similar_groups(counter: Counter) -> Counter:
+    """合并相似的分组名称。
+
+    例如：
+    - "control" 和 "control group" 合并为 "control"
+    - "patient" 和 "patient (case)" 合并为 "patient"
+    """
+    if len(counter) <= 1:
+        return counter
+
+    merged: dict[str, int] = {}
+    seen_roots: dict[str, str] = {}
+
+    for name, count in counter.items():
+        # 找到基础名称
+        root = name
+        for suffix in [" group", " (case)", " (control)", " patients", " samples"]:
+            if name.endswith(suffix):
+                root = name[:-len(suffix)].strip()
+                break
+
+        # 移除末尾数字
+        root = re.sub(r"\d+$", "", root).strip()
+
+        if root in seen_roots:
+            seen_roots[root] += count
+        else:
+            seen_roots[root] = count
+
+    return Counter(seen_roots)

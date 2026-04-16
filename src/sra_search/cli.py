@@ -477,7 +477,7 @@ def search(
                 # LLM 分析字段
                 organism = ds.organism[:7] + "…" if len(ds.organism) > 8 else (ds.organism or "NA")
                 tissue = ds.tissue[:7] + "…" if len(ds.tissue) > 8 else (ds.tissue or "NA")
-                sample_group = ds.llm_sample_grouping[:13] + "…" if len(ds.llm_sample_grouping) > 14 else (ds.llm_sample_grouping or "NA")
+                sample_group = ds.llm_sample_grouping[:13] + "…" if len(ds.llm_sample_grouping) > 14 else (ds.llm_sample_grouping or "未提取")
                 cell_count = ds.llm_cell_count or "NA"
                 platform = ds.platform[:7] + "…" if len(ds.platform) > 8 else (ds.platform or "NA")
                 summary = ds.llm_one_sentence_summary[:38] + "…" if len(ds.llm_one_sentence_summary) > 39 else (ds.llm_one_sentence_summary or "NA")
@@ -1628,7 +1628,7 @@ def report(query: str | None, list_all: bool, delete: str | None, limit: int, of
     for item in saved_report.items:
         organism = item.organism[:7] + "…" if len(item.organism) > 8 else (item.organism or "NA")
         tissue = item.tissue[:7] + "…" if len(item.tissue) > 8 else (item.tissue or "NA")
-        sample_group = item.sample_grouping[:13] + "…" if len(item.sample_grouping) > 14 else (item.sample_grouping or "NA")
+        sample_group = item.sample_grouping[:13] + "…" if len(item.sample_grouping) > 14 else (item.sample_grouping or "未提取")
         cell_count = item.cell_count or "NA"
         platform = item.platform[:7] + "…" if len(item.platform) > 8 else (item.platform or "NA")
         summary = item.one_sentence_summary[:38] + "…" if len(item.one_sentence_summary) > 39 else (item.one_sentence_summary or "NA")

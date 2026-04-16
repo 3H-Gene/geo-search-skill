@@ -87,10 +87,15 @@ class LLMDatasetSummarizer:
 
 你的任务是分析给定的数据集，帮助用户判断该数据集是否符合其研究需求。
 
+重要：样本分组信息是用户最关心的字段，请优先从样本属性(GSM attributes)中提取分组信息！
+- 如果有GSM样本属性，优先分析其中的分组字段（如source_name, treatment, condition, disease state, group等）
+- 统计每个分组的样本数量，输出如"病例(n=4)/对照(n=5)"或"发作期(n=3)+缓解期(n=3)"
+- 如果GSM属性中没有明确的分组信息，再从overall_design或summary中推断
+
 输出要求：
 - 使用中文输出
 - 一句话总结要简洁（不超过60字），突出核心发现
-- 样本分组要具体（如"12病例vs8对照"、"4处理组+4基线组"）
+- 样本分组要具体（优先用结构化格式：分组名(n=数量)）
 - 相关性理由要说明为什么该数据集与查询相关
 - 如果某项信息不明确，输出"NA"
 """
@@ -108,6 +113,9 @@ class LLMDatasetSummarizer:
 - 补充文件格式: {supp_files}
 - Series Matrix: {series_matrix}
 
+## GSM样本属性（优先用于分组识别）
+{gsm_attributes}
+
 ## 用户查询
 {query}
 
@@ -115,7 +123,7 @@ class LLMDatasetSummarizer:
 请严格按以下JSON格式输出，不要包含其他内容：
 {{
     "one_sentence_summary": "一句话总结（不超过60字，突出核心发现）",
-    "sample_grouping": "样本分组描述，如'6病例+6对照'或'4处理+4基线'，无法确定则输出'NA'",
+    "sample_grouping": "样本分组描述，使用结构化格式如'病例(n=4)/对照(n=5)'或'发作期(n=3)+缓解期(n=3)'，无法确定则输出'NA'",
     "cell_count": "细胞数，如'15K'、'28.5K'、'1.2M'，无法确定则输出'NA'",
     "relevance_reason": "相关性理由，说明该数据集为何与查询相关"
 }}
@@ -188,6 +196,25 @@ class LLMDatasetSummarizer:
         # 格式化 overall_design
         overall_design = dataset.overall_design[:300] if dataset.overall_design else "无"
 
+        # 格式化 GSM 样本属性（用于分组识别）
+        if dataset.gsm_attributes:
+            # 提取关键字段，按分组整理
+            attrs_lines = []
+            for attr in dataset.gsm_attributes[:20]:  # 最多显示20个
+                gsm_id = attr.get("gsm_id", attr.get("accession", "?"))
+                title = attr.get("title", "")[:80]
+                sample_types = attr.get("sample_type", [])
+                sample_types_str = "; ".join(str(st) for st in sample_types[:3]) if sample_types else ""
+                line = f"- {gsm_id}: {title}"
+                if sample_types_str:
+                    line += f" [{sample_types_str}]"
+                attrs_lines.append(line)
+            if len(dataset.gsm_attributes) > 20:
+                attrs_lines.append(f"... 等共{len(dataset.gsm_attributes)}个样本")
+            gsm_attrs_formatted = "\n".join(attrs_lines)
+        else:
+            gsm_attrs_formatted = "无GSM样本属性信息"
+
         return self.USER_PROMPT_TEMPLATE.format(
             gse_id=dataset.gse_id,
             title=dataset.title,
@@ -200,6 +227,7 @@ class LLMDatasetSummarizer:
             platform=dataset.platform or "NA",
             supp_files=file_info,
             series_matrix="有" if dataset.series_matrix_available else "无",
+            gsm_attributes=gsm_attrs_formatted,
             query=query,
         )
 

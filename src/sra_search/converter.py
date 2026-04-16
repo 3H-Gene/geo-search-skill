@@ -44,12 +44,24 @@ _DEFAULT_DISEASE_TERMS: list[str] = [
 
 _DEFAULT_SC_METHOD_TERMS: list[str] = [
     # 多词短语
-    "single-cell rna", "single cell rna", "single-cell transcriptome",
+    "single-cell rna sequencing", "single cell rna sequencing",
+    "single-cell transcriptome", "single cell transcriptome",
+    "single-cell proteomics", "single-cell epigenomics",
+    "single-cell rna", "single cell rna",
     "single-cell", "single cell",
+    "scRNA-seq", "scRNAseq", "snRNA-seq",
     # 单关键词（按长度降序）
-    "snrnaseq", "scrnaseq", "singlecell", "single-nucleus",
-    "scseq", "snrna", "scrna", "scRNA-seq", "scRNAseq",
-    "cellranger", "multiome", "cite-seq", "10x", "nuclei",
+    "snrnaseq", "scrnaseq", "singlecell", "single-nucleus", "single-nuclei",
+    "scseq", "snrna", "scrna",
+    "cellranger", "cell ranger", "multiome", "multi-ome",
+    "cite-seq", "cite-seq2",
+    "10x genomics", "10x chromium", "10x",
+    "chromium connect", "chromium",
+    "drop-seq", "droplet-seq", "droplet",
+    "smart-seq", "smartseq2", "smart-seq3",
+    "cel-seq",
+    "atac-seq", "snATAC",
+    "nuclei", "nucleus",
 ]
 
 # 模块级运行时覆盖（可通过 set_keywords() 修改）
@@ -714,17 +726,20 @@ class SchemaConverter:
         self,
         record: DatasetRecord,
         sample_names: list[str] | None = None,
+        gsm_attributes: list[dict] | None = None,
     ) -> DatasetSchema:
         """将 DatasetRecord 转换为 DatasetSchema
 
         Args:
             record: 原始数据集记录
             sample_names: 可选，手动传入的样本名列表（通常来自 record.gsm_sample_names）
+            gsm_attributes: 可选，手动传入的GSM属性列表（通常来自 record.gsm_attributes）
 
         优先级：sample_names 参数 > record.gsm_sample_names > None（走文本推断）
         """
-        # 优先使用传入参数，其次使用 record 中存储的 GSM 样本名
+        # 优先使用传入参数，其次使用 record 中存储的 GSM 样本名和属性
         effective_sample_names = sample_names or record.gsm_sample_names or None
+        effective_gsm_attributes = gsm_attributes or record.gsm_attributes or []
 
         # ── Inference 模块增强推断 ───────────────────────────────────────
         inference_result: InferenceSchema | None = None
@@ -869,6 +884,8 @@ class SchemaConverter:
             bioproject_ids=record.bioproject_ids if isinstance(record.bioproject_ids, list) else [],
             publication_date=record.publication_date,
             journal=record.journal,
+            gsm_sample_names=effective_sample_names or [],
+            gsm_attributes=effective_gsm_attributes,
         )
 
         # 保存 inference 结果到 schema 扩展字段（如果有）
@@ -920,6 +937,7 @@ def record_to_schema(
     record: DatasetRecord,
     query: str = "",
     sample_names: list[str] | None = None,
+    gsm_attributes: list[dict] | None = None,
 ) -> DatasetSchema:
     """便捷函数：单条转换
 
@@ -927,9 +945,10 @@ def record_to_schema(
         record: 数据集记录（优先从 record.gsm_sample_names 获取样本名）
         query: 查询词（用于相关性评分）
         sample_names: 可选，手动传入的样本名（覆盖 record.gsm_sample_names）
+        gsm_attributes: 可选，手动传入的GSM属性（覆盖 record.gsm_attributes）
     """
     converter = SchemaConverter(query)
-    return converter.convert(record, sample_names=sample_names)
+    return converter.convert(record, sample_names=sample_names, gsm_attributes=gsm_attributes)
 
 
 def records_to_search_result(

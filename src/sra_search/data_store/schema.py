@@ -47,7 +47,8 @@ CREATE TABLE IF NOT EXISTS datasets (
     llm_relevance_reason TEXT DEFAULT '',
     llm_analyzed_at TEXT DEFAULT '',
     llm_model TEXT DEFAULT '',
-    gsm_sample_names TEXT DEFAULT '[]'
+    gsm_sample_names TEXT DEFAULT '[]',
+    gsm_attributes TEXT DEFAULT '[]'
 );
 """
 

@@ -173,7 +173,7 @@ class WriteQueue:
                 access_type, has_gse, metadata_hash,
                 llm_summary, llm_sample_grouping, llm_cell_count,
                 llm_relevance_reason, llm_analyzed_at, llm_model,
-                gsm_sample_names)
+                gsm_sample_names, gsm_attributes)
             VALUES (:gse_id, :title, :pubmed_ids, :sra_ids, :bioproject_ids,
                 :organism, :disease, :organ, :omics_type, :omics_granularity, :sample_count,
                 :platform, :publication_date, :journal, :abstract, :keywords,
@@ -182,7 +182,7 @@ class WriteQueue:
                 :access_type, :has_gse, :metadata_hash,
                 :llm_summary, :llm_sample_grouping, :llm_cell_count,
                 :llm_relevance_reason, :llm_analyzed_at, :llm_model,
-                :gsm_sample_names)
+                :gsm_sample_names, :gsm_attributes)
             ON CONFLICT(gse_id) DO UPDATE SET
                 title = COALESCE(NULLIF(:title, ''), title),
                 pubmed_ids = CASE WHEN :pubmed_ids != '[]' THEN :pubmed_ids ELSE pubmed_ids END,
@@ -214,7 +214,8 @@ class WriteQueue:
                 llm_relevance_reason = CASE WHEN :llm_relevance_reason != '' THEN :llm_relevance_reason ELSE llm_relevance_reason END,
                 llm_analyzed_at = CASE WHEN :llm_analyzed_at != '' THEN :llm_analyzed_at ELSE llm_analyzed_at END,
                 llm_model = CASE WHEN :llm_model != '' THEN :llm_model ELSE llm_model END,
-                gsm_sample_names = CASE WHEN :gsm_sample_names != '[]' THEN :gsm_sample_names ELSE gsm_sample_names END
+                gsm_sample_names = CASE WHEN :gsm_sample_names != '[]' THEN :gsm_sample_names ELSE gsm_sample_names END,
+                gsm_attributes = CASE WHEN :gsm_attributes != '[]' THEN :gsm_attributes ELSE gsm_attributes END
         """, data)
 
     @staticmethod
@@ -325,6 +326,7 @@ class Database:
             ("llm_analyzed_at", "ALTER TABLE datasets ADD COLUMN llm_analyzed_at TEXT DEFAULT ''"),
             ("llm_model", "ALTER TABLE datasets ADD COLUMN llm_model TEXT DEFAULT ''"),
             ("gsm_sample_names", "ALTER TABLE datasets ADD COLUMN gsm_sample_names TEXT DEFAULT '[]'"),
+            ("gsm_attributes", "ALTER TABLE datasets ADD COLUMN gsm_attributes TEXT DEFAULT '[]'"),
         ]
 
         for col_name, sql in migrations:

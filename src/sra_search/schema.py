@@ -193,6 +193,10 @@ class DatasetSchema:
     llm_analyzed_at: str = ""             # LLM 分析时间（ISO 8601）
     llm_model: str = ""                   # LLM 模型名称
 
+    # === GSM 样本信息（用于分组识别）===
+    gsm_sample_names: list[str] = field(default_factory=list)  # GSM 样本名称列表
+    gsm_attributes: list[dict] = field(default_factory=list)  # GSM 详细属性
+
     def compute_hash(self) -> str:
         """计算元数据哈希（用于去重和缓存）"""
         fields_to_hash = {
