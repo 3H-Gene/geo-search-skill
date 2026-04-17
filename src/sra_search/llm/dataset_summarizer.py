@@ -58,6 +58,40 @@ def format_cell_count(text: str) -> str | None:
     return None
 
 
+def _fix_json_literal_newlines(text: str) -> str:
+    """将 JSON 字符串值内的 literal 换行符替换为空格。
+
+    LLM 有时在 JSON 字符串值中直接插入换行而不是 \\n 转义序列，
+    导致 json.loads() 报 "Unterminated string" 错误。
+    此函数用状态机遍历文本，只将字符串值内部的换行替换为空格，
+    保留 JSON 结构中的换行（key 之间的换行）不变。
+    """
+    result = []
+    in_string = False
+    escape_next = False
+
+    for ch in text:
+        if escape_next:
+            result.append(ch)
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            result.append(ch)
+            escape_next = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            result.append(ch)
+            continue
+        # 字符串值内的换行符 → 替换为空格
+        if in_string and ch in ('\n', '\r'):
+            result.append(' ')
+        else:
+            result.append(ch)
+
+    return ''.join(result)
+
+
 @dataclass
 class DatasetAnalysis:
     """单数据集分析结果"""
@@ -337,22 +371,39 @@ class LLMDatasetSummarizer:
 
             data = None
 
-            # 尝试直接解析
+            # 策略1：直接解析
             try:
                 data = json.loads(cleaned)
             except json.JSONDecodeError:
                 pass
 
-            # 策略2：用正则提取 JSON 对象（处理 LLM 在 JSON 前后加了说明文字的情况）
+            # 策略2：将 JSON 字符串值内的 literal 换行替换为空格，再解析
+            # 原因：LLM 有时在字符串值里直接换行而不是输出 \n 转义，导致 Unterminated string
+            if data is None:
+                try:
+                    # 用状态机将字符串值内的换行转为空格（不动 JSON 结构中的换行）
+                    fixed = _fix_json_literal_newlines(cleaned)
+                    data = json.loads(fixed)
+                    logger.debug(f"[LLM Summarizer] {gse_id} 含literal换行，已自动修复")
+                except (json.JSONDecodeError, Exception):
+                    pass
+
+            # 策略3：用正则提取 JSON 对象块（处理 LLM 在 JSON 前后加了说明文字的情况）
             if data is None:
                 json_match = re.search(r'\{[\s\S]*\}', cleaned)
                 if json_match:
                     try:
-                        data = json.loads(json_match.group(0))
+                        fragment = json_match.group(0)
+                        data = json.loads(fragment)
                     except json.JSONDecodeError:
-                        pass
+                        # 尝试对提取块也做换行修复
+                        try:
+                            fixed_fragment = _fix_json_literal_newlines(fragment)
+                            data = json.loads(fixed_fragment)
+                        except (json.JSONDecodeError, Exception):
+                            pass
 
-            # 策略3：截断修复（处理 JSON 字符串在 max_tokens 处被截断的情况）
+            # 策略4：截断修复（处理 JSON 在 max_tokens 处被截断的情况）
             if data is None:
                 repaired = self._try_repair_truncated_json(cleaned)
                 if repaired:
