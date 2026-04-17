@@ -119,17 +119,19 @@ class LLMDatasetSummarizer:
 
     SYSTEM_PROMPT = """你是一个专业的生物信息学数据评审专家。
 
-你的任务是为每个GEO数据集生成简洁的描述摘要，帮助用户快速判断数据集是否符合其研究需求。
+你的任务是为每个GEO数据集生成详细的描述摘要，帮助用户快速判断数据集是否符合其研究需求。
 
 ## one_sentence_summary 生成要求
-生成一个简洁完整的数据集描述（60-100字），包含以下核心要素：
+生成一个完整的数据集描述（100-200字），包含以下核心要素：
 1. 研究主题（疾病/科学问题）
-2. 实验类型（scRNA-seq/bulk RNA-seq等）
+2. 实验类型（scRNA-seq/bulk RNA-seq/ATAC-seq等）
 3. 物种和组织/细胞类型
 4. 样本数量和分组
 5. 测序平台
+6. 数据处理方式（有processed matrix还是raw data only）
+7. 关键实验条件或处理因素
 
-描述风格：简洁学术，控制在100字以内。
+描述风格：学术但易懂，像论文引言中的数据集介绍。
 
 ## 样本分组识别（重要！）
 优先从GSM样本属性中提取分组信息：
@@ -140,9 +142,10 @@ class LLMDatasetSummarizer:
 
 ## 输出要求
 - 使用中文输出
-- one_sentence_summary控制在100字以内，简洁为主
+- one_sentence_summary要完整（100-200字），不是简短的一句话
 - 样本分组要具体（结构化格式：分组名(n=数量)）
 - 如果某项信息不明确，输出"NA"
+- **重要**：JSON字符串值内不要换行，所有内容写在同一行
 """
 
     USER_PROMPT_TEMPLATE = """## 数据集信息
@@ -169,16 +172,30 @@ class LLMDatasetSummarizer:
 ## 输出要求
 请严格按以下JSON格式输出，不要包含其他内容，不要加任何说明文字：
 
+请生成一个完整的数据集描述，包含以下要素：
+1. 研究主题/疾病/科学问题
+2. 实验类型（scRNA-seq/bulk RNA-seq/ATAC-seq等）
+3. 物种和样本来源（组织/细胞类型）
+4. 样本数量和分组情况
+5. 测序平台和技术
+6. 数据处理方式（有processed matrix还是raw data）
+7. 关键实验条件或处理因素
+
 【重要】样本分组验证规则：
 - 该数据集总样本数为 {sample_count} 个
 - 分组数量之和必须等于总样本数
 - 如果无法确定具体分组，请输出 "NA" 而非猜测
 
+**注意**：JSON字符串值内不要换行，所有内容写在同一行
+
+示例格式：
+"[GSE123456]是一项关于[疾病/研究问题]的[实验类型]研究，采集自[物种]的[组织/细胞类型]（共[样本数]个样本，包含[分组信息]），使用[平台]完成测序。[数据描述/处理方式]。[发表年份]"
+
 {{
-    "one_sentence_summary": "60-100字的数据集描述（研究主题+实验类型+物种+组织+样本数+平台）",
-    "sample_grouping": "各分组n值之和须等于{sample_count}，如'病例(n=4)/对照(n=5)'，无法确定输出NA",
-    "cell_count": "细胞数如'15K'/'1.2M'，无法确定输出'NA'",
-    "relevance_reason": "50字以内，说明与查询相关的核心原因"
+    "one_sentence_summary": "完整数据集描述（100-200字，包含研究主题、实验类型、物种、组织、样本数、平台、数据处理方式和关键条件），不要换行",
+    "sample_grouping": "样本分组，各分组n值之和须等于总样本数{sample_count}，格式如'病例(n=4)/对照(n=5)'，无法确定输出NA",
+    "cell_count": "细胞数，如'15K'、'28.5K'、'1.2M'，无法确定则输出'NA'",
+    "relevance_reason": "相关性理由，说明该数据集为何与查询相关"
 }}
 """
 
@@ -253,16 +270,16 @@ class LLMDatasetSummarizer:
         if dataset.gsm_attributes:
             # 提取关键字段，按分组整理
             attrs_lines = []
-            for attr in dataset.gsm_attributes[:15]:  # 最多显示15个（减少 token）
+            for attr in dataset.gsm_attributes[:20]:  # 最多显示20个
                 gsm_id = attr.get("gsm_id", attr.get("accession", "?"))
-                title = attr.get("title", "")[:50]  # 截短 title 节省 token
+                title = attr.get("title", "")[:80]  # title 长度
                 sample_types = attr.get("sample_type", [])
-                sample_types_str = "; ".join(str(st) for st in sample_types[:2]) if sample_types else ""
+                sample_types_str = "; ".join(str(st) for st in sample_types[:3]) if sample_types else ""
                 line = f"- {gsm_id}: {title}"
                 if sample_types_str:
                     line += f" [{sample_types_str}]"
                 attrs_lines.append(line)
-            if len(dataset.gsm_attributes) > 15:
+            if len(dataset.gsm_attributes) > 20:
                 attrs_lines.append(f"... 等共{len(dataset.gsm_attributes)}个样本")
             gsm_attrs_formatted = "\n".join(attrs_lines)
         else:
