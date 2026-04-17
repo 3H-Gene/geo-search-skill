@@ -156,7 +156,7 @@ class LLMDatasetSummarizer:
 
 {{
     "one_sentence_summary": "完整数据集描述（100-200字，包含研究主题、实验类型、物种、组织、样本数、平台、数据处理方式和关键条件）",
-    "sample_grouping": "样本分组描述，总数必须等于{sample_count}。使用结构化格式如'病例(n=4)/对照(n=5)'或'发作期(n=3)+缓解期(n=3)'。无法确定具体分组时输出'NA'",
+    "sample_grouping": "样本分组，各分组n值之和须等于总样本数{sample_count}，格式如'病例(n=4)/对照(n=5)'，无法确定输出NA",
     "cell_count": "细胞数，如'15K'、'28.5K'、'1.2M'，无法确定则输出'NA'",
     "relevance_reason": "相关性理由，说明该数据集为何与查询相关"
 }}
@@ -269,29 +269,42 @@ class LLMDatasetSummarizer:
     def _parse_response(self, text: str, gse_id: str) -> DatasetAnalysis:
         """解析 LLM 响应"""
         import json
+        import re
 
         analysis = DatasetAnalysis(gse_id=gse_id)
 
         try:
-            # 尝试解析 JSON
             # 移除可能的 markdown 代码块
-            text = text.strip()
-            if text.startswith("```json"):
-                text = text[7:]
-            if text.startswith("```"):
-                text = text[3:]
-            if text.endswith("```"):
-                text = text[:-3]
+            cleaned = text.strip()
+            if cleaned.startswith("```json"):
+                cleaned = cleaned[7:]
+            if cleaned.startswith("```"):
+                cleaned = cleaned[3:]
+            if cleaned.endswith("```"):
+                cleaned = cleaned[:-3]
+            cleaned = cleaned.strip()
 
-            data = json.loads(text.strip())
+            # 尝试直接解析
+            try:
+                data = json.loads(cleaned)
+            except json.JSONDecodeError:
+                # 尝试从文本中提取 JSON 对象（处理 LLM 在 JSON 前后加了说明文字的情况）
+                json_match = re.search(r'\{[\s\S]*\}', cleaned)
+                if json_match:
+                    data = json.loads(json_match.group(0))
+                else:
+                    raise
 
             analysis.one_sentence_summary = data.get("one_sentence_summary", "NA") or "NA"
             analysis.sample_grouping = data.get("sample_grouping", "NA") or "NA"
             analysis.cell_count = data.get("cell_count", "NA") or "NA"
             analysis.relevance_reason = data.get("relevance_reason", "-") or "-"
 
-        except (json.JSONDecodeError, KeyError):
-            # 解析失败，使用默认值
+        except (json.JSONDecodeError, KeyError, ValueError) as e:
+            # 解析失败，记录原始响应便于诊断
+            from loguru import logger
+            logger.warning(f"[LLM Summarizer] {gse_id} JSON解析失败: {e}")
+            logger.debug(f"[LLM Summarizer] {gse_id} 原始响应: {text[:500]}")
             analysis.one_sentence_summary = "NA"
             analysis.sample_grouping = "NA"
             analysis.cell_count = "NA"
