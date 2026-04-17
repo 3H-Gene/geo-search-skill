@@ -96,6 +96,20 @@
         "HCC-ICC": "Combined Hepatocellular-Cholangiocarcinoma"
       }
     },
+    "Liver Fibrosis": {
+      "canonical": "Liver Fibrosis",
+      "doid_id": "DOID:0050889",
+      "mesh_id": "D005355",
+      "synonyms": ["Hepatic fibrosis", "Liver scarring", "Hepatic scarring", "Liver fibrotic disease"],
+      "related_organs": ["Liver", "Hepatocyte"],
+      "related_species": ["Homo sapiens", "Mus musculus", "Rattus norvegicus"],
+      "search_terms": ["liver fibrosis", "hepatic fibrosis", "fibrosis liver", "liver scarring"],
+      "subtypes": {
+        "Early fibrosis": "Early stage liver fibrosis",
+        "Advanced fibrosis": "Advanced liver fibrosis",
+        "Cirrhosis": "Liver Cirrhosis"
+      }
+    },
     "Gastric Cancer": {
       "canonical": "Gastric Cancer",
       "doid_id": "DOID:10534",

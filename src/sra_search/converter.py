@@ -1419,11 +1419,35 @@ async def records_to_search_result_with_llm(
     # 将分析结果填充到 result.results（包含预过滤跳过的数据集）
     _now = _now_iso()
     _model = settings.llm_model if settings else ""
+
+    # ── LLM sample_grouping fallback：当 LLM 解析失败时用规则推断 ──────────
+    def _format_inferred_grouping(ds: DatasetSchema) -> str:
+        """从 GSM 样本名推断分组（规则推断）"""
+        if not ds.gsm_sample_names:
+            return "NA"
+        try:
+            from sra_search.inference.group_inference_robust import infer_groups_robust
+            result_infer = infer_groups_robust(ds.gsm_sample_names)
+            groups = result_infer.get("groups", [])
+            if not groups:
+                return "NA"
+            parts = []
+            for g in groups:
+                name = g.get("name", "?")
+                count = g.get("n", 0)
+                parts.append(f"{name}(n={count})")
+            return "/".join(parts)
+        except Exception:
+            return "NA"
+
     for ds in result.results:
         if ds.gse_id in analysis_map:
             analysis = analysis_map[ds.gse_id]
             ds.llm_one_sentence_summary = analysis.one_sentence_summary
             ds.llm_sample_grouping = analysis.sample_grouping
+            # LLM 解析失败时：fallback 到规则推断
+            if ds.llm_sample_grouping == "NA" or not ds.llm_sample_grouping:
+                ds.llm_sample_grouping = _format_inferred_grouping(ds)
             ds.llm_cell_count = analysis.cell_count
             ds.llm_relevance_reason = analysis.relevance_reason
             # 缓存结果包含 llm_analyzed_at / llm_model，来自数据库
@@ -1436,7 +1460,7 @@ async def records_to_search_result_with_llm(
                 ds.llm_one_sentence_summary = f"[V1相关性过低] {ds.title[:50]}..."
             else:
                 ds.llm_one_sentence_summary = f"[数据格式不符] {ds.title[:50]}..."
-            ds.llm_sample_grouping = "NA"
+            ds.llm_sample_grouping = _format_inferred_grouping(ds)  # 规则推断 fallback
             ds.llm_cell_count = "NA"
             ds.llm_relevance_reason = skip_reason
     # 实际调用 LLM 条目数（不含缓存）
